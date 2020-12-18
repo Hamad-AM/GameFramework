@@ -27,6 +27,13 @@ struct IndexBuffer
 struct VertexArray
 {
     uint32 id;
+    VertexBuffer* vertex_buffer;
+    IndexBuffer* index_buffer;
+};
+
+struct Shader
+{
+    uint32 program;
 };
 
 struct WindowHandle
