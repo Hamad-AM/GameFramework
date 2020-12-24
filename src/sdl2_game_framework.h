@@ -12,6 +12,50 @@ typedef int16_t int16;
 typedef int32_t int32;
 typedef int64_t int64;
 
+typedef unsigned char  ubyte;
+
+enum TextureFilter
+{
+    NEAREST_NEIGHBOR,
+    BILINEAR,
+};
+
+enum TextureWrap
+{
+    REPEAT,
+    MIRRORED_REPEAT,
+    CLAMP_TO_EDGE,
+    CLAMP_TO_BORDER,
+};
+
+struct LoadedTexture2D
+{
+    ubyte* image_data;
+    int32 width;
+    int32 height;
+    int32 number_of_channels;
+    TextureWrap wrap;
+    TextureFilter filter;
+};
+
+struct Texture2D
+{
+    uint32 id;
+    LoadedTexture2D* loaded_texture;
+};
+
+enum ShaderType
+{
+    SHADER_FLOAT,
+};
+
+struct BufferLayoutAttrib
+{
+    ShaderType type;
+    uint32 count;
+    bool normalized;
+};
+
 struct VertexBuffer
 {
     uint32 id; 
