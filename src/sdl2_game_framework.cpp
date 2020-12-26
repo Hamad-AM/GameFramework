@@ -6,9 +6,6 @@
 #include <fstream>
 #include <vector>
 
-#include <glad/glad.h>
-#include <stb_image.h>
-
 #include "input.h"
 
 static uint32 screen_width = 1280;
@@ -28,6 +25,8 @@ void initGL(WindowHandle* handle)
     // Use VSync 
     // TODO: Make this optional to user
     SDL_GL_SetSwapInterval(1);
+
+    glEnable(GL_DEPTH_TEST);
 }
 
 void bind_index_buffer(IndexBuffer* index_buffer)
@@ -115,27 +114,26 @@ void assign_vertex_attrib_layout(BufferLayoutAttrib* layout, uint32 number_of_at
     uint32 number_of_elements = 0;
     for (uint32 index = 0; index < number_of_attrib; ++index)
     {
-        number_of_elements += layout->count;
+        number_of_elements += layout[index].count;
     }
 
     for (uint32 index = 0; index < number_of_attrib; ++index)
     {
         glVertexAttribPointer(index,
-                              layout->count,
-                              convert_shadertype_to_gltype(layout->type),
+                              layout[index].count,
+                              convert_shadertype_to_gltype(layout[index].type),
                               GL_FALSE,
-                              number_of_elements * shader_type_size(layout->type),
+                              number_of_elements * shader_type_size(layout[index].type),
                               (void*)(last_data_stride));
         glEnableVertexAttribArray(index);
-        last_data_stride += layout->count * shader_type_size(layout->type);
+        last_data_stride += layout[index].count * shader_type_size(layout[index].type);
     }
 }
 
-void create_vertex_array(VertexArray* vertex_array, BufferLayoutAttrib* layout, uint32 number_of_attrib)
+void create_vertex_array(VertexArray* vertex_array)
 {
     glGenVertexArrays(1, &vertex_array->id);
     bind_vertex_array(vertex_array);
-    assign_vertex_attrib_layout(layout, number_of_attrib);   
 }
 
 void bind_shader(Shader* shader)
@@ -304,25 +302,50 @@ void load_shader(Shader* shader, const char* file_path)
 void upload_uniform_bool(const char* name, bool value, Shader* shader)
 {
     uint32 location = glGetUniformLocation(shader->program, name);
-    assert(location != -1);
+    assert(location == -1);
     glUniform1i(location, (int32)value);
 }
 
 void upload_uniform_int32(const char* name, int32 value, Shader* shader)
 {
     uint32 location = glGetUniformLocation(shader->program, name);
-    assert(location != -1);
+    assert(location == -1);
     glUniform1i(location, value);
 }
 
 void upload_uniform_float(const char* name, float value, Shader* shader)
 {
     uint32 location = glGetUniformLocation(shader->program, name);
-    assert(location != -1);
+    //assert(location == -1);
     glUniform1f(location, value);
 }
 
-void ClearScreen()
+void upload_uniform_mat4(const char* name, glm::mat4 mat4, Shader* shader)
+{
+    uint32 location = glGetUniformLocation(shader->program, name);
+    if (location == -1)
+        printf("No such uniform known as %s", name);
+    glUniformMatrix4fv(location, 1, GL_FALSE, glm::value_ptr(mat4));
+}
+
+void upload_uniform_vec3(const char* name, glm::vec3 vec3, Shader* shader)
+{
+    uint32 location = glGetUniformLocation(shader->program, name);
+    if (location == -1)
+        printf("Uniform not found");
+    glUniform3fv(location, 1, glm::value_ptr(vec3));
+}
+void upload_uniform_vec4(const char* name, glm::vec4 vec4, Shader* shader)
+{
+    uint32 location = glGetUniformLocation(shader->program, name);
+    if (location == -1)
+        printf("Uniform not found");
+    glUniform3fv(location, 1, glm::value_ptr(vec4));
+}
+
+
+
+void clear_screen()
 {
     glClearColor(0.1f, 0.1f, 0.1f, 1.0f);
     glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
@@ -359,6 +382,8 @@ GLenum convert_to_gl_wrap(TextureWrap wrap)
 
 LoadedTexture2D load_texture(const char* file_path, TextureFilter filter, TextureWrap wrapping)
 {
+    stbi_set_flip_vertically_on_load(1);
+
     LoadedTexture2D loaded_texture = {};
     loaded_texture.filter = filter;
     loaded_texture.wrap = wrapping;
@@ -405,53 +430,6 @@ void delete_texture(Texture2D* texture)
 {
     glDeleteTextures(1, &texture->id);
 }
-
-void setupGL(Shader* shader, VertexArray* vertex_array, VertexBuffer* vertex_buffer, IndexBuffer* index_buffer)
-{
-#if 1 
-    float vertices[] = {
-        0.5f,  0.5f, 0.0f, 1.0f, 1.0f, 1.0f, 1.0f, 1.0f,
-        0.5f, -0.5f, 0.0f, 1.0f, 1.0f, 1.0f, 1.0f, 0.0f,
-       -0.5f, -0.5f, 0.0f, 1.0f, 1.0f, 1.0f, 0.0f, 0.0f,
-       -0.5f,  0.5f, 0.0f, 1.0f, 1.0f, 1.0f, 0.0f, 1.0f,
-   };
-    uint32 indices[] = {
-        0, 1, 3,
-        1, 2, 3 
-    };
-
-#else
-    float vertices[] = {
-        0.5f, -0.5f, 0.0f, 0.75f, 0.35f, 0.25f, // bottom right
-        -0.5f, -0.5f, 0.0f, 0.5f, 0.75f, 0.25f, // bottom left
-        0.0f,  0.5f, 0.0f, 0.5f, 0.25f, 0.75f  // top
-    };
-    
-    uint32 indices[] = {
-        0, 1, 3,
-    };
-#endif
-    BufferLayoutAttrib layout[3] = {
-        {ShaderType::SHADER_FLOAT, 3, false},
-        {ShaderType::SHADER_FLOAT, 3, false},
-        {ShaderType::SHADER_FLOAT, 2, false},
-    };
-
-    create_vertex_array(vertex_array, layout, 3);
-    create_vertex_buffer(vertex_buffer, vertices, sizeof(vertices));
-    create_index_buffer(index_buffer, indices, sizeof(indices)); 
-
-
-    // glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, 6 * sizeof(float), (void*)0);
-    // glEnableVertexAttribArray(0);
-    // glVertexAttribPointer(1, 3, GL_FLOAT, GL_FALSE, 6 * sizeof(float), (void*)(3 * sizeof(float)));
-    // glEnableVertexAttribArray(1);
-
-
-    load_shader(shader, "..\\data\\shaders\\Base.glsl");
-
-}
-
 void handle_input(Input* game_input, SDL_Event* event, bool* running)
 {
 
@@ -697,8 +675,8 @@ void handle_input(Input* game_input, SDL_Event* event, bool* running)
         {
             int32 x, y;
             SDL_GetMouseState(&x, &y);
-            game_input->mouse.x = x / screen_width;
-            game_input->mouse.y = y / screen_height;
+            game_input->mouse.x = x;
+            game_input->mouse.y = y;
         }
         else if (event->type == SDL_MOUSEBUTTONDOWN)
         {
@@ -793,6 +771,158 @@ Input setup_game_input()
     return game_input;
 }
 
+void init_texture_cube(TextureCube* cube)
+{
+    float vertices[] = {
+        -0.5f, -0.5f, -0.5f, 0.0f, 0.0f, -1.0f,  0.0f, 0.0f,
+        0.5f, -0.5f, -0.5f,   0.0f, 0.0f, -1.0f,1.0f, 0.0f,
+        0.5f,  0.5f, -0.5f,   0.0f, 0.0f, -1.0f,1.0f, 1.0f,
+        0.5f,  0.5f, -0.5f,   0.0f, 0.0f, -1.0f,1.0f, 1.0f,
+        -0.5f,  0.5f, -0.5f,   0.0f, 0.0f, -1.0f,0.0f, 1.0f,
+        -0.5f, -0.5f, -0.5f,   0.0f, 0.0f, -1.0f,0.0f, 0.0f,
+
+        -0.5f, -0.5f,  0.5f,  0.0f, 0.0f, 1.0f, 0.0f, 0.0f,
+        0.5f, -0.5f,  0.5f,   0.0f, 0.0f, 1.0f,1.0f, 0.0f,
+        0.5f,  0.5f,  0.5f,   0.0f, 0.0f, 1.0f,1.0f, 1.0f,
+        0.5f,  0.5f,  0.5f,   0.0f, 0.0f, 1.0f,1.0f, 1.0f,
+        -0.5f,  0.5f,  0.5f,  0.0f, 0.0f, 1.0f,0.0f, 1.0f,
+        -0.5f, -0.5f,  0.5f,  0.0f, 0.0f, 1.0f,0.0f, 0.0f,
+
+        -0.5f,  0.5f,  0.5f, -1.0f, 0.0f, 0.0f,  1.0f, 0.0f,
+        -0.5f,  0.5f, -0.5f,  -1.0f, 0.0f, 0.0f,1.0f, 1.0f,
+        -0.5f, -0.5f, -0.5f,  -1.0f, 0.0f, 0.0f,0.0f, 1.0f,
+        -0.5f, -0.5f, -0.5f,  -1.0f, 0.0f, 0.0f,0.0f, 1.0f,
+        -0.5f, -0.5f,  0.5f,  -1.0f, 0.0f, 0.0f,0.0f, 0.0f,
+        -0.5f,  0.5f,  0.5f,  -1.0f, 0.0f, 0.0f,1.0f, 0.0f,
+
+        0.5f,  0.5f,  0.5f, 1.0f, 0.0f, 0.0f,  1.0f, 0.0f,
+        0.5f,  0.5f, -0.5f, 1.0f, 0.0f, 0.0f,  1.0f, 1.0f,
+        0.5f, -0.5f, -0.5f, 1.0f, 0.0f, 0.0f, 0.0f, 1.0f,
+        0.5f, -0.5f, -0.5f, 1.0f, 0.0f, 0.0f, 0.0f, 1.0f,
+        0.5f, -0.5f,  0.5f, 1.0f, 0.0f, 0.0f, 0.0f, 0.0f,
+        0.5f,  0.5f,  0.5f, 1.0f, 0.0f, 0.0f, 1.0f, 0.0f,
+
+        -0.5f, -0.5f, -0.5f, 0.0f, -1.0f, 0.0f,  0.0f, 1.0f,
+        0.5f, -0.5f, -0.5f, 0.0f, -1.0f, 0.0f, 1.0f, 1.0f,
+        0.5f, -0.5f,  0.5f, 0.0f, -1.0f, 0.0f, 1.0f, 0.0f,
+        0.5f, -0.5f,  0.5f, 0.0f, -1.0f, 0.0f, 1.0f, 0.0f,
+        -0.5f, -0.5f,  0.5f, 0.0f, -1.0f, 0.0f, 0.0f, 0.0f,
+        -0.5f, -0.5f, -0.5f, 0.0f, -1.0f, 0.0f, 0.0f, 1.0f,
+
+        -0.5f,  0.5f, -0.5f, 0.0f, 1.0f, 0.0f, 0.0f, 1.0f,
+        0.5f,  0.5f, -0.5f,   0.0f, 1.0f, 0.0f,1.0f, 1.0f,
+        0.5f,  0.5f,  0.5f,   0.0f, 1.0f, 0.0f,1.0f, 0.0f,
+        0.5f,  0.5f,  0.5f,   0.0f, 1.0f, 0.0f,1.0f, 0.0f,
+        -0.5f,  0.5f,  0.5f,   0.0f, 1.0f, 0.0f,0.0f, 0.0f,
+        -0.5f,  0.5f, -0.5f,  0.0f, 1.0f, 0.0f, 0.0f, 1.0f
+    };
+
+    memcpy(cube->vertices, vertices, sizeof(vertices));
+
+    uint32 indices[6] = {
+        0, 1, 3,
+        1, 2, 3 
+    };
+
+    BufferLayoutAttrib layout[3] = {
+        {ShaderType::SHADER_FLOAT, 3, false},
+        {ShaderType::SHADER_FLOAT, 3, false},
+        {ShaderType::SHADER_FLOAT, 2, false},
+    };
+
+    create_vertex_array(&cube->va);
+    create_vertex_buffer(&cube->vb, vertices, sizeof(vertices));
+
+    assign_vertex_attrib_layout(layout, 3);   
+    load_shader(&cube->shader, "..\\data\\shaders\\Texture.glsl");
+
+    unbind_vertex_array(&cube->va);
+    unbind_vertex_buffer();
+    unbind_index_buffer();
+
+}
+void init_cube(Cube* cube)
+{
+    float vertices[] = {
+        -0.5f, -0.5f, -0.5f,          0.5f, -0.5f, -0.5f,          0.5f,  0.5f, -0.5f,          0.5f,  0.5f, -0.5f,          -0.5f,  0.5f, -0.5f,          -0.5f, -0.5f, -0.5f,          -0.5f, -0.5f,  0.5f,          0.5f, -0.5f,  0.5f,          0.5f,  0.5f,  0.5f,          0.5f,  0.5f,  0.5f,          -0.5f,  0.5f,  0.5f,          -0.5f, -0.5f,  0.5f,          -0.5f,  0.5f,  0.5f,          -0.5f,  0.5f, -0.5f,          -0.5f, -0.5f, -0.5f,          -0.5f, -0.5f, -0.5f,          -0.5f, -0.5f,  0.5f,          -0.5f,  0.5f,  0.5f,          0.5f,  0.5f,  0.5f,          0.5f,  0.5f, -0.5f,          0.5f, -0.5f, -0.5f,          0.5f, -0.5f, -0.5f,          0.5f, -0.5f,  0.5f,          0.5f,  0.5f,  0.5f,          -0.5f, -0.5f, -0.5f,          0.5f, -0.5f, -0.5f,          0.5f, -0.5f,  0.5f,          0.5f, -0.5f,  0.5f,          -0.5f, -0.5f,  0.5f,          -0.5f, -0.5f, -0.5f,          -0.5f,  0.5f, -0.5f,          0.5f,  0.5f, -0.5f,          0.5f,  0.5f,  0.5f,          0.5f,  0.5f,  0.5f,          -0.5f,  0.5f,  0.5f,          -0.5f,  0.5f, -0.5f,      };
+
+    memcpy(cube->vertices, vertices, sizeof(vertices));
+
+    uint32 indices[6] = {
+        0, 1, 3,
+        1, 2, 3 
+    };
+
+    BufferLayoutAttrib layout[1] = {
+        {ShaderType::SHADER_FLOAT, 3, false},
+    };
+
+    create_vertex_array(&cube->va);
+    create_vertex_buffer(&cube->vb, vertices, sizeof(vertices));
+
+    assign_vertex_attrib_layout(layout, 1);
+
+    load_shader(&cube->shader, "..\\data\\shaders\\TestLightSource.glsl");
+
+    unbind_vertex_array(&cube->va);
+    unbind_vertex_buffer();
+    unbind_index_buffer();
+}
+void update_camera(PerspectiveCamera* camera)
+{
+    camera->view = glm::translate(glm::mat4(1.0f), camera->position);
+    camera->projection_view = camera->projection * camera->view;
+}
+
+void draw_cube(Cube* cube, PerspectiveCamera* camera)
+{
+    bind_vertex_array(&cube->va);
+    bind_shader(&cube->shader);
+    
+    glm::mat4 model = glm::mat4(1.0f);
+    model = glm::translate(model, cube->position);
+    model = glm::scale(model, glm::vec3(0.5f));
+
+
+    upload_uniform_mat4("u_ProjectionViewMat", camera->projection_view, &cube->shader);
+    upload_uniform_mat4("u_ModelMat", model, &cube->shader);
+
+    glDrawArrays(GL_TRIANGLES, 0, 36);
+    
+    unbind_shader(&cube->shader);
+    unbind_vertex_array(&cube->va);
+}
+
+void draw_texture_cube(TextureCube* cube, PerspectiveCamera* camera, LightMaterial light)
+{
+    bind_texture(&cube->texture, 0);
+    bind_vertex_array(&cube->va);
+    bind_shader(&cube->shader);
+
+    
+    glm::mat4 model = glm::mat4(1.0f);
+    model = glm::translate(model, cube->position);
+
+
+    upload_uniform_mat4("u_ProjectionViewMat", camera->projection_view, &cube->shader);
+    upload_uniform_mat4("u_ModelMat", model, &cube->shader);
+    upload_uniform_vec3("material.diffuse", cube->material.diffuse , &cube->shader);
+    upload_uniform_vec3("material.ambient", cube->material.ambient , &cube->shader);
+    upload_uniform_vec3("material.specular", cube->material.specular , &cube->shader);
+    upload_uniform_float("material.shininess", cube->material.shininess , &cube->shader);
+    upload_uniform_vec3("light.diffuse", light.diffuse, &cube->shader);
+    upload_uniform_vec3("light.ambient", light.ambient, &cube->shader);
+    upload_uniform_vec3("light.specular",  light.specular, &cube->shader);
+    upload_uniform_vec3("light.position", light.position, &cube->shader);
+    upload_uniform_vec3("light.color", light.position, &cube->shader);
+    
+    glDrawArrays(GL_TRIANGLES, 0, 36);
+    
+    unbind_shader(&cube->shader);
+    unbind_vertex_array(&cube->va);
+    unbind_texture(&cube->texture);
+}
+
 int main()
 {
     WindowHandle win_handle = {screen_width, screen_height}; 
@@ -804,12 +934,42 @@ int main()
     
     initGL(&win_handle);
 
-    VertexBuffer vertex_buffer;
-    IndexBuffer index_buffer;
-    VertexArray vertex_array;
-    Shader shader;
+    TextureCube text_cube;
+    Cube light_source;
 
-    setupGL(&shader, &vertex_array, &vertex_buffer, &index_buffer);
+    LoadedTexture2D loaded_texture = load_texture("..\\data\\textures\\cobble_stone.png", TextureFilter::BILINEAR, TextureWrap::CLAMP_TO_EDGE);
+
+    init_cube(&light_source);
+    init_texture_cube(&text_cube);
+    text_cube.texture = {};
+    create_texture(&text_cube.texture, &loaded_texture);
+
+    text_cube.position = glm::vec3(-1.0f, -0.5f, -5.0f);
+    light_source.position = glm::vec3(-1.0f, -0.1f, 3.0f);
+    
+    LightMaterial light = {v3(0.0f, 0.0f, 0.0f), v3(1.0f, 1.0f, 1.0f), v3(0.2f, 0.2f, 0.2f), v3(0.5f, 0.5f, 0.5f), v3(1.0f, 1.0f, 1.0f)};
+
+    text_cube.material = {v3(1.0f, 0.5f, 0.31f), v3(1.0f, 0.5f, 0.31f), v3(0.5f, 0.5f, 0.5f), 32.0f};
+
+    //upload_uniform_mat4("transform", trans, &shader);
+
+    // glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, 5*sizeof(float),(void*)0);
+    // glEnableVertexAttribArray(0);
+    // glVertexAttribPointer(1, 2, GL_FLOAT, GL_FALSE, 5*sizeof(float),(void*)(3 * sizeof(float)));
+    // glEnableVertexAttribArray(1);
+
+    PerspectiveCamera camera = {};
+
+    camera.fov = 45.0f;
+    camera.position = glm::vec3(0.0f, 0.0f, 3.0f);
+
+    float yaw = -90.0f;
+    float pitch = 0.0f;
+
+    float mouse_last_x = 640;
+    float mouse_last_y = 360;
+
+    camera.projection = glm::perspective(glm::radians(camera.fov), (float)1280/(float)720, 0.1f, 100.0f);
 
     SDL_Event event;
     Input game_input = setup_game_input();
@@ -819,24 +979,39 @@ int main()
     while (!running)
     {
         handle_input(&game_input, &event, &running);
-        ClearScreen();
+        clear_screen();
 
-        bind_vertex_array(&vertex_array);
-        bind_shader(&shader); 
+        if (game_input.keyboard.keys[Keys::a] == ButtonState::Down)
+            camera.position += glm::vec3(0.05f, 0.0f, 0.0f);
+        if (game_input.keyboard.keys[Keys::d] == ButtonState::Down)
+            camera.position += glm::vec3(-0.05f, 0.0f, 0.0f);
+        if (game_input.keyboard.keys[Keys::w] == ButtonState::Down)
+            camera.position += glm::vec3(0.0f, 0.0f, 0.05f);
+        if (game_input.keyboard.keys[Keys::s] == ButtonState::Down)
+            camera.position += glm::vec3(0.0f, 0.0f, -0.05f);
+        if (game_input.keyboard.keys[Keys::SPACE] == ButtonState::Down)
+            camera.position += glm::vec3(0.0f, -0.05f, 0.0f);
+        if (game_input.keyboard.keys[Keys::LSHIFT] == ButtonState::Down)
+            camera.position += glm::vec3(0.0f, 0.05f, 0.0f);
 
-        glDrawArrays(GL_TRIANGLES, 0, 3);
-        //glDrawElements(GL_TRIANGLES, 3, GL_UNSIGNED_INT, 0);
-        
-        unbind_shader(&shader);
-        unbind_vertex_array(&vertex_array);
+        update_camera(&camera);
+
+        draw_cube(&light_source, &camera);
+        light.position = light_source.position;
+        draw_texture_cube(&text_cube, &camera, light);
 
         SDL_GL_SwapWindow(win_handle.window);
     }
     
-    delete_vertex_array(&vertex_array);
-    delete_vertex_buffer(&vertex_buffer);
-    delete_index_buffer(&index_buffer);
-    delete_shader(&shader);
+    delete_vertex_array(&text_cube.va);
+    delete_vertex_array(&light_source.va);
+    delete_vertex_buffer(&text_cube.vb);
+    delete_vertex_buffer(&light_source.vb);
+    delete_texture(&text_cube.texture);
+    delete_shader(&text_cube.shader);
+    delete_shader(&light_source.shader);
+
+    free_loaded_texture(&loaded_texture);
 
     SDL_DestroyWindow(win_handle.window);
     win_handle.window = nullptr;

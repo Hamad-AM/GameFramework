@@ -2,6 +2,12 @@
 #include <SDL.h>
 #include <stdint.h>
 
+#include <glad/glad.h>
+#include <stb_image.h>
+#include <glm/glm.hpp>
+#include <glm/gtc/matrix_transform.hpp>
+#include <glm/gtc/type_ptr.hpp>
+
 typedef uint8_t  uint8;
 typedef uint16_t uint16;
 typedef uint32_t uint32;
@@ -13,6 +19,27 @@ typedef int32_t int32;
 typedef int64_t int64;
 
 typedef unsigned char  ubyte;
+
+typedef glm::vec3 v3;
+typedef glm::vec4 v4;
+
+struct Material
+{
+    glm::vec3 ambient;
+    glm::vec3 diffuse;
+    glm::vec3 specular;
+    float shininess;
+};
+
+struct LightMaterial
+{
+    glm::vec3 position;
+    glm::vec3 color;
+
+    glm::vec3 ambient;
+    glm::vec3 diffuse;
+    glm::vec3 specular;
+};
 
 enum TextureFilter
 {
@@ -27,6 +54,22 @@ enum TextureWrap
     CLAMP_TO_EDGE,
     CLAMP_TO_BORDER,
 };
+
+struct PerspectiveCamera
+{
+    glm::vec3 position;
+    glm::mat4 view;
+    glm::mat4 projection;
+    glm::mat4 projection_view;
+    float fov;
+    // TODO: Rotation
+};
+
+struct OrthographicCamera
+{
+
+};
+
 
 struct LoadedTexture2D
 {
@@ -43,6 +86,7 @@ struct Texture2D
     uint32 id;
     LoadedTexture2D* loaded_texture;
 };
+
 
 enum ShaderType
 {
@@ -87,4 +131,26 @@ struct WindowHandle
 
     SDL_Window* window;
     SDL_GLContext context;
+};
+
+struct TextureCube
+{
+    float vertices[288];
+    VertexBuffer vb;
+    VertexArray va;
+    Shader shader;
+    glm::vec3 position;
+    glm::mat4 rotation;
+    Texture2D texture;
+    Material material;
+};
+
+struct Cube
+{
+    float vertices[180];
+    VertexBuffer vb;
+    VertexArray va;
+    Shader shader;
+    glm::vec3 position;
+    glm::mat4 rotation;
 };
