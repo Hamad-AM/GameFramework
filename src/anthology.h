@@ -1,3 +1,9 @@
+#ifndef ANTHOLOGY_H
+#define ANTHOLOGY_H
+
+#include "anthology_types.h"
+
+// Services that the platform layer provides to the game
 
 enum ButtonState
 {
@@ -7,42 +13,8 @@ enum ButtonState
 
 enum Keys
 {
-    a,
-    b,
-    c,
-    d,
-    e,
-    f,
-    g,
-    h,
-    i,
-    j,
-    k,
-    l,
-    m,
-    n,
-    o,
-    p,
-    q,
-    r,
-    s,
-    t,
-    u,
-    v,
-    w,
-    x,
-    y,
-    z,
-    BACKSPACE,
-    TAB,
-    SPACE,
-    RIGHT,
-    LEFT,
-    DOWN,
-    UP,
-    LCTRL,
-    LSHIFT,
-    LALT,
+    a, b, c, d, e, f, g, h, i, j, k, l, m, n, o, p, q, r, s, t, u, v, w, x, y, z,
+    BACKSPACE, TAB, SPACE, RIGHT, LEFT, DOWN, UP, LCTRL, LSHIFT, LALT,
 };
 
 struct GamePad
@@ -82,8 +54,8 @@ struct Mouse
     ButtonState right_button;
     ButtonState middle_button;
     int32 scroll_wheel_value;
-    float x;
-    float y;
+    int32 x;
+    int32 y;
 };
 
 struct Input
@@ -94,3 +66,20 @@ struct Input
     Mouse mouse;
 };
 
+struct Memory
+{
+    bool is_initialized;
+    uint64 permanent_storage_size;
+    void* permanent_storage;
+
+    void* transient_storage;
+};
+
+struct GameState
+{
+    uint32 player_health;
+};
+
+static void game_update_and_render(Memory* game_memory, Input* game_input);
+
+#endif
