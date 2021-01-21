@@ -42,7 +42,7 @@ void handle_input(Input* game_input, SDL_Event* event, bool* running)
     {
         if (event->type == SDL_QUIT)
         {
-            *running = true;
+            *running = false;
         }
         else if (event->type == SDL_KEYDOWN)
         {
@@ -155,6 +155,9 @@ void handle_input(Input* game_input, SDL_Event* event, bool* running)
                     break;
                 case SDLK_LALT:
                     game_input->keyboard.keys[Keys::LALT] = ButtonState::Down;
+                    break;
+                case SDLK_ESCAPE:
+                    game_input->keyboard.keys[Keys::ESCAPE] = ButtonState::Down;
                     break;
                 default:
                     break;
@@ -272,6 +275,9 @@ void handle_input(Input* game_input, SDL_Event* event, bool* running)
                 case SDLK_LALT:
                     game_input->keyboard.keys[Keys::LALT] = ButtonState::Up;
                     break;
+                case SDLK_ESCAPE:
+                    game_input->keyboard.keys[Keys::ESCAPE] = ButtonState::Up;
+                    break;
                 default:
                     break;
             }
@@ -380,7 +386,6 @@ Input setup_game_input()
 
 int main()
 {
-
     WindowHandle win_handle = {screen_width, screen_height}; 
     int32 init_out = SDL_Init(SDL_INIT_VIDEO);
     assert(!(init_out < 0));
@@ -397,21 +402,32 @@ int main()
     TextureCube text_cube;
     Cube light_source;
 
-    LoadedTexture2D loaded_texture = load_texture("..\\data\\textures\\cobble_stone.png", TextureFilter::BILINEAR, TextureWrap::CLAMP_TO_EDGE);
+    LoadedTexture2D loaded_texture = load_texture("..\\..\\data\\textures\\container2.png", TextureFilter::BILINEAR, TextureWrap::CLAMP_TO_EDGE);
+    LoadedTexture2D loaded_specular_map = load_texture("..\\..\\data\\textures\\container2_specular.png", TextureFilter::BILINEAR, TextureWrap::CLAMP_TO_EDGE);
 
     init_texture_cube(&text_cube);
     text_cube.material.diffuse = {};
-    text_cube.material.specular = v3(0.5f, 0.5f, 0.5f);
+    text_cube.material.specular = {};
     text_cube.material.shininess = 32.0f;
     create_texture(&text_cube.material.diffuse, &loaded_texture);
+    text_cube.material.diffuse.slot = 0;
+    create_texture(&text_cube.material.specular, &loaded_specular_map);
+    text_cube.material.specular.slot = 1;
 
     text_cube.position = glm::vec3(-1.0f, -0.5f, -5.0f);
     
     Environment environment;
-    environment.dir_light.direction = v3(-0.2f, -1.0f, -0.3f);
+    environment.dir_light.direction = v3(0.0f, 0.0f, -0.2f);
     environment.dir_light.ambient = v3(0.2f, 0.2f, 0.2f);
     environment.dir_light.diffuse = v3(0.5f, 0.5f, 0.5f);
     environment.dir_light.specular = v3(1.0f, 1.0f, 1.0f);
+
+    environment.spot_light.direction = v3(0.0f, 0.0f, -0.2f);
+    environment.spot_light.position = v3(0.0f, 0.0f, 5.0f);
+    environment.spot_light.ambient = v3(0.2f, 0.2f, 0.2f);
+    environment.spot_light.specular = v3(1.0f, 1.0f, 1.0f);
+    environment.spot_light.innerCutOff = glm::cos(glm::radians(25.0f));
+    environment.spot_light.outerCutOff = glm::cos(glm::radians(35.0f));
 
     //upload_uniform_mat4("transform", trans, &shader);
 
@@ -436,9 +452,9 @@ int main()
     SDL_Event event;
     Input game_input = setup_game_input();
 
-    bool running = false;
+    bool running = true;
 
-    while (!running)
+    while (running)
     {
         handle_input(&game_input, &event, &running);
         clear_screen();
@@ -456,6 +472,9 @@ int main()
         if (game_input.keyboard.keys[Keys::LSHIFT] == ButtonState::Down)
             camera.position += glm::vec3(0.0f, 0.05f, 0.0f);
 
+        if (game_input.keyboard.keys[Keys::ESCAPE] == ButtonState::Down)
+            running = false;
+
         game_update_and_render(&game_memory, &game_input);
 
         update_camera(&camera);
@@ -470,10 +489,12 @@ int main()
     delete_vertex_buffer(&text_cube.vb);
     delete_vertex_buffer(&light_source.vb);
     delete_texture(&text_cube.material.diffuse);
+    delete_texture(&text_cube.material.specular);
     delete_shader(&text_cube.shader);
     delete_shader(&light_source.shader);
 
     free_loaded_texture(&loaded_texture);
+    free_loaded_texture(&loaded_specular_map);
 
     SDL_DestroyWindow(win_handle.window);
     win_handle.window = nullptr;

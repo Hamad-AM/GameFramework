@@ -87,7 +87,7 @@ void init_texture_cube(TextureCube* cube)
     create_vertex_buffer(&cube->vb, vertices, sizeof(vertices));
 
     assign_vertex_attrib_layout(layout, 3);   
-    load_shader(&cube->shader, "..\\data\\shaders\\Texture.glsl");
+    load_shader(&cube->shader, "..\\..\\data\\shaders\\Texture.glsl");
 
     unbind_vertex_array(&cube->va);
     unbind_vertex_buffer();
@@ -115,7 +115,7 @@ void init_cube(Cube* cube)
 
     assign_vertex_attrib_layout(layout, 1);
 
-    load_shader(&cube->shader, "..\\data\\shaders\\TestLightSource.glsl");
+    load_shader(&cube->shader, "..\\..\\data\\shaders\\TestLightSource.glsl");
 
     unbind_vertex_array(&cube->va);
     unbind_vertex_buffer();
@@ -148,7 +148,8 @@ void draw_cube(Cube* cube, PerspectiveCamera* camera)
 
 void draw_texture_cube(TextureCube* cube, PerspectiveCamera* camera, Environment* env)
 {
-    bind_texture(&cube->material.diffuse, 0);
+    bind_texture(&cube->material.diffuse);
+    bind_texture(&cube->material.specular);
     bind_vertex_array(&cube->va);
     bind_shader(&cube->shader);
     
@@ -158,9 +159,12 @@ void draw_texture_cube(TextureCube* cube, PerspectiveCamera* camera, Environment
     upload_uniform_mat4("u_ProjectionViewMat", camera->projection_view, &cube->shader);
     upload_uniform_mat4("u_ProjectionViewMat", camera->projection_view, &cube->shader);
     upload_uniform_mat4("u_ModelMat", model, &cube->shader);
+    upload_uniform_vec3("u_ViewPosition", camera->position, &cube->shader);
+
+    upload_material_uniform(&cube->material, &cube->shader);
 
     upload_directional_light_uniform(&env->dir_light, &cube->shader);
-    // upload_spot_light_uniform(&env->spot_light, &cube->shader);
+    upload_spot_light_uniform(&env->spot_light, &cube->shader);
     // for (int i = 0; i < NO_POINT_LIGHTS; ++i)
     //    upload_point_light_uniform(&env->point_lights[i], i, &cube->shader);
     

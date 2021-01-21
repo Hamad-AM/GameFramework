@@ -102,7 +102,7 @@ struct BufferLayoutAttrib
 struct Material
 {
     Texture2D diffuse;
-    v3 specular;
+    Texture2D specular;
     float shininess;
 };
 
@@ -245,7 +245,7 @@ void free_loaded_texture(LoadedTexture2D* loaded_texture);
 
 void create_texture(Texture2D* texture, LoadedTexture2D* loaded_texture);
 
-void bind_texture(Texture2D* texture, uint32 slot);
+void bind_texture(Texture2D* texture);
 
 void unbind_texture(Texture2D* texture);
 

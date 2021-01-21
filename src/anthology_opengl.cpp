@@ -302,24 +302,24 @@ void upload_uniform_float(const char* name, float value, Shader* shader)
 void upload_uniform_mat4(const char* name, glm::mat4 mat4, Shader* shader)
 {
     uint32 location = glGetUniformLocation(shader->program, name);
-    if (location == -1)
-        printf("No such uniform known as %s", name);
+    // if (location == -1)
+        // printf("No such uniform known as %s", name);
     glUniformMatrix4fv(location, 1, GL_FALSE, glm::value_ptr(mat4));
 }
 
 void upload_uniform_vec3(const char* name, glm::vec3 vec3, Shader* shader)
 {
     uint32 location = glGetUniformLocation(shader->program, name);
-    if (location == -1)
-        printf("Uniform not found");
+    // if (location == -1)
+        // printf("No such uniform known as %s", name);
     glUniform3fv(location, 1, glm::value_ptr(vec3));
 }
 
 void upload_uniform_vec4(const char* name, glm::vec4 vec4, Shader* shader)
 {
     uint32 location = glGetUniformLocation(shader->program, name);
-    if (location == -1)
-        printf("Uniform not found");
+    // if (location == -1)
+        // printf("No such uniform known as %s", name);
     glUniform3fv(location, 1, glm::value_ptr(vec4));
 }
 
@@ -374,9 +374,9 @@ void create_texture(Texture2D* texture, LoadedTexture2D* loaded_texture)
     texture->loaded_texture = loaded_texture;
 }
 
-void bind_texture(Texture2D* texture, uint32 slot)
+void bind_texture(Texture2D* texture)
 {
-    glActiveTexture(GL_TEXTURE0 + slot);
+    glActiveTexture(GL_TEXTURE0 + texture->slot);
     glBindTexture(GL_TEXTURE_2D, texture->id);
 }
 
@@ -393,7 +393,7 @@ void delete_texture(Texture2D* texture)
 void upload_material_uniform(Material* material, Shader* shader)
 {
     upload_uniform_int32("material.diffuse", material->diffuse.slot, shader);
-    upload_uniform_vec3("material.specular", material->specular , shader);
+    upload_uniform_int32("material.specular", material->specular.slot , shader);
     upload_uniform_float("material.shininess", material->shininess , shader);
 }
 
