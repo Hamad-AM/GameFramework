@@ -24,6 +24,8 @@ struct PointLight
     v3 ambient;
     v3 diffuse;
     v3 specular;
+
+    int32 enabled;
 };
 
 struct DirectionalLight
@@ -44,6 +46,18 @@ struct SpotLight
     v3 ambient;
     v3 diffuse;
     v3 specular;
+};
+
+enum TextureType
+{
+    DIFFUSE,
+    SPECULAR,
+    NORMAL,
+    BUMP,
+    METAL,
+    AO,
+    ROUGHNESS,
+    HEIGHT,
 };
 
 enum TextureFilter
@@ -81,15 +95,19 @@ struct LoadedTexture2D
     int32 width;
     int32 height;
     int32 number_of_channels;
+    const char* path;
     TextureWrap wrap;
     TextureFilter filter;
+    TextureType type;
 };
 
+
+// TODO store filepath or string name?
 struct Texture2D
 {
     uint32 id;
     uint32 slot;
-    LoadedTexture2D* loaded_texture;
+    TextureType type;
 };
 
 struct BufferLayoutAttrib
@@ -121,8 +139,6 @@ struct IndexBuffer
 struct VertexArray
 {
     uint32 id;
-    VertexBuffer* vertex_buffer;
-    IndexBuffer* index_buffer;
 };
 
 struct Shader
@@ -165,25 +181,10 @@ struct Scene2D
 
 };
 
-struct Mesh
-{
-    float32* vertices;
-    uint32 number_of_vertices;
-    uint32* indices;
-    uint32 number_of_indices;
-    Texture2D* textures;
-    uint32 number_of_texture_slots;
-};
-
-struct Scene
-{
-    Environment env;
-    Mesh meshes[256];
-};
 
 void bind_index_buffer(IndexBuffer* index_buffer);
 
-void create_index_buffer(IndexBuffer* index_buffer, uint32* indices, uint32 count);
+IndexBuffer create_index_buffer(uint32* indices, uint32 count);
 
 void unbind_index_buffer();
 
@@ -191,7 +192,7 @@ void delete_index_buffer(IndexBuffer* index_buffer);
 
 void bind_vertex_buffer(VertexBuffer* vertex_buffer);
 
-void create_vertex_buffer(VertexBuffer* vertex_buffer, float* vertices, uint32 size);
+VertexBuffer create_vertex_buffer(float* vertices, uint32 size);
 
 void unbind_vertex_buffer();
 
@@ -209,7 +210,7 @@ GLenum convert_shadertype_to_gltype(ShaderType type);
 
 void assign_vertex_attrib_layout(BufferLayoutAttrib* layout, uint32 number_of_attrib);
 
-void create_vertex_array(VertexArray* vertex_array);
+VertexArray create_vertex_array();
 
 void bind_shader(Shader* shader);
 
@@ -243,7 +244,7 @@ LoadedTexture2D load_texture(const char* file_path, TextureFilter filter, Textur
 
 void free_loaded_texture(LoadedTexture2D* loaded_texture);
 
-void create_texture(Texture2D* texture, LoadedTexture2D* loaded_texture);
+Texture2D create_texture(ubyte* data, uint32 width, uint32 height, TextureFilter filter, TextureWrap wrap);
 
 void bind_texture(Texture2D* texture);
 

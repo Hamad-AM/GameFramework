@@ -8,11 +8,17 @@
 #include <fstream>
 #include <vector>
 
-#include "anthology.h"
+#include <assimp/Importer.hpp>
+#include <assimp/scene.h>
+#include <assimp/postprocess.h>
 
 #include "anthology_types.h"
 #include "anthology_renderer.h"
 #include "anthology.cpp"
+
+#include "anthology.h"
+#include <iostream>
+
 
 static uint32 screen_width = 1280;
 static uint32 screen_height = 720;
@@ -381,8 +387,239 @@ Input setup_game_input()
     }
     return game_input;
 }
+std::vector<Texture2D> loadMaterialTextures(aiMaterial *mat, aiTextureType type, TextureType typeName, std::vector<Texture2D>* loaded_textures)
+{
+    std::vector<Texture2D> textures;
+    for(unsigned int i = 0; i < mat->GetTextureCount(type); i++)
+    {
+        aiString str;
+        mat->GetTexture(type, i, &str);
+        uint32 loaded_texture_index = -1;
+        std::string path = std::string(str.C_Str());
+
+        // TODO: need to compare file paths
+        for (uint32 i = 0; i < loaded_textures->size(); ++i)
+        {
+            if ((*loaded_textures)[i].type == typeName)
+                loaded_texture_index = i;
+        }
+        if (loaded_texture_index == -1)
+        {
+            path = "..\\data\\textures\\" + path;
+            LoadedTexture2D loaded_texture = load_texture(path.c_str(), TextureFilter::BILINEAR, TextureWrap::CLAMP_TO_BORDER);
+            Texture2D texture = create_texture(loaded_texture.image_data, loaded_texture.width, loaded_texture.height, loaded_texture.filter, loaded_texture.wrap);
+            unbind_texture(&texture);
+            texture.type = typeName;
+            textures.push_back(texture);
+            loaded_textures->push_back(texture);
+        }
+        else
+        {
+            if (typeName == TextureType::DIFFUSE)
+            {
+                textures.push_back((*loaded_textures)[0]);
+            }
+            else
+            {
+                textures.push_back((*loaded_textures)[1]);
+            }
+        }
+    }
+    return textures;
+}
+
+Mesh process_assimp_meshes(aiMesh* mesh, const aiScene* scene, std::vector<Texture2D>* loaded_textures)
+{
+    Mesh result = {};
+
+    result.number_of_vertices = mesh->mNumVertices;
+
+    for (uint32 i = 0; i < result.number_of_vertices; ++i)
+    {
+        aiVector3D* vert = &mesh->mVertices[i];
+        aiVector3D* norm = &mesh->mNormals[i];
+        Vertex vertex;
+        vertex.position = v3(vert->x, vert->y, vert->z);
+        vertex.normal = v3(norm->x, norm->y, norm->z);
+
+        if (mesh->mTextureCoords[0])
+        {
+            aiVector3D* tex = &mesh->mTextureCoords[0][i];
+            vertex.tex_coords = v2(tex->x, tex->y);
+        }
+        else
+            vertex.tex_coords = v2(0.0f, 0.0f);
+        
+        result.vertices.push_back(vertex);
+    }
+    
+    for (uint32 i = 0; i < mesh->mNumFaces; ++i)
+    {
+        aiFace* face = &mesh->mFaces[i];
+        for (uint32 j = 0; j < face->mNumIndices; ++j)
+            result.indices.push_back(face->mIndices[j]);
+    }
+
+    result.number_of_indices = result.indices.size();
+
+    assert(result.indices.size() > 0);
+    assert(result.vertices.size() > 0);
+
+    BufferLayoutAttrib layout[3] = {
+        {ShaderType::SHADER_FLOAT, 3, false},
+        {ShaderType::SHADER_FLOAT, 3, false},
+        {ShaderType::SHADER_FLOAT, 2, false},
+    };
+
+    result.va = create_vertex_array();
+    result.vb = {};
+    result.ib = {};
+
+    glCreateBuffers(1, &result.vb.id);
+    glCreateBuffers(1, &result.ib.id);
+
+    glBindBuffer(GL_ARRAY_BUFFER, result.vb.id);
+    glBufferData(GL_ARRAY_BUFFER, result.number_of_vertices * sizeof(Vertex), &result.vertices[0], GL_STATIC_DRAW);
+    
+
+    glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, result.ib.id);
+    glBufferData(GL_ELEMENT_ARRAY_BUFFER, result.number_of_indices * sizeof(uint32), &result.indices[0], GL_STATIC_DRAW);
 
 
+    glEnableVertexAttribArray(0);
+    glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, sizeof(Vertex), (void*)0);
+
+
+    glEnableVertexAttribArray(1);
+    glVertexAttribPointer(1, 3, GL_FLOAT, GL_FALSE, sizeof(Vertex), (void*)(3*sizeof(float32)));
+
+
+    glEnableVertexAttribArray(2);
+    glVertexAttribPointer(2, 2, GL_FLOAT, GL_FALSE, sizeof(Vertex), (void*)(3*sizeof(float32)+3*sizeof(float32)));
+
+
+    unbind_vertex_array(&result.va);
+
+    if (mesh->mMaterialIndex >= 0)
+    {
+        aiMaterial* material = scene->mMaterials[mesh->mMaterialIndex];
+
+        std::vector<Texture2D> diffuseMaps = loadMaterialTextures(material, aiTextureType_DIFFUSE, TextureType::DIFFUSE, loaded_textures);
+        result.textures.insert(result.textures.end(), diffuseMaps.begin(), diffuseMaps.end());
+
+        std::vector<Texture2D> specularMaps = loadMaterialTextures(material, aiTextureType_SPECULAR, TextureType::SPECULAR, loaded_textures);
+        result.textures.insert(result.textures.end(), specularMaps.begin(), specularMaps.end());
+    }
+    
+    return result;
+}
+
+void process_assimp_node(aiNode* node, const aiScene* scene, Model* model, uint32 meshes_index, std::vector<Texture2D>* loaded_textures)
+{
+    for (uint32 i = 0; i < node->mNumMeshes; ++i)
+    {
+        aiMesh* mesh = scene->mMeshes[node->mMeshes[i]];
+        Mesh anthology_mesh = process_assimp_meshes(mesh, scene, loaded_textures);
+        model->meshes.push_back(anthology_mesh);
+    }
+
+    for (uint32 i = 0; i < node->mNumChildren; ++i)
+    {
+        process_assimp_node(node->mChildren[i], scene, model, meshes_index + node->mNumMeshes + i, loaded_textures);
+    }
+}
+static Model load_model(Memory* memory, const char* path)
+{
+    Model result = {};
+
+    Assimp::Importer importer;
+    const aiScene* scene = importer.ReadFile(path, aiProcess_Triangulate | aiProcess_FlipUVs);
+
+    assert(scene || !(scene->mFlags & AI_SCENE_FLAGS_INCOMPLETE) || scene->mRootNode);
+
+    result.number_of_meshes = scene->mNumMeshes;
+
+    std::vector<Texture2D> loaded_textures;
+
+    process_assimp_node(scene->mRootNode, scene, &result, 0, &loaded_textures);
+
+    return result;
+}
+
+void draw_model(Model* model, Shader* phong, v3 position, PerspectiveCamera* camera, Environment* env)
+{
+    for (uint32 i = 0; i < model->meshes.size(); ++i)
+    {
+        Mesh* mesh = &model->meshes[i];
+
+        mesh->material = {};
+        mesh->material.shininess = 32.0f;
+
+
+        bind_shader(phong);
+        
+        glm::mat4 model_mat = glm::translate(glm::mat4(1.0f), position);
+
+        upload_uniform_mat4("u_ProjectionViewMat", camera->projection_view, phong);
+        upload_uniform_mat4("u_ProjectionViewMat", camera->projection_view, phong);
+        upload_uniform_mat4("u_ModelMat", model_mat, phong);
+        upload_uniform_vec3("u_ViewPosition", camera->position, phong);
+        upload_directional_light_uniform(&env->dir_light, phong);
+
+        for (uint32 i = 0; i < mesh->textures.size(); ++i)
+        {
+            switch (mesh->textures[i].type)
+            {
+            case TextureType::DIFFUSE:
+                mesh->material.diffuse = mesh->textures[i];
+                mesh->material.diffuse.slot = i;
+                break;
+            case TextureType::SPECULAR:
+                mesh->material.specular = mesh->textures[i];
+                mesh->material.specular.slot = i;
+                break;
+            }
+        }
+
+        bind_texture(&mesh->material.diffuse);
+        bind_texture(&mesh->material.specular);
+
+        upload_material_uniform(&mesh->material, phong);
+
+        for (uint32 i = 0; i < mesh->textures.size(); ++i)
+        {
+            unbind_texture(&mesh->textures[i]);
+        }
+
+        bind_vertex_array(&mesh->va);
+
+        glDrawElements(GL_TRIANGLES, mesh->indices.size(), GL_UNSIGNED_INT, 0);
+
+        unbind_vertex_array(&mesh->va);
+
+
+        // TODO: Need to consider when there are different numbers of textures
+
+
+    }
+}
+
+void delete_model(Model* model)
+{
+    for (uint32 i = 0; i < model->number_of_meshes; ++i)
+    {
+        Mesh* mesh = &model->meshes[i];
+        delete_index_buffer(&mesh->ib);
+        delete_vertex_buffer(&mesh->vb);
+        delete_vertex_array(&mesh->va);
+
+        for (uint32 i = 0; i < mesh->number_of_textures; ++i)
+        {
+            Texture2D* texture = &mesh->textures[i];
+            delete_texture(texture);
+        }
+    }
+}
 
 int main()
 {
@@ -396,25 +633,16 @@ int main()
     Memory game_memory = {};
     game_memory.permanent_storage_size = 64 * 1024 * 1024;
     game_memory.permanent_storage = VirtualAlloc(0, game_memory.permanent_storage_size, MEM_RESERVE|MEM_COMMIT, PAGE_READWRITE);
+
+    //game_memory.transient_storage_size = 4294967296;
+    //game_memory.transient_storage = VirtualAlloc(0, game_memory.transient_storage_size, MEM_RESERVE|MEM_COMMIT, PAGE_READWRITE);
     
     initGL(&win_handle);
 
-    TextureCube text_cube;
-    Cube light_source;
+    Model test_model = load_model(&game_memory, "..\\data\\models\\backpack.obj");
 
-    LoadedTexture2D loaded_texture = load_texture("..\\..\\data\\textures\\container2.png", TextureFilter::BILINEAR, TextureWrap::CLAMP_TO_EDGE);
-    LoadedTexture2D loaded_specular_map = load_texture("..\\..\\data\\textures\\container2_specular.png", TextureFilter::BILINEAR, TextureWrap::CLAMP_TO_EDGE);
-
-    init_texture_cube(&text_cube);
-    text_cube.material.diffuse = {};
-    text_cube.material.specular = {};
-    text_cube.material.shininess = 32.0f;
-    create_texture(&text_cube.material.diffuse, &loaded_texture);
-    text_cube.material.diffuse.slot = 0;
-    create_texture(&text_cube.material.specular, &loaded_specular_map);
-    text_cube.material.specular.slot = 1;
-
-    text_cube.position = glm::vec3(-1.0f, -0.5f, -5.0f);
+    Shader phong;
+    load_shader(&phong, "..\\data\\shaders\\PhongMaterial.glsl");
     
     Environment environment;
     environment.dir_light.direction = v3(0.0f, 0.0f, -0.2f);
@@ -422,12 +650,28 @@ int main()
     environment.dir_light.diffuse = v3(0.5f, 0.5f, 0.5f);
     environment.dir_light.specular = v3(1.0f, 1.0f, 1.0f);
 
-    environment.spot_light.direction = v3(0.0f, 0.0f, -0.2f);
-    environment.spot_light.position = v3(0.0f, 0.0f, 5.0f);
-    environment.spot_light.ambient = v3(0.2f, 0.2f, 0.2f);
-    environment.spot_light.specular = v3(1.0f, 1.0f, 1.0f);
-    environment.spot_light.innerCutOff = glm::cos(glm::radians(25.0f));
-    environment.spot_light.outerCutOff = glm::cos(glm::radians(35.0f));
+    //environment.spot_light.direction = v3(0.0f, 0.0f, -0.2f);
+    //environment.spot_light.ambient = v3(0.2f, 0.2f, 0.2f);
+    //environment.spot_light.diffuse = v3(0.5f, 0.5f, 0.5f);
+    //environment.spot_light.specular = v3(1.0f, 1.0f, 1.0f);
+    //environment.spot_light.position = v3(0.0f, 0.0f, 5.0f);
+    //environment.spot_light.innerCutOff = glm::cos(glm::radians(12.5f));
+    //environment.spot_light.outerCutOff = glm::cos(glm::radians(17.5f));
+
+    //glm::vec3 pointLightPositions[] = {glm::vec3( 0.7f,  0.2f,   2.0f),glm::vec3( 2.3f, -3.3f,  -4.0f),glm::vec3(-4.0f,  2.0f, -12.0f),glm::vec3( 0.0f,  0.0f,  -3.0f)};
+
+    //for (int32 i = 0; i < NO_POINT_LIGHTS; ++i)
+    //{
+    //    environment.point_lights[i].ambient = v3(0.2f, 0.2f, 0.2f);
+    //    environment.point_lights[i].diffuse = v3(0.5f, 0.5f, 0.5f);
+    //    environment.point_lights[i].specular = v3(1.0f, 1.0f, 1.0f);
+    //    environment.point_lights[i].constant = 1.0f;
+    //    environment.point_lights[i].linear = 0.09f;
+    //    environment.point_lights[i].quadratic = 0.032f;
+    //    environment.point_lights[i].position = pointLightPositions[i];
+    //    environment.point_lights[i].enabled = 1;
+    //}
+
 
     //upload_uniform_mat4("transform", trans, &shader);
 
@@ -474,27 +718,19 @@ int main()
 
         if (game_input.keyboard.keys[Keys::ESCAPE] == ButtonState::Down)
             running = false;
+        
+        environment.spot_light.position = -camera.position;
+
+        draw_model(&test_model, &phong, v3(1.0f, 1.0f, 1.0f), &camera, &environment);
 
         game_update_and_render(&game_memory, &game_input);
 
         update_camera(&camera);
 
-        draw_texture_cube(&text_cube, &camera, &environment);
-
         SDL_GL_SwapWindow(win_handle.window);
     }
-    
-    delete_vertex_array(&text_cube.va);
-    delete_vertex_array(&light_source.va);
-    delete_vertex_buffer(&text_cube.vb);
-    delete_vertex_buffer(&light_source.vb);
-    delete_texture(&text_cube.material.diffuse);
-    delete_texture(&text_cube.material.specular);
-    delete_shader(&text_cube.shader);
-    delete_shader(&light_source.shader);
 
-    free_loaded_texture(&loaded_texture);
-    free_loaded_texture(&loaded_specular_map);
+    delete_model(&test_model);
 
     SDL_DestroyWindow(win_handle.window);
     win_handle.window = nullptr;

@@ -2,6 +2,7 @@
 #define ANTHOLOGY_H
 
 #include "anthology_types.h"
+#include "anthology_renderer.h"
 
 // Services that the platform layer provides to the game
 
@@ -68,18 +69,25 @@ struct Input
 
 struct Memory
 {
+    void* top_ptr;
+
     bool is_initialized;
     uint64 permanent_storage_size;
     void* permanent_storage;
 
+    uint64 transient_storage_size;
     void* transient_storage;
 };
 
 struct GameState
 {
     uint32 player_health;
+    Model* test_model;
 };
 
+static Model load_model(Memory* game_memory, const char* path);
+
 static void game_update_and_render(Memory* game_memory, Input* game_input);
+
 
 #endif

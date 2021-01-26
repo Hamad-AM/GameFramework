@@ -7,6 +7,7 @@
 #include <glm/gtc/matrix_transform.hpp>
 #include <glm/gtc/type_ptr.hpp>
 
+typedef glm::vec2 v2;
 typedef glm::vec3 v3;
 typedef glm::vec4 v4;
 typedef glm::mat4 m4;

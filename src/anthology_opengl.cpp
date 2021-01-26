@@ -11,11 +11,15 @@ void bind_index_buffer(IndexBuffer* index_buffer)
     glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, index_buffer->id);
 }
 
-void create_index_buffer(IndexBuffer* index_buffer, uint32* indices, uint32 count)
+IndexBuffer create_index_buffer(uint32* indices, uint32 count)
 {
-    glCreateBuffers(1, &index_buffer->id);
-    bind_index_buffer(index_buffer);
+    IndexBuffer ib = {};
+
+    glCreateBuffers(1, &ib.id);
+    bind_index_buffer(&ib);
     glBufferData(GL_ELEMENT_ARRAY_BUFFER, count, indices, GL_STATIC_DRAW);
+
+    return ib;
 }
 
 void unbind_index_buffer()
@@ -33,11 +37,13 @@ void bind_vertex_buffer(VertexBuffer* vertex_buffer)
     glBindBuffer(GL_ARRAY_BUFFER, vertex_buffer->id);
 }
 
-void create_vertex_buffer(VertexBuffer* vertex_buffer, float* vertices, uint32 size)
+VertexBuffer create_vertex_buffer(float* vertices, uint32 size)
 {
-    glCreateBuffers(1, &vertex_buffer->id);
-    bind_vertex_buffer(vertex_buffer);
+    VertexBuffer vertex_buffer = {};
+    glCreateBuffers(1, &vertex_buffer.id);
+    bind_vertex_buffer(&vertex_buffer);
     glBufferData(GL_ARRAY_BUFFER, size, vertices, GL_STATIC_DRAW);
+    return vertex_buffer;
 }
 
 void unbind_vertex_buffer()
@@ -107,10 +113,12 @@ void assign_vertex_attrib_layout(BufferLayoutAttrib* layout, uint32 number_of_at
     }
 }
 
-void create_vertex_array(VertexArray* vertex_array)
+VertexArray create_vertex_array()
 {
-    glGenVertexArrays(1, &vertex_array->id);
-    bind_vertex_array(vertex_array);
+    VertexArray vertex_array = {};
+    glGenVertexArrays(1, &vertex_array.id);
+    bind_vertex_array(&vertex_array);
+    return vertex_array;
 }
 
 void bind_shader(Shader* shader)
@@ -359,19 +367,21 @@ GLenum convert_to_gl_wrap(TextureWrap wrap)
     }
 }
 
-void create_texture(Texture2D* texture, LoadedTexture2D* loaded_texture)
+Texture2D create_texture(ubyte* data, uint32 width, uint32 height, TextureFilter filter, TextureWrap wrap)
 {
-    glGenTextures(1, &texture->id);
-    glBindTexture(GL_TEXTURE_2D, texture->id);
+    Texture2D texture = {};
 
-    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, convert_to_gl_filter(loaded_texture->filter));
-    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, convert_to_gl_filter(loaded_texture->filter));
-    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, convert_to_gl_wrap(loaded_texture->wrap));
-    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, convert_to_gl_wrap(loaded_texture->wrap));
+    glGenTextures(1, &texture.id);
+    glBindTexture(GL_TEXTURE_2D, texture.id);
 
-    glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, loaded_texture->width, loaded_texture->height, 0, GL_RGBA, GL_UNSIGNED_BYTE, loaded_texture->image_data);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, convert_to_gl_filter(filter));
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, convert_to_gl_filter(filter));
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, convert_to_gl_wrap(wrap));
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, convert_to_gl_wrap(wrap));
 
-    texture->loaded_texture = loaded_texture;
+    glTexImage2D(GL_TEXTURE_2D, 0, GL_RGB, width, height, 0, GL_RGB, GL_UNSIGNED_BYTE, data);
+
+    return texture;
 }
 
 void bind_texture(Texture2D* texture)
@@ -430,10 +440,12 @@ void upload_point_light_uniform(PointLight* light, int32 index, Shader* shader)
     upload_uniform_vec3(u_name.c_str(),  light->specular, shader);
     u_name = (name + ".position");
     upload_uniform_vec3(u_name.c_str(), light->position, shader);
-    u_name = (name + ".innerCutOff");
+    u_name = (name + ".constant");
     upload_uniform_float(u_name.c_str(), light->constant, shader);
-    u_name = (name + ".outerCutOff");
+    u_name = (name + ".linear");
     upload_uniform_float(u_name.c_str(), light->linear, shader);
-    u_name = (name + ".outerCutOff");
+    u_name = (name + ".quadratic");
     upload_uniform_float(u_name.c_str(), light->quadratic, shader);
+    u_name = (name + ".enabled");
+    upload_uniform_int32(u_name.c_str(), light->enabled, shader);
 }
