@@ -1,0 +1,87 @@
+#!/usr/bin/env python
+
+import numpy as np 
+import matplotlib.pyplot as plt
+
+import rospy
+from geometry_msgs.msg import Twist, Pose
+from sensor_msgs.msg import Illuminance, LaserScan
+from nav_msgs.msg import Odometry
+from tf.transformations import euler_from_quaternion, quaternion_from_euler
+from math import atan2, pi
+
+odom_pose = Pose()
+laser = []
+def odom_callback(data):
+    global odom_pose
+    odom_pose = data.pose.pose
+
+def get_odom():
+    rospy.Subscriber('/odom', Odometry, odom_callback)
+
+def laser_callback(data):
+    global laser
+    laser = data.ranges
+
+def get_laser():
+    rospy.Subscriber('/scan', LaserScan, laser_callback)
+
+def timeTaken(start_Position, distance, velocity):
+    xin = start_Position 
+    xd = distance + xin
+    v = velocity
+    t = (xd - xin)/v
+    return t
+
+def movement_algo():
+    rospy.init_node('turtlebot3_line_follower', anonymous=True)
+    pub = rospy.Publisher('cmd_vel', Twist, queue_size=10)
+    distance = 1.3
+    velocity = 0.05
+    error_list = []
+    isForward = False
+    vel_msg = Twist()
+
+    for i in range(0,2):
+        print("Moving robot : ")     
+        print(i);
+        get_odom()
+        start_position = odom_pose.position.x
+        print('startPos', start_position)
+        time = timeTaken(start_position, distance, velocity)
+        start_time = rospy.Time.now().to_sec()
+        print('startTime', start_time)
+        elapsed_time = 0 
+
+        if (isForward):
+            vel_msg.linear.x = abs(velocity)
+        else:
+            vel_msg.linear.x = -(velocity)
+
+        while(elapsed_time < time):
+            currentTime = rospy.Time.now().to_sec()
+            elapsed_time = currentTime - start_time
+            pub.publish(vel_msg)
+
+        end_time = rospy.get_time()
+        print('endTime', end_time)
+        vel_msg.linear.x = 0
+        pub.publish(vel_msg)
+
+        get_odom()
+        end_position = odom_pose.position.x
+        if (isForward):
+            error_list.append(end_position - (start_position + distance))
+        else:
+            error_list.append(end_position - (start_position - distance))
+        print('finalEndPos',end_position);
+        print('shouldHaveRecieved', (start_position + distance));
+
+    print(str(error_list))
+
+
+
+if __name__=='__main__':
+    movement_algo()
+
+

@@ -39,6 +39,8 @@ struct DirLight
     vec3 ambient;
     vec3 diffuse;
     vec3 specular;
+
+    int enabled;
 };
 
 uniform DirLight u_DirLight;
@@ -74,6 +76,8 @@ struct SpotLight
     vec3 ambient;
     vec3 diffuse;
     vec3 specular;
+
+    int enabled;
 };
 uniform SpotLight u_SpotLight;
 
@@ -91,15 +95,19 @@ void main()
 {
     vec3 view_direction = normalize(u_ViewPosition - v_VertexPos.xyz);
     vec3 normal = normalize(v_Normal);
+    vec3 light_result = vec3(0.0f, 0.0f, 0.0f);
 
-    vec3 light_result = calculate_dir_light(u_DirLight, normal, view_direction);
+    if (u_DirLight.enabled == 1)
+        light_result += calculate_dir_light(u_DirLight, normal, view_direction);
 
-    // for (int i = 0; i < NO_POINT_LIGHTS; ++i)
-    // {
-    //     if (u_PointLights[i].enabled == 1)
-    //         light_result += calculate_point_light(u_PointLights[i], normal, v_VertexPos.xyz, view_direction);
-    // }
-    // vec3 light_result = calculate_spot_light(u_SpotLight, normal, view_direction);
+    for (int i = 0; i < NO_POINT_LIGHTS; ++i)
+    {
+        if (u_PointLights[i].enabled == 1)
+            light_result += calculate_point_light(u_PointLights[i], normal, v_VertexPos.xyz, view_direction);
+    }
+
+    if (u_SpotLight.enabled == 1)
+        light_result += calculate_spot_light(u_SpotLight, normal, view_direction);
 
 
     color = vec4(light_result, 1.0f);

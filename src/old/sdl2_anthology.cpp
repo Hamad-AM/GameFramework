@@ -12,16 +12,17 @@
 #include <assimp/scene.h>
 #include <assimp/postprocess.h>
 
-#include "anthology_types.h"
+#include "sdl2_anthology.h"
 #include "anthology_renderer.h"
-#include "anthology.cpp"
+#include "anthology_opengl.h"
+#include "anthology_input.h"
 
 #include "anthology.h"
 #include <iostream>
 
 
-static uint32 screen_width = 1280;
-static uint32 screen_height = 720;
+static u32 screen_width = 1280;
+static u32 screen_height = 720;
 
 
 void initGL(WindowHandle* handle)
@@ -290,7 +291,7 @@ void handle_input(Input* game_input, SDL_Event* event, bool* running)
         }
         else if (event->type == SDL_MOUSEMOTION)
         {
-            int32 x, y;
+            s32 x, y;
             SDL_GetMouseState(&x, &y);
             game_input->mouse.x = x;
             game_input->mouse.y = y;
@@ -345,7 +346,7 @@ Input setup_game_input()
         game_input.game_pad_connected = true;
     }
 
-    for (int i = 0; i < 104; ++i)
+    for (s32 i = 0; i < 104; ++i)
     {
         game_input.keyboard.keys[i] = {};
         game_input.keyboard.keys[i] = ButtonState::Up;
@@ -359,7 +360,7 @@ Input setup_game_input()
     game_input.mouse.x = 0;
     game_input.mouse.y = 0;
 
-    for (int i = 0; i < 4; ++i)
+    for (s32 i = 0; i < 4; ++i)
     {
         game_input.game_pad[i] = {};
         game_input.game_pad[i].A = ButtonState::Up;
@@ -387,6 +388,7 @@ Input setup_game_input()
     }
     return game_input;
 }
+
 std::vector<Texture2D> loadMaterialTextures(aiMaterial *mat, aiTextureType type, TextureType typeName, std::vector<Texture2D>* loaded_textures)
 {
     std::vector<Texture2D> textures;
@@ -394,11 +396,11 @@ std::vector<Texture2D> loadMaterialTextures(aiMaterial *mat, aiTextureType type,
     {
         aiString str;
         mat->GetTexture(type, i, &str);
-        uint32 loaded_texture_index = -1;
+        u32 loaded_texture_index = -1;
         std::string path = std::string(str.C_Str());
 
         // TODO: need to compare file paths
-        for (uint32 i = 0; i < loaded_textures->size(); ++i)
+        for (u32 i = 0; i < loaded_textures->size(); ++i)
         {
             if ((*loaded_textures)[i].type == typeName)
                 loaded_texture_index = i;
@@ -434,7 +436,7 @@ Mesh process_assimp_meshes(aiMesh* mesh, const aiScene* scene, std::vector<Textu
 
     result.number_of_vertices = mesh->mNumVertices;
 
-    for (uint32 i = 0; i < result.number_of_vertices; ++i)
+    for (u32 i = 0; i < result.number_of_vertices; ++i)
     {
         aiVector3D* vert = &mesh->mVertices[i];
         aiVector3D* norm = &mesh->mNormals[i];
@@ -453,10 +455,10 @@ Mesh process_assimp_meshes(aiMesh* mesh, const aiScene* scene, std::vector<Textu
         result.vertices.push_back(vertex);
     }
     
-    for (uint32 i = 0; i < mesh->mNumFaces; ++i)
+    for (u32 i = 0; i < mesh->mNumFaces; ++i)
     {
         aiFace* face = &mesh->mFaces[i];
-        for (uint32 j = 0; j < face->mNumIndices; ++j)
+        for (u32 j = 0; j < face->mNumIndices; ++j)
             result.indices.push_back(face->mIndices[j]);
     }
 
@@ -483,7 +485,7 @@ Mesh process_assimp_meshes(aiMesh* mesh, const aiScene* scene, std::vector<Textu
     
 
     glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, result.ib.id);
-    glBufferData(GL_ELEMENT_ARRAY_BUFFER, result.number_of_indices * sizeof(uint32), &result.indices[0], GL_STATIC_DRAW);
+    glBufferData(GL_ELEMENT_ARRAY_BUFFER, result.number_of_indices * sizeof(u32), &result.indices[0], GL_STATIC_DRAW);
 
 
     glEnableVertexAttribArray(0);
@@ -491,11 +493,11 @@ Mesh process_assimp_meshes(aiMesh* mesh, const aiScene* scene, std::vector<Textu
 
 
     glEnableVertexAttribArray(1);
-    glVertexAttribPointer(1, 3, GL_FLOAT, GL_FALSE, sizeof(Vertex), (void*)(3*sizeof(float32)));
+    glVertexAttribPointer(1, 3, GL_FLOAT, GL_FALSE, sizeof(Vertex), (void*)(3*sizeof(f32)));
 
 
     glEnableVertexAttribArray(2);
-    glVertexAttribPointer(2, 2, GL_FLOAT, GL_FALSE, sizeof(Vertex), (void*)(3*sizeof(float32)+3*sizeof(float32)));
+    glVertexAttribPointer(2, 2, GL_FLOAT, GL_FALSE, sizeof(Vertex), (void*)(3*sizeof(f32)+3*sizeof(f32)));
 
 
     unbind_vertex_array(&result.va);
@@ -514,16 +516,16 @@ Mesh process_assimp_meshes(aiMesh* mesh, const aiScene* scene, std::vector<Textu
     return result;
 }
 
-void process_assimp_node(aiNode* node, const aiScene* scene, Model* model, uint32 meshes_index, std::vector<Texture2D>* loaded_textures)
+void process_assimp_node(aiNode* node, const aiScene* scene, Model* model, u32 meshes_index, std::vector<Texture2D>* loaded_textures)
 {
-    for (uint32 i = 0; i < node->mNumMeshes; ++i)
+    for (u32 i = 0; i < node->mNumMeshes; ++i)
     {
         aiMesh* mesh = scene->mMeshes[node->mMeshes[i]];
         Mesh anthology_mesh = process_assimp_meshes(mesh, scene, loaded_textures);
         model->meshes.push_back(anthology_mesh);
     }
 
-    for (uint32 i = 0; i < node->mNumChildren; ++i)
+    for (u32 i = 0; i < node->mNumChildren; ++i)
     {
         process_assimp_node(node->mChildren[i], scene, model, meshes_index + node->mNumMeshes + i, loaded_textures);
     }
@@ -548,7 +550,7 @@ static Model load_model(Memory* memory, const char* path)
 
 void draw_model(Model* model, Shader* phong, v3 position, PerspectiveCamera* camera, Environment* env)
 {
-    for (uint32 i = 0; i < model->meshes.size(); ++i)
+    for (u32 i = 0; i < model->meshes.size(); ++i)
     {
         Mesh* mesh = &model->meshes[i];
 
@@ -566,7 +568,7 @@ void draw_model(Model* model, Shader* phong, v3 position, PerspectiveCamera* cam
         upload_uniform_vec3("u_ViewPosition", camera->position, phong);
         upload_directional_light_uniform(&env->dir_light, phong);
 
-        for (uint32 i = 0; i < mesh->textures.size(); ++i)
+        for (u32 i = 0; i < mesh->textures.size(); ++i)
         {
             switch (mesh->textures[i].type)
             {
@@ -586,7 +588,7 @@ void draw_model(Model* model, Shader* phong, v3 position, PerspectiveCamera* cam
 
         upload_material_uniform(&mesh->material, phong);
 
-        for (uint32 i = 0; i < mesh->textures.size(); ++i)
+        for (u32 i = 0; i < mesh->textures.size(); ++i)
         {
             unbind_texture(&mesh->textures[i]);
         }
@@ -606,14 +608,14 @@ void draw_model(Model* model, Shader* phong, v3 position, PerspectiveCamera* cam
 
 void delete_model(Model* model)
 {
-    for (uint32 i = 0; i < model->number_of_meshes; ++i)
+    for (u32 i = 0; i < model->number_of_meshes; ++i)
     {
         Mesh* mesh = &model->meshes[i];
         delete_index_buffer(&mesh->ib);
         delete_vertex_buffer(&mesh->vb);
         delete_vertex_array(&mesh->va);
 
-        for (uint32 i = 0; i < mesh->number_of_textures; ++i)
+        for (u32 i = 0; i < mesh->number_of_textures; ++i)
         {
             Texture2D* texture = &mesh->textures[i];
             delete_texture(texture);
@@ -621,10 +623,11 @@ void delete_model(Model* model)
     }
 }
 
+#if 0
 int main()
 {
     WindowHandle win_handle = {screen_width, screen_height}; 
-    int32 init_out = SDL_Init(SDL_INIT_VIDEO);
+    s32 init_out = SDL_Init(SDL_INIT_VIDEO);
     assert(!(init_out < 0));
     
     win_handle.window = SDL_CreateWindow("Game", SDL_WINDOWPOS_UNDEFINED, SDL_WINDOWPOS_UNDEFINED, win_handle.width, win_handle.height, SDL_WINDOW_OPENGL | SDL_WINDOW_SHOWN);
@@ -634,9 +637,14 @@ int main()
     game_memory.permanent_storage_size = 64 * 1024 * 1024;
     game_memory.permanent_storage = VirtualAlloc(0, game_memory.permanent_storage_size, MEM_RESERVE|MEM_COMMIT, PAGE_READWRITE);
 
-    //game_memory.transient_storage_size = 4294967296;
-    //game_memory.transient_storage = VirtualAlloc(0, game_memory.transient_storage_size, MEM_RESERVE|MEM_COMMIT, PAGE_READWRITE);
-    
+    game_memory.transient_storage_size = 4294967296;
+    game_memory.transient_storage = VirtualAlloc(0, game_memory.transient_storage_size, MEM_RESERVE|MEM_COMMIT, PAGE_READWRITE);
+
+    RenderGroup render_group;
+    render_group.max_push_buffer_size = 128 * 1024 * 1024;
+    render_group.push_buffer_head = NULL;
+    render_group.push_buffer_size = 0;
+
     initGL(&win_handle);
 
     Model test_model = load_model(&game_memory, "..\\data\\models\\backpack.obj");
@@ -645,9 +653,9 @@ int main()
     load_shader(&phong, "..\\data\\shaders\\PhongMaterial.glsl");
     
     Environment environment;
-    environment.dir_light.direction = v3(0.0f, 0.0f, -0.2f);
-    environment.dir_light.ambient = v3(0.2f, 0.2f, 0.2f);
-    environment.dir_light.diffuse = v3(0.5f, 0.5f, 0.5f);
+    environment.dir_light.direction = v3(1.0f, 0.0f, 0.0f);
+    environment.dir_light.ambient = v3(0.2f, 0.2f, 0.3f);
+    environment.dir_light.diffuse = v3(0.9f, 0.9f, 0.6f);
     environment.dir_light.specular = v3(1.0f, 1.0f, 1.0f);
 
     //environment.spot_light.direction = v3(0.0f, 0.0f, -0.2f);
@@ -658,9 +666,9 @@ int main()
     //environment.spot_light.innerCutOff = glm::cos(glm::radians(12.5f));
     //environment.spot_light.outerCutOff = glm::cos(glm::radians(17.5f));
 
-    //glm::vec3 pointLightPositions[] = {glm::vec3( 0.7f,  0.2f,   2.0f),glm::vec3( 2.3f, -3.3f,  -4.0f),glm::vec3(-4.0f,  2.0f, -12.0f),glm::vec3( 0.0f,  0.0f,  -3.0f)};
+    //glm::vec3 posLightPositions[] = {glm::vec3( 0.7f,  0.2f,   2.0f),glm::vec3( 2.3f, -3.3f,  -4.0f),glm::vec3(-4.0f,  2.0f, -12.0f),glm::vec3( 0.0f,  0.0f,  -3.0f)};
 
-    //for (int32 i = 0; i < NO_POINT_LIGHTS; ++i)
+    //for (s32 i = 0; i < NO_POINT_LIGHTS; ++i)
     //{
     //    environment.point_lights[i].ambient = v3(0.2f, 0.2f, 0.2f);
     //    environment.point_lights[i].diffuse = v3(0.5f, 0.5f, 0.5f);
@@ -698,6 +706,8 @@ int main()
 
     bool running = true;
 
+    float angle = 0;
+
     while (running)
     {
         handle_input(&game_input, &event, &running);
@@ -719,11 +729,17 @@ int main()
         if (game_input.keyboard.keys[Keys::ESCAPE] == ButtonState::Down)
             running = false;
         
-        environment.spot_light.position = -camera.position;
+        environment.dir_light.direction.x = glm::cos(angle);
+        environment.dir_light.direction.y = glm::sin(angle);
 
-        draw_model(&test_model, &phong, v3(1.0f, 1.0f, 1.0f), &camera, &environment);
+        if (angle < 3.14f)
+            angle += 0.01f;
+        else if (angle > 3.14f)
+            angle = 0.0f;
 
-        game_update_and_render(&game_memory, &game_input);
+        draw_model(&test_model, &phong, v3(0.0f, 0.0f, 0.0f), &camera, &environment);
+
+        game_update_and_render(&render_group, &game_memory, &game_input);
 
         update_camera(&camera);
 
@@ -741,3 +757,4 @@ int main()
 
     return 0;
 }
+#endif

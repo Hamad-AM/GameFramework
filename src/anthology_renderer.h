@@ -1,18 +1,21 @@
 #ifndef ANTHOLOGY_RENDERER_H
 #define ANTHOLOGY_RENDERER_H
 
-#include <string>
-#include <vector>
-
-#include <glad/glad.h>
-#include <stb_image.h>
-
-
 #include "anthology_math.h"
-#include "anthology_types.h"
-
 #include "anthology_opengl.h"
 
+// TODO: Temporary includes need to remove and Mesh/Model classes
+
+#include <vector>
+
+struct Material
+{
+};
+
+struct Shader
+{
+
+};
 
 struct Vertex
 {
@@ -24,17 +27,17 @@ struct Vertex
 struct Mesh
 {
     std::vector<Vertex> vertices;
-    uint64 number_of_vertices;
+    u64 number_of_vertices;
 
-    std::vector<uint32> indices;
-    uint64 number_of_indices;
+    std::vector<u32> indices;
+    u64 number_of_indices;
 
     std::vector<Texture2D> textures;
-    uint64 number_of_textures;
+    u64 number_of_textures;
     
-    VertexBuffer vb;
-    VertexArray va;
-    IndexBuffer ib;
+    u32 vb;
+    u32 va;
+    u32 ib;
 
     // TODO: need to consider mutiple textures
     Material material;
@@ -43,20 +46,124 @@ struct Mesh
 struct Model
 {
     std::vector<Mesh> meshes;
-    uint32 number_of_meshes;
+    u32 number_of_meshes;
+    Shader* shader;
 };
 
-void draw_texture_cube(TextureCube* cube, PerspectiveCamera* camera, Environment* env);
+enum TextureType
+{
+    DIFFUSE,
+    SPECULAR,
+    NORMAL,
+    BUMP,
+    METAL,
+    AO,
+    ROUGHNESS,
+    HEIGHT,
+};
 
-void draw_cube(Cube* cube, PerspectiveCamera* camera);
+enum TextureFilter
+{
+    NEAREST_NEIGHBOR,
+    BILINEAR,
+};
 
-void update_camera(PerspectiveCamera* camera);
+enum TextureWrap
+{
+    REPEAT,
+    MIRRORED_REPEAT,
+    CLAMP_TO_EDGE,
+    CLAMP_TO_BORDER,
+};
 
-void init_cube(Cube* cube);
+struct Texture2D
+{
+    ubyte* image_data;
+    s32 width;
+    s32 height;
+    s32 number_of_channels;
+    const char* path;
+    TextureWrap wrap;
+    TextureFilter filter;
+    TextureType type;
+    u32 id;
+    u32 slot;
+    bool initialized;
+};
 
-void init_texture_cube(TextureCube* cube);
+struct Camera
+{
+    m4x4 projection;
+    v3 position;
+};
 
-void free_loaded_texture(LoadedTexture2D* loaded_texture);
+struct RenderGroup
+{
+    Camera pers_camera;
+    Camera ortho_camera;
 
-LoadedTexture2D load_texture(const char* file_path, TextureFilter filter, TextureWrap wrapping);
+    u32 max_push_buffer_size;
+    u32 push_buffer_size;
+    u8* push_buffer_head;
+};
+
+enum RenderType
+{
+    RenderType_Texture,
+    RenderType_Model,
+    RenderType_Rectangle,
+};
+
+struct RenderElement
+{
+    v3 position;
+    RenderType type;
+    void* element;
+};
+
+inline void* push_render_element(RenderGroup* group)
+{
+    void* element = 0;
+
+    u32 size = sizeof(RenderElement);
+
+    if ((group->push_buffer_size + size) < group->max_push_buffer_size)
+    {
+        element = group->push_buffer_head + group->push_buffer_size;
+        group->push_buffer_size += size;
+    }
+    else 
+    {
+        assert(true);
+    }
+
+    return element;
+}
+
+inline void push_texture(RenderGroup* group, Texture2D* texture, v3* position)
+{
+    RenderElement* render_element = (RenderElement*)push_render_element(group);
+    render_element->position = *position;
+    render_element->type = RenderType_Texture;
+    render_element->element = (void*)texture;
+}
+
+inline void push_model(RenderGroup* group, Model* model, v3* position)
+{
+    RenderElement* render_element = (RenderElement*)push_render_element(group);
+    render_element->position = *position;
+    render_element->type = RenderType_Model;
+    render_element->element = (void*)model;
+}
+
+inline void render_to_output(RenderGroup* group)
+{
+    gl_render_to_output(group);
+}
+
+inline void delete_texture(Texture2D* texture)
+{
+    gl_delete_texture(texture);
+}
+
 #endif
