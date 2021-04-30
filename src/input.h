@@ -81,10 +81,19 @@ public:
 
     void
     SetMiddleMouseBtn(ButtonState state);
+
+    Keyboard&
+    keyboard(void) { return keyboard_; }
     
+    GamePad*
+    gamepad(void) { return game_pad_; }
+    
+    Mouse&
+    mouse(void) { return mouse_; }
+
 private:
     b32 game_pad_connected_;
-    GamePad game_pad[4]_;
+    GamePad game_pad_[4];
     Keyboard keyboard_;
     Mouse mouse_;
 

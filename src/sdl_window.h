@@ -9,25 +9,22 @@
 class SDLWindow : public Window
 {
 public:
-    virtual void
-        InitWindow(int width, int height, char* title) override;
+    void
+    InitWindow(u32 width, u32 height, const char* title) override;
 
-    virtual b32
-        HandleInput(Input* input) override;
+    b32
+    HandleInput(Input* input) override;
 
-    virtual b32
-        IsGamepadConnected(void) override;
+    b32
+    IsGamepadConnected(void) override;
 
-    virtual void
-        UpdateWindow(void) override;
+    void
+    UpdateWindow(void) override;
 
-    virtual void
-        CloseWindow(void) override;
+    void
+    CloseWindow(void) override;
 
 private:
-    u32 height_;
-    u32 width_;
-
     SDL_Window* window_;
     SDL_GLContext context_;
 

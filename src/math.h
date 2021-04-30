@@ -5,7 +5,7 @@
 #include <glm/gtc/matrix_transform.hpp>
 #include <glm/gtc/type_ptr.hpp>
 
-#include "sdl_anthology.h"
+#include "platform.h"
 
 typedef glm::vec2 v2;
 typedef glm::vec3 v3;
@@ -37,9 +37,24 @@ inline m4x4 perspective(f32 fov, f32 aspect, f32 z_near, f32 z_far)
     return glm::perspective(fov, aspect, z_near, z_far);
 }
 
-inline v2 v3_xy(v3* vec3)
+inline v2 v3_xy(v3 vec3)
 {
-    return v2(vec3->x, vec3->y);
+    return v2(vec3.x, vec3.y);
+}
+
+inline m4x4 translate(v3 position)
+{
+    return glm::translate(glm::mat4(1.0f), position);
+}
+
+inline m4x4 translate(m4x4 mat, v3 position)
+{
+    return glm::translate(mat, position);
+}
+
+inline m4x4 scale(m4x4 mat, v3 scale_by)
+{
+    return glm::scale(mat, scale_by);
 }
 
 #endif
