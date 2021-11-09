@@ -1,4 +1,4 @@
-cmake_minimum_required(VERSION 3.10)
+cmake_minimum_required(VERSION 3.16)
 
 project(Anthology)
 
@@ -15,18 +15,21 @@ file (GLOB_RECURSE HEADER_FILES
 
 set(LIB_DIR "${CMAKE_SOURCE_DIR}/libraries")
 
+set(OpenGL_GL_PREFERENCE GLVND)
 find_package(OpenGL REQUIRED)
+find_package(SDL2 REQUIRED)
+        
 
 set(SDL2_DIR "${LIB_DIR}/SDL2-2.0.12")
 set(GLAD_DIR "${LIB_DIR}/glad")
 set(GLM_DIR  "${LIB_DIR}/glm")
 set(STB_IMAGE_DIR "${LIB_DIR}/stb_image")
-set(ASSIMP_DIR "${LIB_DIR}/assimp")
-set(FMOD_DIR "${LIB_DIR}/fmod/api/core")
-set(PHYSX_DIR "${LIB_DIR}/PhysX/physx")
+# set(ASSIMP_DIR "${LIB_DIR}/assimp")
+# set(FMOD_DIR "${LIB_DIR}/fmod/api/core")
+# set(PHYSX_DIR "${LIB_DIR}/PhysX/physx")
 
-set(SDL2_LIB "${SDL2_DIR}/lib/x64/SDL2.lib")
-set(SDL2_MAIN_LIB "${SDL2_DIR}/lib/x64/SDL2main.lib")
+# set(SDL2_LIB "${SDL2_DIR}/lib/x64/SDL2.lib")
+# set(SDL2_MAIN_LIB "${SDL2_DIR}/lib/x64/SDL2main.lib")
 set(SDL2_INCLUDE "${SDL2_DIR}/include")
 
 set(GLAD_LIB "${GLAD_DIR}/src/glad.c")
@@ -37,24 +40,20 @@ set(STB_IMAGE_INCLUDE "${STB_IMAGE_DIR}")
 
 set(GLM_INCLUDE "${GLM_DIR}")
 
-set(ASSIMP_LIB "${ASSIMP_DIR}/lib/Release/assimp-vc142-mt.lib")
-set(ASSIMP_INCLUDE "${ASSIMP_DIR}/include")
+# set(ASSIMP_LIB "${ASSIMP_DIR}/lib/Release/assimp-vc142-mt.lib")
+# set(ASSIMP_INCLUDE "${ASSIMP_DIR}/include")
 
-set(FMOD_LIB "${FMOD_DIR}/lib/x64/fmod_vc.lib")
-set(FMOD_INCLUDE "${FMOD_DIR}/inc")
+# set(FMOD_LIB "${FMOD_DIR}/lib/x64/fmod_vc.lib")
+# set(FMOD_INCLUDE "${FMOD_DIR}/inc")
 
-set(PHYSX_INCLUDE "${PHYSX_DIR}/inlude")
-set(PHYSX_COMMON_LIB "${PHYSX_DIR}/bin/win.x86_64.vc142.mt/checked/PhysXCommon_64.lib")
-set(PHYSX_LIB "${PHYSX_DIR}/bin/win.x86_64.vc142.mt/checked/PhysX_64.lib")
-set(PHYSX_FOUNDATION_LIB "${PHYSX_DIR}/bin/win.x86_64.vc142.mt/checked/PhysXFoundation_64.lib")
+# set(PHYSX_INCLUDE "${PHYSX_DIR}/inlude")
+# set(PHYSX_COMMON_LIB "${PHYSX_DIR}/bin/win.x86_64.vc142.mt/checked/PhysXCommon_64.lib")
+# set(PHYSX_LIB "${PHYSX_DIR}/bin/win.x86_64.vc142.mt/checked/PhysX_64.lib")
+# set(PHYSX_FOUNDATION_LIB "${PHYSX_DIR}/bin/win.x86_64.vc142.mt/checked/PhysXFoundation_64.lib")
 
 
-include_directories(${PHYSX_INCLUDE} ${SDL2_INCLUDE} ${GLAD_INCLUDE} ${GLM_INCLUDE} ${STB_IMAGE_INCLUDE} ${ASSIMP_INCLUDE} ${FMOD_INCLUDE})
+include_directories(${SDL2_INCLUDE_DIRS} ${PHYSX_INCLUDE} ${SDL2_INCLUDE} ${GLAD_INCLUDE} ${GLM_INCLUDE} ${STB_IMAGE_INCLUDE} ${ASSIMP_INCLUDE} ${FMOD_INCLUDE})
 
-add_executable(${PROJECT_NAME} ${GLAD_LIB} ${STB_IMAGE_LIB} ${HEADER_FILES} ${SOURCE_FILES})
-add_custom_command(TARGET ${PROJECT_NAME} POST_BUILD
-        COMMAND ${CMAKE_COMMAND} -E copy_if_different
-        "${LIB_DIR}/dll_files/"
-        $<TARGET_FILE_DIR:${PROJECT_NAME}>)
+add_executable(CMakeTarget ${GLAD_LIB} ${STB_IMAGE_LIB} ${HEADER_FILES} ${SOURCE_FILES})
 
-target_link_libraries(${PROJECT_NAME} ${PHYSX_LIB} ${PHYSX_COMMON_LIB} ${PHYSX_FOUNDATION_LIB} ${SDL2_LIB} ${SDL2_MAIN_LIB} ${ASSIMP_LIB} ${FMOD_LIB}) 
+target_link_libraries(CMakeTarget ${SDL2_LIBRARIES} ${PROJECT_NAME} ${PHYSX_LIB} ${PHYSX_COMMON_LIB} ${PHYSX_FOUNDATION_LIB} ${ASSIMP_LIB} ${FMOD_LIB}) 

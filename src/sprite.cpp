@@ -3,8 +3,8 @@
 #include <glad/glad.h>
 
 
-Sprite::Sprite(Texture2D* texture, Shader* shader, v3 position = v3(1.0f, 1.0f, 1.0f))
-    : texture_(texture), shader_(shader), position_(position)
+Sprite::Sprite(Texture2D* texture, Shader* shader, v3 position)
+    : texture_(texture), shader_(shader), position_(1.0f, 1.0f, 1.0f)
 {}
 
 void

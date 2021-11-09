@@ -1,6 +1,8 @@
 #ifndef SHADER_HH
 #define SHADER_HH
 
+#include "platform.h"
+
 class Shader
 {
 public:

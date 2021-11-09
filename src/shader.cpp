@@ -4,13 +4,15 @@
 
 #include <glad/glad.h>
 
+#include <vector>
+
 Shader::Shader(const char* file_path)
 {
     std::ifstream stream(file_path);
     std::string line;
 
-    std::string fragment_shader = "";
-    std::string vertex_shader = "";
+    std::string fragment_src = "";
+    std::string vertex_src = "";
     bool is_fragment = false;
     
     while (getline(stream, line))
@@ -29,9 +31,9 @@ Shader::Shader(const char* file_path)
         else
         {
             if (is_fragment)
-                fragment_shader += line + "\n";
+                fragment_src += line + "\n";
             else
-                vertex_shader += line + "\n";
+                vertex_src += line + "\n";
         }
     }
 
@@ -40,7 +42,7 @@ Shader::Shader(const char* file_path)
 
     // Send the vertex shader source code to GL
     // Note that std::string's .c_str is NULL character terminated.
-    const GLchar* source = vertex_src;
+    const GLchar* source = vertex_src.c_str();
     glShaderSource(vertex_shader, 1, &source, 0);
 
     // Compile the vertex shader
@@ -73,7 +75,7 @@ Shader::Shader(const char* file_path)
 
     // Send the fragment shader source code to GL
     // Note that std::string's .c_str is NULL character terminated.
-    source = (const GLchar*)fragment_src;
+    source = (const GLchar*)fragment_src.c_str();
     glShaderSource(fragment_shader, 1, &source, 0);
 
     // Compile the fragment shader
@@ -107,7 +109,7 @@ Shader::Shader(const char* file_path)
     // Get a program object.
     GLuint program = glCreateProgram();
 
-    shader->program = program;
+    program_ = program;
 
     // Attach our shaders to our program
     glAttachShader(program, vertex_shader);

@@ -1,4 +1,3 @@
-#include <memoryapi.h>
 #include <assert.h>
 
 #include <stb_image.h>
@@ -36,6 +35,7 @@ SDLWindow::InitWindow(u32 width, u32 height, const char* title)
 
     glEnable(GL_DEPTH_TEST);
 
+    game.Init();
 }
 
 b32
@@ -341,6 +341,8 @@ SDLWindow::IsGamepadConnected()
 void
 SDLWindow::UpdateWindow() 
 {
+    game.Update();
+    game.Draw();
     SDL_GL_SwapWindow(window_);
 }
 
@@ -351,23 +353,3 @@ SDLWindow::CloseWindow()
     window_ = NULL;
     SDL_Quit();
 }
-
-// Texture2D platform_load_texture(const char* file_path, TextureFilter filter, TextureWrap wrapping)
-// {
-//     stbi_set_flip_vertically_on_load(1);
-
-//     Texture2D loaded_texture = {};
-//     loaded_texture.filter = filter;
-//     loaded_texture.wrap = wrapping;
-//     loaded_texture.image_data = stbi_load(file_path, &loaded_texture.width, &loaded_texture.height, &loaded_texture.number_of_channels, 0);
-//     loaded_texture.path = file_path;
-
-//     assert(loaded_texture.image_data);
-//     return loaded_texture;
-// }
-
-// void free_texture(Texture2D* texture)
-// {
-//     stbi_image_free(texture->image_data);
-//     delete_texture(texture);
-// }

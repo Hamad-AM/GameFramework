@@ -5,6 +5,7 @@
 
 #define SDL_MAIN_HANDLED
 #include <SDL.h>
+#include "game.h"
 
 class SDLWindow : public Window
 {
@@ -29,7 +30,7 @@ private:
     SDL_GLContext context_;
 
     SDL_Event event_;
-
+    Game game;
 };
 
 #endif
