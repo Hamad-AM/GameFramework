@@ -9,6 +9,10 @@ public:
     Shader(const char* filepath);
     ~Shader();
 
+    void Bind();
+
+    void Unbind();
+
     u32
     program() { return program_; }
 

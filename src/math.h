@@ -7,9 +7,9 @@
 
 #include "platform.h"
 
-typedef glm::vec2 v2;
-typedef glm::vec3 v3;
-typedef glm::vec4 v4;
+typedef glm::vec2 vec2;
+typedef glm::vec3 vec3;
+typedef glm::vec4 vec4;
 typedef glm::mat4 m4x4;
 
 inline f32 dot(v3 a, v3 b)

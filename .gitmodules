@@ -1,3 +1,15 @@
 [submodule "libraries/PhysX"]
 	path = libraries/PhysX
 	url = https://github.com/NVIDIAGameWorks/PhysX.git
+[submodule "libraries/glfw"]
+	path = libraries/glfw
+	url = https://github.com/glfw/glfw.git
+[submodule "libraries/box2d"]
+	path = libraries/box2d
+	url = https://github.com/erincatto/box2d.git
+[submodule "libraries/smmalloc"]
+	path = libraries/smmalloc
+	url = https://github.com/SergeyMakeev/smmalloc.git
+[submodule "libraries/entt"]
+	path = libraries/entt
+	url = https://github.com/skypjack/entt.git

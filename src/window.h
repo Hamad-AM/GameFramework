@@ -11,7 +11,7 @@ public:
     InitWindow(u32 width, u32 height, const char *title) = 0;
 
     virtual b32
-    HandleInput(Input* input) = 0;
+    HandleInput() = 0;
 
     virtual b32
     IsGamepadConnected(void) = 0;
@@ -36,7 +36,8 @@ public:
 
 protected:
     u32 height_;
-    u32 width_;
+    u32 width_; 
+    Input input;
 
 private:
 };

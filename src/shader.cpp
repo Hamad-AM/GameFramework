@@ -5,39 +5,14 @@
 #include <glad/glad.h>
 
 #include <vector>
+#include <string>
 
-Shader::Shader(const char* file_path)
+Shader::Shader(std::string vs, std::string fs)
 {
-    std::ifstream stream(file_path);
-    std::string line;
-
-    std::string fragment_src = "";
-    std::string vertex_src = "";
-    bool is_fragment = false;
+    std::string fragment_src = fs;
+    std::string vertex_src = vs;
     
-    while (getline(stream, line))
-    {
-        if (line.find("#shader") != std::string::npos)
-        {
-            if (line.find("vertex") != std::string::npos)
-            {
-                is_fragment = false;
-            }
-            else if (line.find("fragment") != std::string::npos)
-            {
-                is_fragment = true;
-            }
-        }
-        else
-        {
-            if (is_fragment)
-                fragment_src += line + "\n";
-            else
-                vertex_src += line + "\n";
-        }
-    }
-
-        // Create an empty vertex shader handle
+    // Create an empty vertex shader handle
     GLuint vertex_shader = glCreateShader(GL_VERTEX_SHADER);
 
     // Send the vertex shader source code to GL
@@ -152,4 +127,14 @@ Shader::Shader(const char* file_path)
 Shader::~Shader()
 {
     glDeleteProgram(program_);
+}
+
+void Shader::Bind()
+{
+    glUseProgram(program_);
+}
+
+void Shader::Unbind()
+{
+    glUseProgram(0);
 }

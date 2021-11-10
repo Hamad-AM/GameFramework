@@ -2,6 +2,7 @@
 #define PLATFORM_HH
 
 #include <stdint.h>
+#include <memory>
 
 typedef uint8_t  u8;
 typedef uint16_t u16;
@@ -19,4 +20,7 @@ typedef float f32;
 typedef double f64;
 
 typedef unsigned char ubyte;
+
+typedef std::shared_ptr<T> ref<T>;
+
 #endif PLATFORM_HH
