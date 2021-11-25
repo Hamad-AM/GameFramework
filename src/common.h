@@ -3,6 +3,9 @@
 
 #include <stdint.h>
 #include <memory>
+#include <vector>
+#include <glm/glm.hpp>
+#include <glm/gtc/matrix_transform.hpp>
 
 typedef uint8_t  u8;
 typedef uint16_t u16;
@@ -21,6 +24,4 @@ typedef double f64;
 
 typedef unsigned char ubyte;
 
-typedef std::shared_ptr<T> ref<T>;
-
-#endif PLATFORM_HH
+#endif

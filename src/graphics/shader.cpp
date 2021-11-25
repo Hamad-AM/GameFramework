@@ -1,23 +1,45 @@
 #include "shader.h"
 
+#include <iostream>
+#include <string>
 #include <fstream>
+#include <sstream>
 
 #include <glad/glad.h>
+#include <glm/gtc/type_ptr.hpp>
 
 #include <vector>
-#include <string>
 
-Shader::Shader(std::string vs, std::string fs)
+shader::shader()
+{}
+
+void
+shader::compile(const char* vs, const char* fs)
 {
-    std::string fragment_src = fs;
-    std::string vertex_src = vs;
-    
+    shader_name_ = vs;
+
     // Create an empty vertex shader handle
     GLuint vertex_shader = glCreateShader(GL_VERTEX_SHADER);
 
+
+    std::ifstream fs_file;
+    fs_file.open(fs);
+    std::stringstream fs_ss;
+    fs_ss << fs_file.rdbuf();
+    fs_file.close();
+    std::string fs_src = fs_ss.str();
+
+    std::ifstream vs_file;
+    std::string vs_src;    
+    std::stringstream vs_ss;
+    vs_file.open(vs);
+    vs_ss << vs_file.rdbuf();
+    vs_file.close();
+    vs_src = vs_ss.str();
+
     // Send the vertex shader source code to GL
     // Note that std::string's .c_str is NULL character terminated.
-    const GLchar* source = vertex_src.c_str();
+    const GLchar* source = vs_src.c_str();
     glShaderSource(vertex_shader, 1, &source, 0);
 
     // Compile the vertex shader
@@ -50,7 +72,7 @@ Shader::Shader(std::string vs, std::string fs)
 
     // Send the fragment shader source code to GL
     // Note that std::string's .c_str is NULL character terminated.
-    source = (const GLchar*)fragment_src.c_str();
+    source = (const GLchar*)fs_src.c_str();
     glShaderSource(fragment_shader, 1, &source, 0);
 
     // Compile the fragment shader
@@ -124,17 +146,64 @@ Shader::Shader(std::string vs, std::string fs)
     glDetachShader(program, fragment_shader);
 }
 
-Shader::~Shader()
+shader::~shader()
 {
     glDeleteProgram(program_);
 }
 
-void Shader::Bind()
+void
+shader::bind()
 {
     glUseProgram(program_);
 }
 
-void Shader::Unbind()
+void
+shader::unbind()
 {
     glUseProgram(0);
+}
+
+s32
+shader::uniform_location(const char* name)
+{
+    s32 location = glGetUniformLocation(program_, name);
+    if (location == -1)
+    {
+        std::cout << "Uniform " << name << " not found for shader " << shader_name_ << std::endl;
+        assert(false);
+    }
+    return location;
+}
+
+void
+shader::uniform_float(const char* name, f32 value)
+{
+    glUniform1f(uniform_location(name), value);
+}
+
+void
+shader::uniform_int(const char* name, s32 value)
+{
+    glUniform1i(uniform_location(name), value);
+}
+void
+shader::uniform_vector2f(const char* name, glm::vec2& value)
+{
+    glUniform2f(uniform_location(name), value.x, value.y);
+}
+
+void 
+shader::uniform_vector3f   (const char* name, glm::vec3& value)
+{
+    glUniform3f(uniform_location(name), value.x, value.y, value.z);
+}
+void
+shader::uniform_vector4f   (const char* name, glm::vec4& value)
+{
+    glUniform4f(uniform_location(name), value.x, value.y, value.z, value.w);
+}
+void
+shader::uniform_matrix4    (const char* name, glm::mat4& value)
+{
+    glUniformMatrix4fv(uniform_location(name), 1, GL_FALSE, glm::value_ptr(value));
 }

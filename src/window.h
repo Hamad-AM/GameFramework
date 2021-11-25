@@ -1,26 +1,26 @@
 #ifndef SDL_ANTHOLOGY_H
 #define SDL_ANTHOLOGY_H
 
-#include "platform.h"
+#include "common.h"
 #include "input.h"
 
-class Window
+class window
 {
 public:
     virtual void
-    InitWindow(u32 width, u32 height, const char *title) = 0;
+    initialize(u32 width, u32 height, const char *title) = 0;
 
     virtual b32
-    HandleInput() = 0;
+    handle_input() = 0;
 
     virtual b32
-    IsGamepadConnected(void) = 0;
+    is_gamepad_connected(void) = 0;
 
     virtual void
-    UpdateWindow(void) = 0;
+    update(void) = 0;
 
     virtual void
-    CloseWindow(void) = 0;
+    close(void) = 0;
 
     u32
     height(void) { return height_; }

@@ -1,7 +1,7 @@
 #ifndef ANTHOLOGY_INPUT_H
 #define ANTHOLOGY_INPUT_H
 
-#include "platform.h"
+#include "common.h"
 
 enum ButtonState
 {
