@@ -13,13 +13,16 @@ public:
     ~sprite_renderer() {}
 
     void
-    initialize(shader* s);
+    initialize();
 
-    void draw_sprite(camera& cam, texture2d& texture, glm::vec2 position, glm::vec2 size = glm::vec2(10.0f, 0.0f), f32 rotate = 0.0f, glm::vec3 color = glm::vec3(1.0f));
+    void draw_sprite(camera& cam, texture2d& texture, glm::vec2 position, glm::vec2 size = glm::vec2(1.0f, 1.0f), f32 rotate = 0.0f, glm::vec3 color = glm::vec3(1.0f));
+
+    void
+    render_delete();
 
 private:
-    shader* shader_;
-    u32 vertex_array;
+    shader shader_;
+    u32 vertex_array_;
 };
 
 #endif

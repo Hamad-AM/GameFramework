@@ -52,11 +52,13 @@ class texture2d
 public:
     texture2d();
     
-    void submit_render(u32 width, u32 height, ubyte* data, texture_param);
+    void create(const char* file, texture_param param);
 
-    u32 width() { return width_; }
+    void submit_render(texture_param param);
 
-    u32 height() { return height_; }
+    s32 width() { return width_; }
+
+    s32 height() { return height_; }
     
     texture_wrap wrap() { return wrap_; }
 
@@ -73,9 +75,9 @@ protected:
     ubyte* image_data_;
 
 private:
-    u32 width_;
-    u32 height_;
-    u32 number_of_channels_;
+    s32 width_;
+    s32 height_;
+    s32 number_of_channels_;
     
     const char* filepath_;
     
@@ -127,9 +129,9 @@ convert_to_gl_format(texture_format format)
 {
     switch(format)
     {
-        case RGB:
+        case texture_format::RGB:
             return GL_RGB;
-        case RGBA:
+        case texture_format::RGBA:
             return GL_RGBA;
         default:
             return GL_RGB;

@@ -1,9 +1,27 @@
 #include "glfw_window.h"
 
+#include <stb_image.h>
 #include <stdio.h>
 #include <assert.h>
 
+#include "input.h"
+
 #include <iostream>
+
+
+void GLAPIENTRY
+MessageCallback( GLenum source,
+                 GLenum type,
+                 GLuint id,
+                 GLenum severity,
+                 GLsizei length,
+                 const GLchar* message,
+                 const void* userParam )
+{
+  fprintf( stderr, "GL CALLBACK: %s type = 0x%x, severity = 0x%x, message = %s\n",
+           ( type == GL_DEBUG_TYPE_ERROR ? "** GL ERROR **" : "" ),
+            type, severity, message );
+}
 
 static void error_callback(s32 error, const char *description)
 {
@@ -47,12 +65,54 @@ void glfw_window::initialize(u32 width, u32 height, const char *title)
     }    
     glfwSwapInterval(1);
 
-    game_.initialize();
+
+    // During init, enable debug output
+    glEnable              ( GL_DEBUG_OUTPUT );
+    glDebugMessageCallback( MessageCallback, 0 );
+
+
+    game_.initialize(&input);
 }
 
 b32 glfw_window::handle_input()
 {
-    return b32();
+    if (glfwGetKey(window, GLFW_KEY_ESCAPE) == GLFW_PRESS)
+    {
+        input.set_key_state(key::ESCAPE, input_state::down);
+        return true;
+    } else 
+    {
+        input.set_key_state(key::ESCAPE, input_state::up);
+    }
+    if (glfwGetKey(window, GLFW_KEY_W) == GLFW_PRESS)
+    {
+        input.set_key_state(key::w, input_state::down);
+    } else 
+    {
+        input.set_key_state(key::w, input_state::up);
+    }
+    if (glfwGetKey(window, GLFW_KEY_S) == GLFW_PRESS)
+    {
+        input.set_key_state(key::s, input_state::down);
+    } else
+    {
+        input.set_key_state(key::s, input_state::up);
+    }
+    if (glfwGetKey(window, GLFW_KEY_A) == GLFW_PRESS)
+    {
+        input.set_key_state(key::a, input_state::down);
+    } else 
+    {
+        input.set_key_state(key::a, input_state::up);
+    }
+    if (glfwGetKey(window, GLFW_KEY_D) == GLFW_PRESS)
+    {
+        input.set_key_state(key::d, input_state::down);
+    } else 
+    {
+        input.set_key_state(key::d, input_state::up);
+    }
+    return false;
 }
 
 b32 glfw_window::is_gamepad_connected()
@@ -62,18 +122,53 @@ b32 glfw_window::is_gamepad_connected()
 
 void glfw_window::update()
 {
-    while (!glfwWindowShouldClose(window))
+
+#if 0
+    unsigned int texture;
+    glGenTextures(1, &texture);
+    glBindTexture(GL_TEXTURE_2D, texture); // all upcoming GL_TEXTURE_2D operations now have effect on this texture object
+    // set the texture wrapping parameters
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, );	// set texture wrapping to GL_REPEAT (default wrapping method)
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
+    // set texture filtering parameters
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, );
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
+    // load image, create texture and generate mipmaps
+    int width, height, nrChannels;
+    // The FileSystem::getPath(...) is part of the GitHub repository so we can find files on any IDE/platform; replace it with your own image path.
+    unsigned char *data = stbi_load("test.png", &width, &height, &nrChannels, 0);
+    if (data)
+    {
+        glTexImage2D(GL_TEXTURE_2D, 0, , width, height, 0, GL_RGBA, GL_UNSIGNED_BYTE, data);
+    }
+else
+    {
+        std::cout << "Failed to load texture" << std::endl;
+    }
+    stbi_image_free(data);
+#endif
+
+    b32 close_window = false;
+    while (!glfwWindowShouldClose(window) || !close_window)
     {
         glClearColor(0.2f, 0.3f, 0.3f, 1.0f);
         glClear(GL_COLOR_BUFFER_BIT);
 
+        glfwPollEvents();
+        close_window = handle_input();
         game_time = (float) glfwGetTime();
 
-        glfwPollEvents();
+
         game_.update(game_time);
         game_.draw(game_time);
-        glfwSwapBuffers(window);
+        // texture.bind();
+        // _shader.bind();
+        // _shader.uniform_int("texture1", 0);
+        // glBindVertexArray(VAO);
+        // glDrawElements(GL_TRIANGLES, 6, GL_UNSIGNED_INT, 0);
 
+
+        glfwSwapBuffers(window);
     }
 }
 

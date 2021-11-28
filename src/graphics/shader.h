@@ -7,7 +7,7 @@ class shader
 {
 public:
     shader();
-    ~shader();
+    void delete_shader();
 
     void bind();
 

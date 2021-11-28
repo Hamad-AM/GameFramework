@@ -146,7 +146,8 @@ shader::compile(const char* vs, const char* fs)
     glDetachShader(program, fragment_shader);
 }
 
-shader::~shader()
+void
+shader::delete_shader()
 {
     glDeleteProgram(program_);
 }

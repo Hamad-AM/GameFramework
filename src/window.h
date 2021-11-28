@@ -36,10 +36,8 @@ public:
 
 protected:
     u32 height_;
-    u32 width_; 
-    Input input;
-
-private:
+    u32 width_;
+    input_system input;
 };
 
 #endif
