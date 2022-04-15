@@ -38,6 +38,8 @@ set(STB_IMAGE_DIR "${LIB_DIR}/stb_image")
 set(GLFW_LIB_LINUX "${GLFW_DIR}/build/src/libglfw3.a")
 set(GLFW_INCLUDE "${GLFW_DIR}/include/")
 
+set(BOX2D_LIB_LINUX "${LIB_DIR}/box2d/build/bin/libbox2d.a")
+set(BOX2D_INCLUDE "${LIB_DIR}/box2d/include/")
 
 set(GLAD_LIB "${GLAD_DIR}/src/glad.c")
 set(GLAD_INCLUDE "${GLAD_DIR}/include")
@@ -46,6 +48,10 @@ set(STB_IMAGE_LIB "${STB_IMAGE_DIR}/stb_image.cpp")
 set(STB_IMAGE_INCLUDE "${STB_IMAGE_DIR}")
 
 set(GLM_INCLUDE "${GLM_DIR}")
+set(ENTT_INCLUDE "${LIB_DIR}/entt/single_include/entt.hpp")
+
+set(FT2_INCLUDE "${LIB_DIR}/freetype-2.11.1/include")
+set(FT2_LIB "${LIB_DIR}/freetype-2.11.1/build/libfreetype.a")
 
 # set(ASSIMP_LIB "${ASSIMP_DIR}/lib/Release/assimp-vc142-mt.lib")
 # set(ASSIMP_INCLUDE "${ASSIMP_DIR}/include")
@@ -59,10 +65,9 @@ set(GLM_INCLUDE "${GLM_DIR}")
 # set(PHYSX_FOUNDATION_LIB "${PHYSX_DIR}/bin/win.x86_64.vc142.mt/checked/PhysXFoundation_64.lib")
 
 
-add_library(AnthologyLib ${GLAD_LIB} ${STB_IMAGE_LIB} ${SOURCE_FILES})
+# add_library(AnthologyLib )
 
-include_directories(${GLFW_INCLUDE} ${SDL2_INCLUDE_DIRS} ${PHYSX_INCLUDE} ${SDL2_INCLUDE} ${GLAD_INCLUDE} ${GLM_INCLUDE} ${STB_IMAGE_INCLUDE} ${ASSIMP_INCLUDE} ${FMOD_INCLUDE})
-target_link_libraries(AnthologyLib ${GLFW_LIB} ${SDL2_LIBRARIES} ${PROJECT_NAME} ${PHYSX_LIB} ${PHYSX_COMMON_LIB} ${PHYSX_FOUNDATION_LIB} ${ASSIMP_LIB} ${FMOD_LIB} ${GLFW_LIB_LINUX} ${CMAKE_DL_LIBS}) 
+include_directories(${GLFW_INCLUDE} ${SDL2_INCLUDE_DIRS} ${PHYSX_INCLUDE} ${SDL2_INCLUDE} ${GLAD_INCLUDE} ${GLM_INCLUDE} ${STB_IMAGE_INCLUDE} ${ASSIMP_INCLUDE} ${FMOD_INCLUDE} ${BOX2D_INCLUDE} ${ENTT_INCLUDE} ${FT2_INCLUDE})
 
-add_executable(Anthology ${CMAKE_SOURCE_DIR}/src/glfw_window.cpp)
-target_link_libraries(Anthology AnthologyLib)
+add_executable(Anthology ${GLAD_LIB} ${STB_IMAGE_LIB} ${SOURCE_FILES})
+target_link_libraries(${GLFW_LIB} ${SDL2_LIBRARIES} ${PROJECT_NAME} ${PHYSX_LIB} ${PHYSX_COMMON_LIB} ${PHYSX_FOUNDATION_LIB} ${ASSIMP_LIB} ${FMOD_LIB} ${GLFW_LIB_LINUX} ${CMAKE_DL_LIBS} ${BOX2D_LIB_LINUX} ${FT2_LIB}) 

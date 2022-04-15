@@ -1,37 +1,14 @@
 /*==============================================================================
 FMOD Example Framework
-Copyright (c), Firelight Technologies Pty, Ltd 2012-2020.
+Copyright (c), Firelight Technologies Pty, Ltd 2014-2021.
 ==============================================================================*/
-#include <windows.h>
-
-int FMOD_Main();
+#include <pthread.h>
+#include <assert.h>
+#include <stdio.h>
 
 #define COMMON_PLATFORM_SUPPORTS_FOPEN
 
-#define Common_snprintf _snprintf
-#define Common_vsnprintf _vsnprintf
+#define FMOD_Main() main(int, char**)
+#define Common_TTY(format, ...) fprintf(stderr, format, __VA_ARGS__)
 
-void Common_TTY(const char *format, ...);
-
-typedef CRITICAL_SECTION Common_Mutex;
-
-inline void Common_Mutex_Create(Common_Mutex *mutex)
-{
-    InitializeCriticalSection(mutex);
-}
-
-inline void Common_Mutex_Destroy(Common_Mutex *mutex)
-{
-    DeleteCriticalSection(mutex);
-}
-
-inline void Common_Mutex_Enter(Common_Mutex *mutex)
-{
-    EnterCriticalSection(mutex);
-}
-
-inline void Common_Mutex_Leave(Common_Mutex *mutex)
-{
-    LeaveCriticalSection(mutex);
-}
-
+typedef pthread_mutex_t Common_Mutex;

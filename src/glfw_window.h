@@ -7,7 +7,7 @@
 #include <glad/glad.h>
 #define GLFW_INCLUDE_NONE
 #include <GLFW/glfw3.h>
-#include "game.h"
+#include "application.h"
 
 class glfw_window : public window
 {
@@ -19,8 +19,8 @@ public:
     void close() override;
 private:
     GLFWwindow* window;
-    f32 game_time;
-    game game_;
+    double previous_time;
+    application game_;
 };
 
 #endif

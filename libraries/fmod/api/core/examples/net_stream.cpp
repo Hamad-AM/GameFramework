@@ -1,6 +1,6 @@
 /*==============================================================================
 Net Stream Example
-Copyright (c), Firelight Technologies Pty, Ltd 2004-2020.
+Copyright (c), Firelight Technologies Pty, Ltd 2004-2021.
 
 This example shows how to play streaming audio from an Internet source
 ==============================================================================*/
@@ -14,7 +14,6 @@ int FMOD_Main()
     FMOD::Channel   *channel = 0;
     FMOD_RESULT      result = FMOD_OK;
     FMOD_OPENSTATE   openstate = FMOD_OPENSTATE_READY;
-    unsigned int     version = 0;
     void            *extradriverdata = 0;
     const int        tagcount = 4;
     int              tagindex = 0;
@@ -27,14 +26,6 @@ int FMOD_Main()
     */
     result = FMOD::System_Create(&system);
     ERRCHECK(result);
-
-    result = system->getVersion(&version);
-    ERRCHECK(result);
-
-    if (version < FMOD_VERSION)
-    {
-        Common_Fatal("FMOD lib version %08x doesn't match header version %08x", version, FMOD_VERSION);
-    }
 
     result = system->init(1, FMOD_INIT_NORMAL, extradriverdata);
     ERRCHECK(result);
@@ -166,7 +157,7 @@ int FMOD_Main()
 
         Common_Draw("==================================================");
         Common_Draw("Net Stream Example.");
-        Common_Draw("Copyright (c) Firelight Technologies 2004-2020.");
+        Common_Draw("Copyright (c) Firelight Technologies 2004-2021.");
         Common_Draw("==================================================");
         Common_Draw("");
         Common_Draw("Press %s to toggle pause", Common_BtnStr(BTN_ACTION1));

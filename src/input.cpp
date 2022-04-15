@@ -1,6 +1,8 @@
 #include "input.h"
 
-input_system::input_system()
+input* input::s_instance = new input(); 
+
+input::input()
 {
     for (s32 i = 0; i < 104; ++i)
     {
@@ -45,19 +47,93 @@ input_system::input_system()
 }
 
 b32
-input_system::is_key_down(key key)
+input::is_key_down_impl(key key)
 {
     return keyboard_.keys[key] == input_state::down;
 }
 
 b32
-input_system::is_key_up(key key)
+input::is_key_up_impl(key key)
 {
     return keyboard_.keys[key] == input_state::up;
 }
 
 void
-input_system::set_key_state(key key, input_state state)
+input::set_key_state_impl(key key, input_state state)
 {
     keyboard_.keys[key] = state;
+}
+
+b32 
+input::is_left_mouse_down_impl()
+{
+    return mouse_.left_button == input_state::down;
+}
+
+b32 
+input::is_left_mouse_pressed_impl()
+{
+    return false;
+}
+
+b32 
+input::is_left_mouse_released_impl()
+{
+    return false;
+}
+
+b32 
+input::is_left_mouse_up_impl()
+{
+    return mouse_.left_button == input_state::up;
+}
+
+b32 
+input::is_right_mouse_down_impl()
+{
+    return mouse_.right_button == input_state::down;
+}
+
+b32 
+input::is_right_mouse_pressed_impl()
+{
+    return false;
+}
+
+b32 
+input::is_right_mouse_released_impl()
+{
+    return false;
+}
+
+b32 
+input::is_right_mouse_up_impl()
+{
+    return mouse_.right_button == input_state::up;
+}
+
+vec2
+input::mouse_position_impl()
+{
+    return vec2{mouse_.x, mouse_.y};
+}
+
+
+void
+input::set_right_mouse_impl(input_state state)
+{
+    mouse_.right_button = state;
+}
+
+void
+input::set_left_mouse_impl(input_state state)
+{
+    mouse_.left_button = state;
+}
+
+void
+input::set_mouse_position_impl(s32 x, s32 y)
+{
+    mouse_.x = x;
+    mouse_.y = y;
 }

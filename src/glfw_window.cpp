@@ -70,47 +70,64 @@ void glfw_window::initialize(u32 width, u32 height, const char *title)
     glEnable              ( GL_DEBUG_OUTPUT );
     glDebugMessageCallback( MessageCallback, 0 );
 
+    glEnable(GL_BLEND);
+    glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
 
-    game_.initialize(&input);
+
+    game_.initialize();
 }
 
 b32 glfw_window::handle_input()
 {
     if (glfwGetKey(window, GLFW_KEY_ESCAPE) == GLFW_PRESS)
     {
-        input.set_key_state(key::ESCAPE, input_state::down);
+        input::set_key_state(key::ESCAPE, input_state::down);
         return true;
     } else 
     {
-        input.set_key_state(key::ESCAPE, input_state::up);
+        input::set_key_state(key::ESCAPE, input_state::up);
     }
     if (glfwGetKey(window, GLFW_KEY_W) == GLFW_PRESS)
     {
-        input.set_key_state(key::w, input_state::down);
+        input::set_key_state(key::w, input_state::down);
     } else 
     {
-        input.set_key_state(key::w, input_state::up);
+        input::set_key_state(key::w, input_state::up);
     }
     if (glfwGetKey(window, GLFW_KEY_S) == GLFW_PRESS)
     {
-        input.set_key_state(key::s, input_state::down);
+        input::set_key_state(key::s, input_state::down);
     } else
     {
-        input.set_key_state(key::s, input_state::up);
+        input::set_key_state(key::s, input_state::up);
     }
     if (glfwGetKey(window, GLFW_KEY_A) == GLFW_PRESS)
     {
-        input.set_key_state(key::a, input_state::down);
+        input::set_key_state(key::a, input_state::down);
     } else 
     {
-        input.set_key_state(key::a, input_state::up);
+        input::set_key_state(key::a, input_state::up);
     }
     if (glfwGetKey(window, GLFW_KEY_D) == GLFW_PRESS)
     {
-        input.set_key_state(key::d, input_state::down);
+        input::set_key_state(key::d, input_state::down);
     } else 
     {
-        input.set_key_state(key::d, input_state::up);
+        input::set_key_state(key::d, input_state::up);
+    }
+    if (glfwGetKey(window, GLFW_KEY_P) == GLFW_PRESS)
+    {
+        input::set_key_state(key::p, input_state::down);
+    } else 
+    {
+        input::set_key_state(key::p, input_state::up);
+    }
+    if (glfwGetKey(window, GLFW_KEY_SPACE) == GLFW_PRESS)
+    {
+        input::set_key_state(key::SPACE, input_state::down);
+    } else 
+    {
+        input::set_key_state(key::SPACE, input_state::up);
     }
     return false;
 }
@@ -148,24 +165,24 @@ else
     stbi_image_free(data);
 #endif
 
+    previous_time = glfwGetTime();
+    srand(previous_time);
+
     b32 close_window = false;
-    while (!glfwWindowShouldClose(window) || !close_window)
+    while (!glfwWindowShouldClose(window))
     {
         glClearColor(0.2f, 0.3f, 0.3f, 1.0f);
         glClear(GL_COLOR_BUFFER_BIT);
 
         glfwPollEvents();
         close_window = handle_input();
-        game_time = (float) glfwGetTime();
+        
+        double time = (double) glfwGetTime();
+        f32 dt = previous_time - time;
+        previous_time = time;
 
-
-        game_.update(game_time);
-        game_.draw(game_time);
-        // texture.bind();
-        // _shader.bind();
-        // _shader.uniform_int("texture1", 0);
-        // glBindVertexArray(VAO);
-        // glDrawElements(GL_TRIANGLES, 6, GL_UNSIGNED_INT, 0);
+        game_.update(dt);
+        game_.draw(dt);
 
 
         glfwSwapBuffers(window);

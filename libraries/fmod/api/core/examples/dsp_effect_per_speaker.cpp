@@ -1,6 +1,6 @@
 /*==============================================================================
 DSP Effect Per Speaker Example
-Copyright (c), Firelight Technologies Pty, Ltd 2004-2020.
+Copyright (c), Firelight Technologies Pty, Ltd 2004-2021.
 
 This example shows how to manipulate a DSP network and as an example, creates 2
 DSP effects, splitting a single sound into 2 audio paths, which it then filters
@@ -33,7 +33,6 @@ int FMOD_Main()
     FMOD::DSP           *dsplowpass, *dsphighpass, *dsphead, *dspchannelmixer;
     FMOD::DSPConnection *dsplowpassconnection, *dsphighpassconnection;
     FMOD_RESULT          result;
-    unsigned int         version;
     float                pan = 0.0f;
     void                *extradriverdata = 0;
 
@@ -44,14 +43,6 @@ int FMOD_Main()
     */
     result = FMOD::System_Create(&system);
     ERRCHECK(result);
-
-    result = system->getVersion(&version);
-    ERRCHECK(result);
-
-    if (version < FMOD_VERSION)
-    {
-        Common_Fatal("FMOD lib version %08x doesn't match header version %08x", version, FMOD_VERSION);
-    }
 
     /*
         In this special case we want to use stereo output and not worry about varying matrix sizes depending on user speaker mode.
@@ -245,7 +236,7 @@ int FMOD_Main()
 
         Common_Draw("==================================================");
         Common_Draw("DSP Effect Per Speaker Example.");
-        Common_Draw("Copyright (c) Firelight Technologies 2004-2020.");
+        Common_Draw("Copyright (c) Firelight Technologies 2004-2021.");
         Common_Draw("==================================================");
         Common_Draw("");
         Common_Draw("Press %s to toggle lowpass (left speaker)", Common_BtnStr(BTN_ACTION1));

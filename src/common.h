@@ -1,7 +1,7 @@
-#ifndef PLATFORM_HH
-#define PLATFORM_HH
+#pragma once
 
 #include <stdint.h>
+#include <stdlib.h>
 #include <memory>
 #include <vector>
 #include <glm/glm.hpp>
@@ -24,4 +24,7 @@ typedef double f64;
 
 typedef unsigned char ubyte;
 
-#endif
+template<typename T>
+using ref = std::shared_ptr<T>;
+
+static f32 pixel2screen = 3.2f/455.0f;

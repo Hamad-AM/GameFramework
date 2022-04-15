@@ -45,6 +45,15 @@ texture2d::submit_render(texture_param param)
 }
 
 void
+texture2d::submit_render(texture_param param, ubyte* data, s32 width, s32 height)
+{
+    image_data_ = data;
+    width_ = width;
+    height_ = height;
+    texture2d::submit_render(param);
+}
+
+void
 texture2d::bind()
 {
     glActiveTexture(GL_TEXTURE0 + slot_);

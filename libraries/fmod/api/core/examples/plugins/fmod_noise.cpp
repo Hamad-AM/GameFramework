@@ -1,6 +1,6 @@
 /*==============================================================================
 Plugin Example
-Copyright (c), Firelight Technologies Pty, Ltd 2004-2020.
+Copyright (c), Firelight Technologies Pty, Ltd 2004-2021.
 
 This example shows how to created a plugin effect.
 ==============================================================================*/

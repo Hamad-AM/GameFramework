@@ -1,6 +1,6 @@
 /*==============================================================================
 Plug-in Inspector Example
-Copyright (c), Firelight Technologies Pty, Ltd 2004-2020.
+Copyright (c), Firelight Technologies Pty, Ltd 2004-2021.
 
 This example shows how to enumerate loaded plug-ins and their parameters.
 ==============================================================================*/
@@ -35,7 +35,7 @@ void drawTitle()
 {
     Common_Draw("==================================================");
     Common_Draw("Plug-in Inspector Example.");
-    Common_Draw("Copyright (c) Firelight Technologies 2004-2020.");
+    Common_Draw("Copyright (c) Firelight Technologies 2004-2021.");
     Common_Draw("==================================================");
     Common_Draw("");
 }
@@ -248,7 +248,6 @@ int FMOD_Main()
 {
     FMOD::System        *system           = 0;
     FMOD_RESULT          result;
-    unsigned int         version;
     void                *extradriverdata  = 0;
     unsigned int         pluginhandle;
     InspectorState       state            = PLUGIN_SELECTOR;
@@ -262,14 +261,6 @@ int FMOD_Main()
     */
     result = FMOD::System_Create(&system);
     ERRCHECK(result);
-
-    result = system->getVersion(&version);
-    ERRCHECK(result);
-
-    if (version < FMOD_VERSION)
-    {
-        Common_Fatal("FMOD lib version %08x doesn't match header version %08x", version, FMOD_VERSION);
-    }
 
     result = system->init(32, FMOD_INIT_NORMAL, extradriverdata);
     ERRCHECK(result);

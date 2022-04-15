@@ -1,7 +1,8 @@
-#ifndef ANTHOLOGY_INPUT_H
-#define ANTHOLOGY_INPUT_H
+#pragma once
 
 #include "common.h"
+#include "math.h"
+#include "event.h"
 
 enum input_state
 {
@@ -16,10 +17,18 @@ enum key
 };
 
 
-class input_system
+class mouse_event : public event
 {
 public:
-    input_system();
+    mouse_event(event_type t, vec2 position) : mouse_position(position), event(t) {}
+
+    vec2 mouse_position;
+};
+
+class input
+{
+public:
+    input();
 
     struct GamePad
     {
@@ -62,26 +71,47 @@ public:
         s32 y;
     };
 
-    b32
-    is_key_down(key key);
+    inline static b32
+    is_key_down(key key) { return s_instance->is_key_down_impl(key); }
     
-    b32
-    is_key_up(key key);
+    inline static b32
+    is_key_up(key key) { return s_instance->is_key_up_impl(key); }
     
-    b32
-    is_key_pressed(key key);
+    inline static b32
+    is_key_pressed(key key) { return s_instance->is_key_pressed_impl(key); }
 
-    void
-    set_key_state(key key, input_state state);
+    inline static b32
+    is_left_mouse_down() { return s_instance->is_left_mouse_down_impl(); }
+    
+    inline static b32
+    is_left_mouse_up() { return s_instance->is_left_mouse_up_impl(); }
+    
+    inline static b32
+    is_left_mouse_released() { return s_instance->is_left_mouse_released_impl(); }
+    
+    inline static b32
+    is_left_mouse_pressed() { return s_instance->is_left_mouse_pressed_impl(); }
 
-    void
-    SetLeftMouseBtn(input_state state);
+    inline static b32
+    is_right_mouse_down() { return s_instance->is_right_mouse_down_impl(); }
+    
+    inline static b32
+    is_right_mouse_up() { return s_instance->is_right_mouse_up_impl(); }
 
-    void
-    SetRightMouseBtn(input_state state);
+    inline static void
+    set_key_state(key key, input_state state) { s_instance->set_key_state_impl(key, state); }
 
-    void
-    SetMiddleMouseBtn(input_state state);
+    inline static void
+    set_right_mouse(input_state state) { s_instance->set_right_mouse_impl(state); }
+
+    inline static void
+    set_left_mouse(input_state state) { s_instance->set_left_mouse_impl(state); }
+
+    inline static void
+    set_mouse_position(s32 x, s32 y) { s_instance->set_mouse_position_impl(x, y); }
+
+    inline static vec2
+    mouse_position() { return s_instance->mouse_position_impl(); }
 
     Keyboard&
     keyboard(void) { return keyboard_; }
@@ -91,12 +121,40 @@ public:
     
     Mouse&
     mouse(void) { return mouse_; }
+
+private:
+    b32
+    is_key_down_impl(key key);
+    
+    b32
+    is_key_up_impl(key key);
+    
+    b32
+    is_key_pressed_impl(key key);
+
+    void
+    set_key_state_impl(key key, input_state state);
+
+    b32 is_left_mouse_down_impl();
+    b32 is_left_mouse_pressed_impl();
+    b32 is_left_mouse_released_impl();
+    b32 is_left_mouse_up_impl();
+
+    b32 is_right_mouse_down_impl();
+    b32 is_right_mouse_pressed_impl();
+    b32 is_right_mouse_released_impl();
+    b32 is_right_mouse_up_impl();
+
+    void set_right_mouse_impl(input_state state);
+    void set_left_mouse_impl(input_state state);
+    void set_mouse_position_impl(s32 x, s32 y);
+
+    vec2 mouse_position_impl();
+
 private:
     b32 game_pad_connected_;
     GamePad game_pad_[4];
     Keyboard keyboard_;
     Mouse mouse_;
-
+    static input* s_instance;
 };
-
-#endif

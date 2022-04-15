@@ -1,6 +1,6 @@
 /*==============================================================================
 Record enumeration example
-Copyright (c), Firelight Technologies Pty, Ltd 2004-2020.
+Copyright (c), Firelight Technologies Pty, Ltd 2004-2021.
 
 This example shows how to enumerate the available recording drivers on this
 device. It demonstrates how the enumerated list changes as microphones are
@@ -46,15 +46,6 @@ int FMOD_Main()
     FMOD::System *system = NULL;
     FMOD_RESULT result = FMOD::System_Create(&system);
     ERRCHECK(result);
-
-    unsigned int version = 0;
-    result = system->getVersion(&version);
-    ERRCHECK(result);
-
-    if (version < FMOD_VERSION)
-    {
-        Common_Fatal("FMOD lib version %08x doesn't match header version %08x", version, FMOD_VERSION);
-    }
 
     result = system->init(100, FMOD_INIT_NORMAL, extraDriverData);
     ERRCHECK(result);
@@ -162,7 +153,7 @@ int FMOD_Main()
 
         Common_Draw("==================================================");
         Common_Draw("Record Enumeration Example.");
-        Common_Draw("Copyright (c) Firelight Technologies 2004-2020.");
+        Common_Draw("Copyright (c) Firelight Technologies 2004-2021.");
         Common_Draw("==================================================");
         Common_Draw("");
         Common_Draw("Record list has updated %d time(s).", recordListChangedCount);

@@ -1,6 +1,6 @@
 /*===============================================================================================
 Raw Codec Plugin Example
-Copyright (c), Firelight Technologies Pty, Ltd 2004-2020.
+Copyright (c), Firelight Technologies Pty, Ltd 2004-2021.
 
 This example shows how to create a codec that reads raw PCM data.
 
@@ -48,6 +48,7 @@ FMOD_RESULT F_CALLBACK rawsetposition(FMOD_CODEC_STATE *codec, int subsound, uns
 
 FMOD_CODEC_DESCRIPTION rawcodec =
 {
+    FMOD_CODEC_PLUGIN_VERSION,          // Plugin version.
     "FMOD Raw player plugin example",   // Name.
     0x00010000,                         // Version 0xAAAABBBB   A = major, B = minor.
     0,                                  // Don't force everything using this codec to be a stream
@@ -102,11 +103,12 @@ FMOD_RESULT F_CALLBACK rawopen(FMOD_CODEC_STATE *codec, FMOD_MODE /*usermode*/, 
     rawwaveformat.format       = FMOD_SOUND_FORMAT_PCM16;
     rawwaveformat.frequency    = 44100;
     rawwaveformat.pcmblocksize = 0;
-    rawwaveformat.lengthpcm    = codec->filesize / (rawwaveformat.channels * sizeof(short));   /* bytes converted to PCM samples */;
+    unsigned int size;
+    FMOD_CODEC_FILE_SIZE(codec, &size);
+    rawwaveformat.lengthpcm    = size / (rawwaveformat.channels * sizeof(short));   /* bytes converted to PCM samples */;
 
     codec->numsubsounds      = 0;                    /* number of 'subsounds' in this sound.  For most codecs this is 0, only multi sound codecs such as FSB or CDDA have subsounds. */
     codec->waveformat        = &rawwaveformat;
-    codec->waveformatversion = FMOD_CODEC_WAVEFORMAT_VERSION;
     codec->plugindata        = 0;                    /* user data value */
         
     /* If your file format needs to read data to determine the format and load metadata, do so here with codec->fileread/fileseek function pointers.  This will handle reading from disk/memory or internet. */
@@ -121,11 +123,11 @@ FMOD_RESULT F_CALLBACK rawclose(FMOD_CODEC_STATE * /*codec*/)
 
 FMOD_RESULT F_CALLBACK rawread(FMOD_CODEC_STATE *codec, void *buffer, unsigned int size, unsigned int *read)
 {
-    return codec->fileread(codec->filehandle, buffer, size, read, 0);
+    return FMOD_CODEC_FILE_READ(codec, buffer, size, read);
 }
 
 FMOD_RESULT F_CALLBACK rawsetposition(FMOD_CODEC_STATE *codec, int /*subsound*/, unsigned int position, FMOD_TIMEUNIT /*postype*/)
 {
-    return codec->fileseek(codec->filehandle, position, 0);
+    return FMOD_CODEC_FILE_SEEK(codec, position, 0);
 }
 

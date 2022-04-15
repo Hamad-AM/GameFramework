@@ -25,6 +25,7 @@ enum texture_filter
 
 enum texture_format
 {
+    RED,
     RGB,
     RGBA
 };
@@ -55,6 +56,7 @@ public:
     void create(const char* file, texture_param param);
 
     void submit_render(texture_param param);
+    void submit_render(texture_param param, ubyte* data, s32 width, s32 height);
 
     s32 width() { return width_; }
 
@@ -133,6 +135,8 @@ convert_to_gl_format(texture_format format)
             return GL_RGB;
         case texture_format::RGBA:
             return GL_RGBA;
+        case texture_format::RED:
+            return GL_RED;
         default:
             return GL_RGB;
     }

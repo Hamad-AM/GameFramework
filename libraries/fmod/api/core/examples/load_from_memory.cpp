@@ -1,6 +1,6 @@
 /*==============================================================================
 Load From Memory Example
-Copyright (c), Firelight Technologies Pty, Ltd 2004-2020.
+Copyright (c), Firelight Technologies Pty, Ltd 2004-2021.
 
 This example is simply a variant of the [Play Sound Example](play_sound.html), 
 but it loads the data into memory then uses the 'load from memory' feature of 
@@ -15,7 +15,6 @@ int FMOD_Main()
     FMOD::Sound      *sound1, *sound2, *sound3;
     FMOD::Channel    *channel = 0;
     FMOD_RESULT       result;
-    unsigned int      version;
     void             *extradriverdata = 0;
     void             *buff = 0;
     int               length = 0;
@@ -28,14 +27,6 @@ int FMOD_Main()
     */
     result = FMOD::System_Create(&system);
     ERRCHECK(result);
-
-    result = system->getVersion(&version);
-    ERRCHECK(result);
-
-    if (version < FMOD_VERSION)
-    {
-        Common_Fatal("FMOD lib version %08x doesn't match header version %08x", version, FMOD_VERSION);
-    }
 
     result = system->init(32, FMOD_INIT_NORMAL, extradriverdata);
     ERRCHECK(result);
@@ -139,7 +130,7 @@ int FMOD_Main()
 
             Common_Draw("==================================================");
             Common_Draw("Load From Memory Example.");
-            Common_Draw("Copyright (c) Firelight Technologies 2004-2020.");
+            Common_Draw("Copyright (c) Firelight Technologies 2004-2021.");
             Common_Draw("==================================================");
             Common_Draw("");
             Common_Draw("Press %s to play a mono sound (drumloop)", Common_BtnStr(BTN_ACTION1));

@@ -3,7 +3,7 @@
 
 #include "../common.h"
 
-class camera 
+class camera2d
 {
 public:
     glm::mat4
