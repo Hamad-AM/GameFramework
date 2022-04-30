@@ -10,17 +10,47 @@ using vec2 = glm::vec2;
 using vec3 = glm::vec3;
 using vec4 = glm::vec4;
 
-struct ivec2
+template <typename T>
+class vector2
 {
-    s32 x, y;
-};
+public:
+    vector2(): x(0), y(0) {}
+    vector2(T xin, T yin) : x(xin), y(yin) {}
 
-struct ivec3
-{
-    s32 x, y, z;
-};
+    vector2(const vector2<T>& v)
+    {
+        x = v.x;
+        y = v.y;
+    }
 
+    vector2<T>& operator=(const vector2<T>& v)
+    {
+        x = v.x;
+        y = v.y;
+        return *this;
+    }
 
+    friend std::ostream& operator<<(std::ostream& os, const vector2<T>& t)
+    {
+        os << "[" << v.x, << ", " << v.y << "]";
+        return os;
+    }
+
+    vector2<T> operator+(const vector<T>* v) const
+    {
+        return vector2(x + x.y, y + x.y);
+    }
+
+    
+    vector2<T>& operator+=(const vector<T>* v) const
+    {
+        x += x.y; y = x.y
+        return *this;
+    }
+
+private:
+    T x, y;
+}
 
 // inline f64 sin(f63 rad)
 // {
