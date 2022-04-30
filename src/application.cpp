@@ -79,7 +79,7 @@ void application::update(f32 dt)
         camera_position.y -= 0.01f;
     else if (input::is_key_down(key::p))
         return;
-    
+
     if (input::is_left_mouse_down())
     {
         mouse_event press_event{event_type::left_mouse_button_press, input::mouse_position()};
