@@ -14,8 +14,8 @@
 	path = libraries/entt
 	url = https://github.com/skypjack/entt.git
 [submodule "libraries/assimp"]
-    path = libraries/assimp
-    url = https://github.com/assimp/assimp.git
+	path = libraries/assimp
+	url = https://github.com/assimp/assimp.git
 [submodule "libraries/glm"]
     path = libraries/glm
     url = https://github.com/g-truc/glm.git

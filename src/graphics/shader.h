@@ -3,6 +3,8 @@
 
 #include "../common.h"
 
+std::string read_file_to_string(const char* path);
+
 class shader
 {
 public:

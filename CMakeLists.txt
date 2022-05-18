@@ -27,7 +27,7 @@ set(GLAD_DIR "${LIB_DIR}/glad")
 set(GLM_DIR  "${LIB_DIR}/glm")
 set(GLFW_DIR "${LIB_DIR}/glfw")
 set(STB_IMAGE_DIR "${LIB_DIR}/stb_image")
-# set(ASSIMP_DIR "${LIB_DIR}/assimp")
+set(ASSIMP_DIR "${LIB_DIR}/assimp")
 # set(FMOD_DIR "${LIB_DIR}/fmod/api/core")
 # set(PHYSX_DIR "${LIB_DIR}/PhysX/physx")
 
@@ -54,7 +54,7 @@ set(FT2_INCLUDE "${LIB_DIR}/freetype-2.11.1/include")
 set(FT2_LIB "${LIB_DIR}/freetype-2.11.1/build/libfreetype.a")
 
 # set(ASSIMP_LIB "${ASSIMP_DIR}/lib/Release/assimp-vc142-mt.lib")
-# set(ASSIMP_INCLUDE "${ASSIMP_DIR}/include")
+set(ASSIMP_INCLUDE "${ASSIMP_DIR}/include")
 
 # set(FMOD_LIB "${FMOD_DIR}/lib/x64/fmod_vc.lib")
 # set(FMOD_INCLUDE "${FMOD_DIR}/inc")

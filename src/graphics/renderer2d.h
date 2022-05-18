@@ -11,6 +11,15 @@
 #include "shader.h"
 #include "texture.h"
 #include "camera.h"
+#include "font.h"
+
+enum font_type
+{
+    Montserrat,
+    OpenSans,
+    Playfair,
+    Roboto
+};
 
 class renderer2d
 {
@@ -30,9 +39,7 @@ public:
 
     void begin_text(camera2d& camera);
 
-    void draw_text(std::string text, f32 x, f32 y, f32 scale, glm::vec3 color);
-
-    void draw_text_single(const char* text, f32 x, f32 y, f32 scale, glm::vec3 color);
+    void draw_text(std::string text, f32 x, f32 y, f32 scale, font_type font_t, glm::vec3 color);
 
     void end_text();
 
@@ -43,15 +50,7 @@ private:
     void init_glyph_bitmaps();
     void init_sprites();
 
-    struct character {
-        texture2d texture;
-        glm::ivec2 size;
-        glm::ivec2 bearing;
-        u32 advance;
-    };
-
-private:
-    std::map<char, character> characters;
+    std::map<font_type, font> fonts;
 
     // shaders
     shader _sprite_shader;

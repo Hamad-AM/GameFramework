@@ -3,7 +3,7 @@
 #include <vector>
 
 #include "components.h"
-#include "physics/physics_system.h"
+#include "physics/collision_event.h"
 #include "physics/collision_shape2d.h"
 #include "physics/physics_body2d.h"
 #include "event.h"

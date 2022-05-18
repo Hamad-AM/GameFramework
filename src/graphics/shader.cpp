@@ -4,6 +4,7 @@
 #include <string>
 #include <fstream>
 #include <sstream>
+#include <stdio.h>
 
 #include <glad/glad.h>
 #include <glm/gtc/type_ptr.hpp>
@@ -21,21 +22,8 @@ shader::compile(const char* vs, const char* fs)
     // Create an empty vertex shader handle
     GLuint vertex_shader = glCreateShader(GL_VERTEX_SHADER);
 
-
-    std::ifstream fs_file;
-    fs_file.open(fs);
-    std::stringstream fs_ss;
-    fs_ss << fs_file.rdbuf();
-    fs_file.close();
-    std::string fs_src = fs_ss.str();
-
-    std::ifstream vs_file;
-    std::string vs_src;    
-    std::stringstream vs_ss;
-    vs_file.open(vs);
-    vs_ss << vs_file.rdbuf();
-    vs_file.close();
-    vs_src = vs_ss.str();
+    std::string vs_src = read_file_to_string(vs);
+    std::string fs_src = read_file_to_string(fs);
 
     // Send the vertex shader source code to GL
     // Note that std::string's .c_str is NULL character terminated.
@@ -60,8 +48,8 @@ shader::compile(const char* vs, const char* fs)
         glDeleteShader(vertex_shader);
 
         // Use the infoLog as you see fit.
-        printf("Vertex shader compilation failure!");
-        printf(infoLog.data());
+        std::cout << "Vertex shader compilation failure!" << std::endl;
+        std::cout << (const char*)infoLog.data() << std::endl;
 
         // In this simple program, we'll just leave
         return;
@@ -94,8 +82,8 @@ shader::compile(const char* vs, const char* fs)
         glDeleteShader(vertex_shader);
 
         // Use the infoLog as you see fit.
-        printf("Fragment shader compilation failure!");
-        printf(infoLog.data());
+        std::cout << "Fragment shader compilation failure!" << std::endl;
+        std::cout << (const char*)infoLog.data() << std::endl;
 
         // In this simple program, we'll just leave
         return;
@@ -134,8 +122,8 @@ shader::compile(const char* vs, const char* fs)
         glDeleteShader(fragment_shader);
 
         // Use the infoLog as you see fit.
-        printf("Shader link failure!");
-        printf(infoLog.data());
+        std::cout << "Shader link failure!" << std::endl;
+        std::cout << (const char*)infoLog.data() << std::endl;
 
         // In this simple program, we'll just leave
         return;
@@ -207,4 +195,26 @@ void
 shader::uniform_matrix4    (const char* name, glm::mat4& value)
 {
     glUniformMatrix4fv(uniform_location(name), 1, GL_FALSE, glm::value_ptr(value));
+}
+
+
+std::string read_file_to_string(const char* path)
+{
+    std::string s = "";
+    std::ifstream s_stream(path, std::ios::in);
+    if (!s_stream.is_open())
+    {
+        std::cout << "Could not read/load file " << path << ". " << std::endl;
+        assert(true);
+    }
+
+    std::string line = "";
+    while (!s_stream.eof())
+    {
+        std::getline(s_stream, line);
+        s.append(line + "\n");
+    }
+
+    s_stream.close();
+    return s;
 }

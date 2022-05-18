@@ -6,23 +6,11 @@
 
 #include "../common.h"
 #include "../components.h"
-#include "../event.h"
+#include "../entity.h"
 
 #include "physics_body2d.h"
 #include "collision_shape2d.h"
-
-class entity;
-
-class collision_event : public event
-{
-public:
-    collision_event(event_type t) : event(t)
-    {}
-
-    b32 is_touching;
-    entity* entity_a;
-    entity* entity_b;
-};
+#include "collision_event.h"
 
 class physics_system
 {

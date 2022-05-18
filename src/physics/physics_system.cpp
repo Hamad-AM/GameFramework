@@ -1,4 +1,5 @@
 #include "physics_system.h"
+#include "collision_event.h"
 
 void
 physics_system::initialize2d()

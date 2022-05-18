@@ -9,48 +9,84 @@
 using vec2 = glm::vec2;
 using vec3 = glm::vec3;
 using vec4 = glm::vec4;
+using mat4 = glm::mat4;
 
-template <typename T>
-class vector2
-{
-public:
-    vector2(): x(0), y(0) {}
-    vector2(T xin, T yin) : x(xin), y(yin) {}
+using ivec2 = glm::ivec2;
+using ivec3 = glm::ivec3;
 
-    vector2(const vector2<T>& v)
-    {
-        x = v.x;
-        y = v.y;
-    }
+// class v2
+// {
 
-    vector2<T>& operator=(const vector2<T>& v)
-    {
-        x = v.x;
-        y = v.y;
-        return *this;
-    }
+// };
 
-    friend std::ostream& operator<<(std::ostream& os, const vector2<T>& t)
-    {
-        os << "[" << v.x, << ", " << v.y << "]";
-        return os;
-    }
+// class v3
+// {
 
-    vector2<T> operator+(const vector<T>* v) const
-    {
-        return vector2(x + x.y, y + x.y);
-    }
+// };
+
+// v2 cross(v2& a, v2& b);
+// v2 dot(v2& a, v2& b);
+
+// v3 cross(v3& a, v3& b);
+// v3 dot(v3& a, v3& b);
+
+// mat4 translate(mat4& m, v3& translation);
+// mat4 scale(mat4& m);
+// mat4 rotate();
+// mat4 determinant(mat4& m);
+// mat4 transpose();
+
+// class mat4
+// {
+
+// };
+
+// template<typename T>
+// void* get_math_ptr(T m);
+
+
+
+// class v2
+// {
+// public:
+//     v2(): x(0), y(0) {}
+//     v2(f32 xin, f32 yin) : x(xin), y(yin) {}
+
+//     v2(const v2& v)
+//     {
+//         x = v.x;
+//         y = v.y;
+//     }
+
+//     v2& operator=(const v2& v)
+//     {
+//         x = v.x;
+//         y = v.y;
+//         return *this;
+//     }
+
+//     friend std::ostream& operator<<(std::ostream& os, const v2& t)
+//     {
+//         os << "[" << v.x, << ", " << v.y << "]";
+//         return os;
+//     }
+
+//     v2 operator+(const v2& v) const
+//     {
+//         return v2(x + v.y, y + v.y);
+//     }
 
     
-    vector2<T>& operator+=(const vector<T>* v) const
-    {
-        x += x.y; y = x.y
-        return *this;
-    }
+//     v2& operator+=(const v2& v) const
+//     {
+//         x += v.x;
+//         y += v.y;
+//         return *this;
+//     }
 
-private:
-    T x, y;
-}
+// private:
+//     f32 x, y;
+// }
 
 // inline f64 sin(f63 rad)
 // {

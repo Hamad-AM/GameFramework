@@ -29,7 +29,7 @@ struct vertex_1p1d1s2uv4j
 
 #define MAX_BONE_INFLUENCE 4
 
-struct vertex_pnuvtb
+struct vertex
 {
     vec3 p;
     vec3 n;
@@ -40,29 +40,27 @@ struct vertex_pnuvtb
     f32  w[MAX_BONE_INFLUENCE];
 };
 
-class triangle_mesh
+struct triangle_mesh
 {
-public:
-    triangle_mesh(std::vector<vertex_pnuvtb> vertices, std::vector<u32> indices, std::vector<texture2d> textures)
-        : _vertices(vertices), _indices(indices), _textures(textures), _vertex_array(vertex_array), _initalized_render(false)
-    {
-
-    }
-
-    void initialize();
-
-    std::vector<vertex_pnuvtb> get_vertex() { return _vertices; }
-    std::vector<u32>           get_indices() { return _indices; }
-    std::vector<texture2d>     get_textures() { return _textures; }
-    b32                        get_initialized() { return _initalized_render; }
-    u32                        get_vertex_array() { return _vertex_array; }
-
-private:
-    std::vector<vertex_pnuvtb> _vertices;
-    std::vector<u32>           _indices;
-    std::vector<texture2d>     _textures;
-    u32 _vertex_array;
-    u32 _vertex_buffer;
-    u32 _index_buffer;
-    b32 _initalized_render;
+    std::vector<vertex> vertices;
+    std::vector<u32> indices;
+    std::vector<texture2d> textures;
+    u32 vertex_array;
+    u32 vertex_buffer;
+    u32 index_buffer;
+    b32 initalized_render;
 };
+
+struct model
+{
+    std::vector<texture2d> textures;
+    std::vector<triangle_mesh> meshes;
+    const char* path;
+};
+
+model load_model(const char* path)
+{
+    model m;
+
+    return m;
+}
