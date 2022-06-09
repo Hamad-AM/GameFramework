@@ -7,12 +7,6 @@
 [submodule "libraries/box2d"]
 	path = libraries/box2d
 	url = https://github.com/erincatto/box2d.git
-[submodule "libraries/smmalloc"]
-	path = libraries/smmalloc
-	url = https://github.com/SergeyMakeev/smmalloc.git
-[submodule "libraries/entt"]
-	path = libraries/entt
-	url = https://github.com/skypjack/entt.git
 [submodule "libraries/assimp"]
 	path = libraries/assimp
 	url = https://github.com/assimp/assimp.git
