@@ -1,5 +1,4 @@
-#ifndef GLFW_WINDOW
-#define GLFW_WINDOW
+#pragma once
 
 #include "window.h"
 
@@ -9,18 +8,19 @@
 #include <GLFW/glfw3.h>
 #include "application.h"
 
-class glfw_window : public window
+namespace alg
 {
-public:
-    void initialize(u32 width, u32 height, const char *title) override;
-    b32 handle_input() override;
-    b32 is_gamepad_connected() override;
-    void update() override;
-    void close() override;
-private:
-    GLFWwindow* window;
-    double previous_time;
-    application game_;
-};
-
-#endif
+    class glfw_window : public window
+    {
+    public:
+        void initialize(u32 width, u32 height, const char *title) override;
+        b32 handle_input() override;
+        b32 is_gamepad_connected() override;
+        void update() override;
+        void close() override;
+    private:
+        GLFWwindow* window;
+        double previous_time;
+        application game_;
+    };
+}

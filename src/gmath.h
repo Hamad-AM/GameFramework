@@ -6,14 +6,71 @@
 
 #include <glm/glm.hpp>
 
-using vec2 = glm::vec2;
-using vec3 = glm::vec3;
-using vec4 = glm::vec4;
-using mat4 = glm::mat4;
+namespace alg
+{
+    typedef glm::vec2 vec2;
+    typedef glm::vec3 vec3;
+    typedef glm::vec4 vec4;
+    typedef glm::mat4 mat4;
 
-using ivec2 = glm::ivec2;
-using ivec3 = glm::ivec3;
+    typedef glm::ivec2 ivec2;
+    typedef glm::ivec3 ivec3;
 
+    mat4 frustum(f32 left, f32 right, f32 bottom, f32 top, f32 near, f32 far)
+    {
+        return glm::frustum(left, right, bottom, top, near, far);
+    }
+
+    mat4 look_at(vec3& eye, vec3& center, vec3& up)
+    {
+        return glm::lookAt(eye, center, up);
+    }
+
+    mat4 ortho(f32 left, f32 right, f32 bottom, f32 top, f32 z_near, f32 z_far)
+    {
+        return glm::ortho(left, right, bottom, top, z_near, z_far);
+    }
+
+    mat4 perspective(f32 fov_y, f32 aspect, f32 near, f32 far)
+    {
+        return glm::perspective(fov_y, aspect, near, far);
+    }
+
+    mat4 scale(mat4& m, vec3& v)
+    {
+        return glm::scale(m, v);
+    }
+
+    mat4 rotate(mat4& m, f32 angle, vec3 axis)
+    {
+        return glm::rotate(m, angle, axis);
+    }
+
+    mat4 translate(mat4& m, vec3& v)
+    {
+        return glm::translate(m, v);
+    }
+
+    vec3 project(vec3& obj, mat4& model, mat4& proj, vec4& view_port)
+    {
+        return glm::project(obj, model, proj, view_port);
+    }
+
+    mat4 inverse(mat4& m)
+    {
+        return glm::inverse(m);
+    }
+
+    f32 determinant(mat4& m)
+    {
+        return glm::determinant(m);
+    }
+
+    mat4 transpose(mat4& m)
+    {
+        return glm::transpose(m);
+    }
+}
 // class v2
 // {
 

@@ -1,8 +1,9 @@
-#ifndef SHADER_HH
-#define SHADER_HH
+#pragma once
 
 #include "../common.h"
 
+namespace alg
+{
 std::string read_file_to_string(const char* path);
 
 class shader
@@ -35,5 +36,4 @@ private:
 
     const char* shader_name_;
 };  
-
-#endif
+}

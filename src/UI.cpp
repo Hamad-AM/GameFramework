@@ -5,53 +5,55 @@
 #include "event.h"
 #include "input.h"
 
-
-void
-container::draw(renderer2d* renderer, vec2 position)
+namespace alg
 {
-    for (auto child : _children)
+    void
+    container::draw(renderer* render, vec2 position)
     {
-        child->draw(renderer, {position.x + this->get_position().x, position.y + this->get_position().y});
-    }
-}
-
-void
-ui_text::draw(renderer2d* renderer, vec2 position)
-{
-    vec2 screen_pos{ position.x + this->get_position().x, position.y + this->get_position().y};
-
-    renderer->draw_text_single(_text, screen_pos.x, screen_pos.y, get_size().y, {_color.x, _color.y, _color.z});
-}
-
-button::button(ui_text text, texture2d texture, vec2 position, vec2 size) : _text(text), _texture(texture), ui_element(position, size)
-{
-    event_callback btn_press = [this](event* event) { this->on_event(event); };
-    event_system::get().subscribe(event_type::left_mouse_button_press, btn_press);
-    event_callback btn_hover = [this](event* event) { this->on_event(event); };
-    event_system::get().subscribe(event_type::mouse_move, btn_hover);
-}
-
-void
-button::on_event(event* event)
-{
-    mouse_event* me = (mouse_event*)event;
-    vec2 position = me->mouse_position;
-    if (position.x < (this->get_position().x + this->get_size().x) &&
-        position.x > (this->get_position().x) &&
-        position.y < (this->get_position().y + this->get_size().y) &&
-        position.y > (this->get_position().y))
-    {
-        switch(me->type)
+        for (auto child : _children)
         {
-        case event_type::left_mouse_button_press: this->on_button_press();
-        case event_type::mouse_move: this->on_button_hover();
+            child->draw(render, {position.x + this->get_position().x, position.y + this->get_position().y});
         }
     }
-}
 
-void
-button::draw(renderer2d* renderer, vec2 position)
-{
-    vec2 screen_pos{ position.x + this->get_position().x, position.y + this->get_position().y};
-    renderer->draw_sprite_single(_texture, { screen_pos.x, screen_pos.y }, { get_size().x, get_size().y });
+    void
+    ui_text::draw(renderer* render, vec2 position)
+    {
+        vec2 screen_pos{ position.x + this->get_position().x, position.y + this->get_position().y};
+
+        render->draw_text(_text, screen_pos.x, screen_pos.y, get_size().y, _font, {_color.x, _color.y, _color.z});
+    }
+
+    button::button(ui_text text, texture2d texture, vec2 position, vec2 size) : _text(text), _texture(texture), ui_element(position, size)
+    {
+        event_callback btn_press = [this](event* event) { this->on_event(event); };
+        event_system::get().subscribe(event_type::left_mouse_button_press, btn_press);
+        event_callback btn_hover = [this](event* event) { this->on_event(event); };
+        event_system::get().subscribe(event_type::mouse_move, btn_hover);
+    }
+
+    void
+    button::on_event(event* event)
+    {
+        mouse_event* me = (mouse_event*)event;
+        vec2 position = me->mouse_position;
+        if (position.x < (this->get_position().x + this->get_size().x) &&
+            position.x > (this->get_position().x) &&
+            position.y < (this->get_position().y + this->get_size().y) &&
+            position.y > (this->get_position().y))
+        {
+            switch(me->type)
+            {
+            case event_type::left_mouse_button_press: this->on_button_press();
+            case event_type::mouse_move: this->on_button_hover();
+            }
+        }
+    }
+
+    void
+    button::draw(renderer* render, vec2 position)
+    {
+        vec2 screen_pos{ position.x + this->get_position().x, position.y + this->get_position().y};
+        render->draw_sprite(_texture, { screen_pos.x, screen_pos.y }, { get_size().x, get_size().y });
+    }
 }
