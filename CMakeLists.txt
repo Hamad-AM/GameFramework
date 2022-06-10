@@ -7,6 +7,7 @@ set(CMAKE_CXX_STANDARD_REQUIRED True)
 set(CMAKE_CXX_FLAGS -pthread)
 set(CMAKE_BUILD_TYPE Debug)
 
+
 file(GLOB_RECURSE SOURCE_FILES
         ${CMAKE_SOURCE_DIR}/src/*.c
         ${CMAKE_SOURCE_DIR}/src/*.cpp)
@@ -34,7 +35,7 @@ set(ASSIMP_DIR "${LIB_DIR}/assimp")
 set(PX_DIR "${LIB_DIR}/PhysX")
 set(RAYLIB_DIR "${LIB_DIR}/raylib")
 set(BOX2D_DIR "${LIB_DIR}/box2d")
-set(FT2_DIR "${LIB_DIR}/freetype-2.11.1")
+set(FT2_DIR "${LIB_DIR}/freetype-2.12.1")
 # set(FMOD_DIR "${LIB_DIR}/fmod/api/core")
 
 # INCLUDE DIRECTORS
@@ -56,9 +57,9 @@ set(STB_IMAGE_LIB "${STB_IMAGE_DIR}/stb_image.cpp")
 
 
 if(WIN32)
-        set(GLFW_LIB "${GLFW_DIR}/build/src/RelWithDebInfo/glfw3.lib")
+        set(GLFW_LIB "${GLFW_DIR}/build/src/Debug/glfw3.lib")
         set(BOX2D_LIB "${BOX2D_DIR}/build/bin/Debug/box2d.lib")
-        set(FT2_LIB "${FT2_DIR}/build/RelWithDebInfo/freetype.lib")
+        set(FT2_LIB "${FT2_DIR}/objs/freetype.lib")
         set(RAYLIB_LIB "${RAYLIB_DIR}/build/raylib/RelWithDebInfo/raylib.lib")
 
         # PHYSX
@@ -103,4 +104,8 @@ endif(UNIX)
 include_directories(${GLFW_INCLUDE} ${GLAD_INCLUDE} ${BOX2D_INCLUDE} ${FT2_INCLUDE} ${ASSIMP_INCLUDE} ${PX_INCLUDE} ${GLM_INCLUDE} ${PX_SHARED_INCLUDE} ${STB_IMAGE_INCLUDE} ${RAYLIB_INCLUDE})
 
 add_executable(Anthology ${SOURCE_FILES} ${GLAD_LIB} ${STB_IMAGE_LIB} ${HEADER_FILES})
-target_link_libraries(Anthology "${GLFW_LIB}" "${PX_LIB}" "${GLFW_LIB}" "${BOX2D_LIB}" "${FT2_LIB}" "${RAYLIB_LIB}")
+
+set_target_properties(Anthology PROPERTIES VS_DEBUGGER_WORKING_DIRECTORY "${CMAKE_SOURCE_DIR}/build")
+
+target_link_libraries(Anthology "${GLFW_LIB}" "${BOX2D_LIB}" "${FT2_LIB}")
+#"${PX_LIB}" "${RAYLIB_LIB}" 
