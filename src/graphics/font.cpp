@@ -1,11 +1,14 @@
 #include "font.h"
 
+#include <iostream>
+
 namespace alg
 {
-    static font::font_library = NULL;
+    //static font::font_library = nullptr;
+    FT_Library font::font_library = nullptr;
 
-    static void
-    delete_fonts()
+    void
+    font::delete_fonts()
     {
         FT_Done_FreeType(font::font_library);
     }
@@ -28,23 +31,23 @@ namespace alg
         for (ubyte c = 0; c < 128; c++)
         {
             character chars;
-            if (FT_Load_Char(face, c, FT_LOAD_RENDER))
+            if (FT_Load_Char(_face, c, FT_LOAD_RENDER))
             {
                 std::cout << "ERROR: Failed to load Glyph" << std::endl;
                 continue;
             }
 
-            chars.size = ivec2(face->glyph->bitmap.width, face->glyph->bitmap.rows);
-            chars.bearing = ivec2(face->glyph->bitmap_left, face->glyph->bitmap_top);
-            chars.advance = face->glyph->advance.x;
+            chars.size = ivec2(_face->glyph->bitmap.width, _face->glyph->bitmap.rows);
+            chars.bearing = ivec2(_face->glyph->bitmap_left, _face->glyph->bitmap_top);
+            chars.advance = _face->glyph->advance.x;
 
-            characters.insert(std::pair<char, character>(c, chars));
+            _characters.insert(std::pair<char, character>(c, chars));
         }
     }
 
     font::~font()
     {
-        FT_Done_Face(face);
+        FT_Done_Face(_face);
     }
 
     void
@@ -58,7 +61,7 @@ namespace alg
 
             texture2d texture;
             texture_param param = { texture_wrap::CLAMP_TO_EDGE, texture_filter::BILINEAR, texture_type::DIFFUSE, 0, texture_format::RED, texture_format::RED };
-            texture.submit_render(param, face->glyph->bitmap.buffer, face->glyph->bitmap.width, face->glyph->bitmap.rows);
+            texture.submit_render(param, _face->glyph->bitmap.buffer, _face->glyph->bitmap.width, _face->glyph->bitmap.rows);
 
             chars.texture = texture;
         }
@@ -81,16 +84,15 @@ namespace alg
     }
 
     void
-    font::draw(std::string& text, f32 x, f32 y, f32 scale, vec3 color)
+    font::draw(const char* text, f32 x, f32 y, f32 scale, vec3 color)
     {
         glBindVertexArray(_va);
 
-        std::string::const_iterator c;
-        for (c = text.begin();
-            c != text.end();
-            ++c)
+        for (u32 i = 0;
+            text[i] != '\0';
+            ++i)
         {
-            character ch = _characters[*c];
+            character ch = _characters[text[i]];
             f32 xpos = x + ch.bearing.x * scale;
             f32 ypos = y - (ch.size.y - ch.bearing.y) * scale;
 

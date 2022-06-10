@@ -40,8 +40,8 @@ namespace alg
 
         void begin_text(camera2d& camera);
 
-        void draw_text(std::string_view text, f32 x, f32 y, f32 scale, font_type font_t, vec3 color);
-        void draw_text(const char* text, f32 x, f32 y, f32 scale, font_type font_t, vec3 color);
+        void draw_text(std::string& text, f32 x, f32 y, f32 scale, font_type font_t, vec3& color);
+        void draw_text(const char* text, f32 x, f32 y, f32 scale, font_type font_t, vec3& color);
 
         void end_text();
 

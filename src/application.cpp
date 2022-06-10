@@ -22,7 +22,7 @@ namespace alg
         
         // texture_param param{texture_wrap::CLAMP_TO_EDGE, texture_filter::NEAREST_NEIGHBOR, texture_type::DIFFUSE, 0, texture_format::RGB, texture_format::RGB};
         // texture = con.load_texture("test.png", param);
-        camera_position = glm::vec3(0.0f, 0.0f, 0.0f);
+        camera_position = vec3(0.0f, 0.0f, 0.0f);
         camera.update(camera_position);
         // camera.set_projection(glm::ortho(-1.6f,  1.6f, -0.9f, 0.9f, -1.0f, 1.0f));
         camera.set_projection(glm::ortho(0.0f,  1280.0f, 0.0f, 720.0f, -1.0f, 1.0f));
@@ -30,7 +30,7 @@ namespace alg
         // ref<physics_object> b = create_bird(glm::vec3(1.0f, 0.6f, 0.0f));
         // physics_system.create_body2d(b, physics_body_component::body_type::dynamic_body)
 
-        renderer.initialize();
+        render.initialize();
     }
 
     void application::update(f32 dt)
@@ -65,7 +65,8 @@ namespace alg
 
         render.begin_text(camera);
 
-        render.draw_text("Hello World!", 640, 320, 1, font_type::Montserrat, {0.9, 0.9, 0.9});
+        vec3 text_position = vec3(0.9, 0.9, 0.9);
+        render.draw_text("Hello World!", 640, 320, 1, font_type::Montserrat, text_position);
 
         render.end_text();
     }

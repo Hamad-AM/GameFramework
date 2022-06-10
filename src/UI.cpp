@@ -21,7 +21,7 @@ namespace alg
     {
         vec2 screen_pos{ position.x + this->get_position().x, position.y + this->get_position().y};
 
-        render->draw_text(_text, screen_pos.x, screen_pos.y, get_size().y, _font, {_color.x, _color.y, _color.z});
+        render->draw_text(_text, screen_pos.x, screen_pos.y, get_size().y, _font, _color);
     }
 
     button::button(ui_text text, texture2d texture, vec2 position, vec2 size) : _text(text), _texture(texture), ui_element(position, size)

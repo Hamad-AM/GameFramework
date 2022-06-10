@@ -63,7 +63,7 @@ namespace alg
     private:
         const char* _text;
         font_type _font = font_type::Montserrat;
-        vec4 _color{0.0f, 0.0f, 0.0f, 1.0f};
+        vec3 _color{0.0f, 0.0f, 0.0f};
     };
 
     class button : public ui_element

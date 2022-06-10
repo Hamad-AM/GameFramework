@@ -19,5 +19,7 @@ namespace alg
         u16 mask = 0xFFFF;
 
         b32 trigger = false;
+
+        void update(f32 dt) {}
     };
 }

@@ -12,6 +12,8 @@ namespace alg
     class physics_body2d : public component<physics_body2d>
     {
     public:
+        void update(f32 dt) {}
+
         f32 get_mass();
         f32 get_inertia();
         vec2 get_local_center();
@@ -30,5 +32,6 @@ namespace alg
         b32 fixed_rotation;
         std::vector<collision_shape2d> shapes;
         void* body;
+
     };
 }

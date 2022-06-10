@@ -18,7 +18,7 @@ namespace alg
         ~font();
         
         void submit_render();
-        void draw(std::string& text, f32 x, f32 y, f32 scale, vec3 color);
+        void draw(const char* text, f32 x, f32 y, f32 scale, vec3 color);
 
         u32 get_size() { return _size; }
 

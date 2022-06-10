@@ -8,7 +8,7 @@
 
 namespace alg
 {
-    void renderer()
+    renderer::renderer()
     {
         fonts.reserve(font_type::NUMBER_OF_FONTS);
     }
@@ -126,7 +126,14 @@ namespace alg
     }
 
     void
-    renderer::draw_text(std::string& text, f32 x, f32 y, f32 scale, font_type font_t, glm::vec3 color)
+    renderer::draw_text(std::string& text, f32 x, f32 y, f32 scale, font_type font_t, vec3& color)
+    {
+        _text_shader.uniform_vector3f("textColor", color);
+        fonts[font_t].draw(text.c_str(), x, y, scale, color);
+    }
+
+    void
+    renderer::draw_text(const char* text, f32 x, f32 y, f32 scale, font_type font_t, vec3& color)
     {
         _text_shader.uniform_vector3f("textColor", color);
         fonts[font_t].draw(text, x, y, scale, color);

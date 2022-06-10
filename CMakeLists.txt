@@ -2,7 +2,7 @@ cmake_minimum_required(VERSION 3.10)
 
 project(Anthology)
 
-set(CMAKE_CXX_STANDARD 17)
+set(CMAKE_CXX_STANDARD 20)
 set(CMAKE_CXX_STANDARD_REQUIRED True)
 set(CMAKE_CXX_FLAGS -pthread)
 set(CMAKE_BUILD_TYPE Debug)
@@ -17,44 +17,77 @@ file (GLOB_RECURSE HEADER_FILES
 
 set(LIB_DIR "${CMAKE_SOURCE_DIR}/libraries")
 
+if(unix)
 set(OpenGL_GL_PREFERENCE GLVND)
+endif(unix)
+
 find_package(OpenGL REQUIRED)
 # find_package(SDL2 REQUIRED)
         
 
-set(SDL2_DIR "${LIB_DIR}/SDL2-2.0.16")
+# set(SDL2_DIR "${LIB_DIR}/SDL2-2.0.16")
 set(GLAD_DIR "${LIB_DIR}/glad")
 set(GLM_DIR  "${LIB_DIR}/glm")
 set(GLFW_DIR "${LIB_DIR}/glfw")
 set(STB_IMAGE_DIR "${LIB_DIR}/stb_image")
 set(ASSIMP_DIR "${LIB_DIR}/assimp")
+set(PX_DIR "${LIB_DIR}/PhysX")
+set(RAYLIB_DIR "${LIB_DIR}/raylib")
+set(BOX2D_DIR "${LIB_DIR}/box2d")
+set(FT2_DIR "${LIB_DIR}/freetype-2.11.1")
 # set(FMOD_DIR "${LIB_DIR}/fmod/api/core")
-# set(PHYSX_DIR "${LIB_DIR}/PhysX/physx")
 
-# set(SDL2_LIB "${SDL2_DIR}/lib/x64/SDL2.lib")
-# set(SDL2_MAIN_LIB "${SDL2_DIR}/lib/x64/SDL2main.lib")
-# set(SDL2_INCLUDE "${SDL2_DIR}/include")
-# set(GLFW_LIB "${GLFW_DIR}/build/src/RelWithDebInfo/glfw3.lib")
-set(GLFW_LIB_LINUX "${GLFW_DIR}/build/src/libglfw3.a")
+# INCLUDE DIRECTORS
+
 set(GLFW_INCLUDE "${GLFW_DIR}/include/")
-
-set(BOX2D_LIB_LINUX "${LIB_DIR}/box2d/build/bin/libbox2d.a")
-set(BOX2D_INCLUDE "${LIB_DIR}/box2d/include/")
+set(GLAD_INCLUDE "${GLAD_DIR}/include/")
+set(BOX2D_INCLUDE "${BOX2D_DIR}/include/")
+set(STB_IMAGE_INCLUDE "${STB_IMAGE_DIR}/")
+set(GLM_INCLUDE "${GLM_DIR}/")
+set(FT2_INCLUDE "${FT2_DIR}/include/")
+set(ASSIMP_INCLUDE "${ASSIMP_DIR}/include/")
+set(PX_INCLUDE "${PX_DIR}/physx/include/")
+set(PX_SHARED_INCLUDE "${PX_DIR}/pxshared/include/")
+set(RAYLIB_INCLUDE "${RAYLIB_DIR}/src/")
+# set(SDL2_INCLUDE "${SDL2_DIR}/include")
 
 set(GLAD_LIB "${GLAD_DIR}/src/glad.c")
-set(GLAD_INCLUDE "${GLAD_DIR}/include")
-
 set(STB_IMAGE_LIB "${STB_IMAGE_DIR}/stb_image.cpp")
-set(STB_IMAGE_INCLUDE "${STB_IMAGE_DIR}")
 
-set(GLM_INCLUDE "${GLM_DIR}")
-set(ENTT_INCLUDE "${LIB_DIR}/entt/single_include/entt.hpp")
 
-set(FT2_INCLUDE "${LIB_DIR}/freetype-2.11.1/include")
-set(FT2_LIB "${LIB_DIR}/freetype-2.11.1/build/libfreetype.a")
+if(WIN32)
+        set(GLFW_LIB "${GLFW_DIR}/build/src/RelWithDebInfo/glfw3.lib")
+        set(BOX2D_LIB "${BOX2D_DIR}/build/bin/Debug/box2d.lib")
+        set(FT2_LIB "${FT2_DIR}/build/RelWithDebInfo/freetype.lib")
+        set(RAYLIB_LIB "${RAYLIB_DIR}/build/raylib/RelWithDebInfo/raylib.lib")
+
+        # PHYSX
+        set(PX_LIB "${PX_DIR}/physx/bin/win.x86_64.vc142.mt/checked/PhysXExtensions_static_64.lib"
+        "${PX_DIR}/physx/bin/win.x86_64.vc142.mt/checked/PhysXFoundation_64.lib"
+        "${PX_DIR}/physx/bin/win.x86_64.vc142.mt/checked/PhysXPvdSDK_static_64.lib"
+        "${PX_DIR}/physx/bin/win.x86_64.vc142.mt/checked/PhysXTask_static_64.lib"
+        "${PX_DIR}/physx/bin/win.x86_64.vc142.mt/checked/PhysXVehicle_static_64.lib"
+        "${PX_DIR}/physx/bin/win.x86_64.vc142.mt/checked/SceneQuery_static_64.lib"
+        "${PX_DIR}/physx/bin/win.x86_64.vc142.mt/checked/SimulationController_static_64.lib"
+        "${PX_DIR}/physx/bin/win.x86_64.vc142.mt/checked/LowLevel_static_64.lib"
+        "${PX_DIR}/physx/bin/win.x86_64.vc142.mt/checked/LowLevelAABB_static_64.lib"
+        "${PX_DIR}/physx/bin/win.x86_64.vc142.mt/checked/LowLevelDynamics_static_64.lib"
+        "${PX_DIR}/physx/bin/win.x86_64.vc142.mt/checked/PhysX_64.lib"
+        "${PX_DIR}/physx/bin/win.x86_64.vc142.mt/checked/PhysXCharacterKinematic_static_64.lib"
+        "${PX_DIR}/physx/bin/win.x86_64.vc142.mt/checked/PhysXCommon_64.lib"
+        "${PX_DIR}/physx/bin/win.x86_64.vc142.mt/checked/PhysXCooking_64.lib")
+endif(WIN32)
+
+if(UNIX)
+        set(GLFW_LIB "${GLFW_DIR}/build/src/libglfw3.a")
+        set(FT2_LIB "${LIB_DIR}/freetype-2.11.1/build/libfreetype.a")
+        set(BOX2D_LIB "${LIB_DIR}/box2d/build/bin/libbox2d.a")
+endif(UNIX)
+
+
+
 
 # set(ASSIMP_LIB "${ASSIMP_DIR}/lib/Release/assimp-vc142-mt.lib")
-set(ASSIMP_INCLUDE "${ASSIMP_DIR}/include")
 
 # set(FMOD_LIB "${FMOD_DIR}/lib/x64/fmod_vc.lib")
 # set(FMOD_INCLUDE "${FMOD_DIR}/inc")
@@ -67,7 +100,7 @@ set(ASSIMP_INCLUDE "${ASSIMP_DIR}/include")
 
 # add_library(AnthologyLib )
 
-include_directories(${GLFW_INCLUDE} ${SDL2_INCLUDE_DIRS} ${PHYSX_INCLUDE} ${SDL2_INCLUDE} ${GLAD_INCLUDE} ${GLM_INCLUDE} ${STB_IMAGE_INCLUDE} ${ASSIMP_INCLUDE} ${FMOD_INCLUDE} ${BOX2D_INCLUDE} ${ENTT_INCLUDE} ${FT2_INCLUDE})
+include_directories(${GLFW_INCLUDE} ${GLAD_INCLUDE} ${BOX2D_INCLUDE} ${FT2_INCLUDE} ${ASSIMP_INCLUDE} ${PX_INCLUDE} ${GLM_INCLUDE} ${PX_SHARED_INCLUDE} ${STB_IMAGE_INCLUDE} ${RAYLIB_INCLUDE})
 
-add_executable(Anthology ${GLAD_LIB} ${STB_IMAGE_LIB} ${SOURCE_FILES})
-target_link_libraries(${GLFW_LIB} ${SDL2_LIBRARIES} ${PROJECT_NAME} ${PHYSX_LIB} ${PHYSX_COMMON_LIB} ${PHYSX_FOUNDATION_LIB} ${ASSIMP_LIB} ${FMOD_LIB} ${GLFW_LIB_LINUX} ${CMAKE_DL_LIBS} ${BOX2D_LIB_LINUX} ${FT2_LIB}) 
+add_executable(Anthology ${SOURCE_FILES} ${GLAD_LIB} ${STB_IMAGE_LIB} ${HEADER_FILES})
+target_link_libraries(Anthology "${GLFW_LIB}" "${PX_LIB}" "${GLFW_LIB}" "${BOX2D_LIB}" "${FT2_LIB}" "${RAYLIB_LIB}")

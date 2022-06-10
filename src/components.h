@@ -10,9 +10,9 @@ namespace alg
     class component
     {
     public:
-        void update(game_state* state)
+        void update(f32 dt)
         {
-            static_cast<T*>(this)->update(state); 
+            static_cast<T*>(this)->update(dt); 
         }
         void destroy()
         {
@@ -26,6 +26,8 @@ namespace alg
         texture2d texture;
         vec4 color;
         vec2 size;
+
+        void update(f32 dt) {}
     };
 
     class transform_component : public component<transform_component>
@@ -33,5 +35,7 @@ namespace alg
     public:
         vec3 position;
         vec3 rotation;
+
+        void update(f32 dt) {}
     };
 }

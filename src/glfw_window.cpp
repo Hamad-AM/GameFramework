@@ -196,12 +196,15 @@ namespace alg
         glfwTerminate();
     }
 
-    int main()
-    {
-        glfw_window window;
 
-        window.initialize(1280, 720, "Bobinon's great video game.");
-        window.update();
-        window.close();
-    }
+}
+int main()
+{
+    alg::glfw_window window;
+
+    window.initialize(1280, 720, "Bobinon's great video game.");
+    window.update();
+    window.close();
+
+    return 0;
 }
