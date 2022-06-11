@@ -1,6 +1,7 @@
 #include "font.h"
 
 #include <iostream>
+#include <filesystem>
 
 namespace alg
 {
@@ -16,18 +17,22 @@ namespace alg
     font::font(const char* path, u32 size)
         : _path(path), _size(size), _renderable(false)
     {
-        if (font::font_library == NULL)
+        if (font::font_library == nullptr)
         {
             if (FT_Init_FreeType(&font::font_library))
                 std::cout << "ERROR::FREETYPE: Could not init FreeType Library" << std::endl;
-        } 
+        }
 
         if (FT_New_Face(font::font_library, path, 0, &_face))
             std::cout << "ERROR::FREETYPE: Failed to load font" << std::endl;
+
         FT_Set_Pixel_Sizes(_face, 0, _size);
+        
         if (FT_Load_Char(_face, 'X', FT_LOAD_RENDER))
             std::cout << "ERROR::FREETYPE: Failed to load Glyph" << std::endl;
         
+        glPixelStorei(GL_UNPACK_ALIGNMENT, 1);
+
         for (ubyte c = 0; c < 128; c++)
         {
             character chars;
@@ -37,12 +42,21 @@ namespace alg
                 continue;
             }
 
+            texture2d texture;
+            texture_param param = { texture_wrap::CLAMP_TO_EDGE, texture_filter::BILINEAR, texture_type::DIFFUSE, 0, texture_format::RED, texture_format::RED };
+            texture.submit_render(param, _face->glyph->bitmap.buffer, _face->glyph->bitmap.width, _face->glyph->bitmap.rows);
+
             chars.size = ivec2(_face->glyph->bitmap.width, _face->glyph->bitmap.rows);
             chars.bearing = ivec2(_face->glyph->bitmap_left, _face->glyph->bitmap_top);
             chars.advance = _face->glyph->advance.x;
+            chars.texture = texture;
 
             _characters.insert(std::pair<char, character>(c, chars));
+            glBindTexture(GL_TEXTURE_2D, 0);
         }
+
+        // TEMP Submitting for render
+        submit_render();
     }
 
     font::~font()
@@ -53,19 +67,6 @@ namespace alg
     void
     font::submit_render()
     {
-        glPixelStorei(GL_UNPACK_ALIGNMENT, 1);
-
-        for (u32 c = 0; c < 128; c++)
-        {
-            character& chars = _characters[c];
-
-            texture2d texture;
-            texture_param param = { texture_wrap::CLAMP_TO_EDGE, texture_filter::BILINEAR, texture_type::DIFFUSE, 0, texture_format::RED, texture_format::RED };
-            texture.submit_render(param, _face->glyph->bitmap.buffer, _face->glyph->bitmap.width, _face->glyph->bitmap.rows);
-
-            chars.texture = texture;
-        }
-
         glGenVertexArrays(1, &_va);
         glGenBuffers(1, &_vb);
 
@@ -86,6 +87,7 @@ namespace alg
     void
     font::draw(const char* text, f32 x, f32 y, f32 scale, vec3 color)
     {
+        glActiveTexture(GL_TEXTURE0);
         glBindVertexArray(_va);
 
         for (u32 i = 0;

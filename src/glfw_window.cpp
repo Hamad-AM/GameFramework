@@ -75,7 +75,7 @@ namespace alg
         glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
 
 
-        game_.initialize();
+        game_.initialize(width, height);
     }
 
     b32 glfw_window::handle_input()

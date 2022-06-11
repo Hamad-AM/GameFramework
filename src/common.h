@@ -31,6 +31,9 @@ namespace alg
     template<typename T>
     using ref = std::shared_ptr<T>;
 
+    template<typename T>
+    ref<T> make_ref(T t) { return std::make_shared<T>(t); }
+
     static f32 pixel2screen = 3.2f/455.0f;
 }
 

@@ -16,6 +16,7 @@ namespace alg
 
     enum font_type
     {
+        Arial,
         Montserrat,
         OpenSans,
         Playfair,
@@ -58,7 +59,7 @@ namespace alg
         void init_glyph_bitmaps();
         void init_sprites();
 
-        std::vector<font> fonts;
+        ref<font> fonts[font_type::NUMBER_OF_FONTS];
 
         // shaders
         shader _sprite_shader;

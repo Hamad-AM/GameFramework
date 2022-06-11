@@ -134,6 +134,7 @@ namespace alg
         // Always detach shaders after a successful link.
         glDetachShader(program, vertex_shader);
         glDetachShader(program, fragment_shader);
+        unbind();
     }
 
     void

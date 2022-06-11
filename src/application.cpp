@@ -15,7 +15,7 @@ namespace alg
 
     application::~application() {}
 
-    void application::initialize()
+    void application::initialize(u32 screen_width, u32 screen_height)
     {
         // s = con.load_shader("sprite", "sprite.vs", "sprite.fs");
         // sprite_render.initialize(&s);
@@ -27,9 +27,14 @@ namespace alg
         // camera.set_projection(glm::ortho(-1.6f,  1.6f, -0.9f, 0.9f, -1.0f, 1.0f));
         camera.set_projection(glm::ortho(0.0f,  1280.0f, 0.0f, 720.0f, -1.0f, 1.0f));
 
+        texture_param test_sprite_param{ texture_wrap::CLAMP_TO_EDGE, texture_filter::NEAREST_NEIGHBOR, texture_type::DIFFUSE, 0, texture_format::RGBA, texture_format::RGBA };
+        test_sprite.create("../assets/textures/container2.png", test_sprite_param);
+
         // ref<physics_object> b = create_bird(glm::vec3(1.0f, 0.6f, 0.0f));
         // physics_system.create_body2d(b, physics_body_component::body_type::dynamic_body)
 
+        screen_width_ = screen_width;
+        screen_height_ = screen_height;
         render.initialize();
     }
 
@@ -60,13 +65,15 @@ namespace alg
         camera.update(camera_position);
         
         render.begin_sprite(camera);
+
+        render.draw_sprite(test_sprite, { 500, 200 }, {100, 100});
         
         render.end_sprite();
 
         render.begin_text(camera);
 
-        vec3 text_position = vec3(0.9, 0.9, 0.9);
-        render.draw_text("Hello World!", 640, 320, 1, font_type::Montserrat, text_position);
+        vec3 color = vec3(0.9, 0.9, 0.9);
+        render.draw_text("Test", screen_width_/2, screen_height_/2, 1, font_type::Montserrat, color);
 
         render.end_text();
     }

@@ -10,7 +10,7 @@ namespace alg
 {
     renderer::renderer()
     {
-        fonts.reserve(font_type::NUMBER_OF_FONTS);
+        
     }
 
     void renderer::initialize()
@@ -33,7 +33,7 @@ namespace alg
         
         u32 indices[] = {  
             0, 1, 2 , // first triangle
-            2, 3, 0  // second triangle
+            2, 3, 0   // second triangle
         };
 
         u32 VBO, VAO, EBO;
@@ -67,14 +67,11 @@ namespace alg
     {
         _text_shader.compile("../assets/shaders/glyph.vs", "../assets/shaders/glyph.fs");
 
-        font m("../assets/fonts/Montserrat/Montserrat-Regular.ttf", 48);
-        font o("../assets/fonts/OpenSans/OpenSans-Regular.ttf", 48);
-        font pf("../assets/fonts/Playfair/Playfair-Regular.ttf", 48);
-        font r("../assets/fonts/Roboto/Roboto-Regular.ttf", 48);
-        fonts[font_type::Montserrat] = m;
-        fonts[font_type::OpenSans]   = o;
-        fonts[font_type::Playfair]   = pf;
-        fonts[font_type::Roboto]     = r;
+        fonts[font_type::Arial]      = ref<font>(new font("../assets/fonts/Arial/arial.ttf", 48));
+        fonts[font_type::Montserrat] = ref<font>(new font("../assets/fonts/Montserrat/Montserrat-Regular.ttf", 48));
+        fonts[font_type::OpenSans]   = ref<font>(new font("../assets/fonts/OpenSans/OpenSans-Regular.ttf", 48));
+        fonts[font_type::Playfair]   = ref<font>(new font("../assets/fonts/Playfair/PlayfairDisplay-Regular.ttf", 48));
+        fonts[font_type::Roboto]     = ref<font>(new font("../assets/fonts/Roboto/Roboto-Regular.ttf", 48));
         
     }
 
@@ -129,14 +126,16 @@ namespace alg
     renderer::draw_text(std::string& text, f32 x, f32 y, f32 scale, font_type font_t, vec3& color)
     {
         _text_shader.uniform_vector3f("textColor", color);
-        fonts[font_t].draw(text.c_str(), x, y, scale, color);
+        _text_shader.uniform_int("text", 0);
+        fonts[font_t]->draw(text.c_str(), x, y, scale, color);
     }
 
     void
     renderer::draw_text(const char* text, f32 x, f32 y, f32 scale, font_type font_t, vec3& color)
     {
         _text_shader.uniform_vector3f("textColor", color);
-        fonts[font_t].draw(text, x, y, scale, color);
+        _text_shader.uniform_int("text", 0);
+        fonts[font_t]->draw(text, x, y, scale, color);
     }
 
     void
