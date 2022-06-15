@@ -1,6 +1,7 @@
 #pragma once
 
 #include "../common.h"
+#include "../gmath.h"
 
 #include <map>
 
@@ -40,6 +41,7 @@ namespace alg
 
         b32 _renderable;
         u32 _vb;
+        u32 _ib;
         u32 _va;
         
         static FT_Library font_library;

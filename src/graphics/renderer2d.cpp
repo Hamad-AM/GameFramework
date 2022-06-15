@@ -65,7 +65,7 @@ namespace alg
     void
     renderer::init_glyph_bitmaps()
     {
-        _text_shader.compile("../assets/shaders/glyph.vs", "../assets/shaders/glyph.fs");
+        // _text_shader.compile("../assets/shaders/glyph.vs", "../assets/shaders/glyph.fs");
 
         fonts[font_type::Arial]      = ref<font>(new font("../assets/fonts/Arial/arial.ttf", 48));
         fonts[font_type::Montserrat] = ref<font>(new font("../assets/fonts/Montserrat/Montserrat-Regular.ttf", 48));
@@ -75,16 +75,21 @@ namespace alg
         
     }
 
-    void renderer::begin_sprite(camera2d& camera)
+    void renderer::begin2d(camera2d& camera)
     {
         _sprite_shader.bind();
         mat4 projection_view = camera.projection_view();
         _sprite_shader.uniform_matrix4("u_projection_view", projection_view);
     }
 
-    void renderer::draw_sprite(texture2d& texture, vec2 position, vec2 size, f32 rotate, glm::vec3 color)
+    void renderer::draw_sprite(texture2d& texture, vec2 position, vec2 size, f32 rotate, glm::vec3 color, camera2d* camera)
     {
         texture.bind();
+
+        if (camera != nullptr)
+        {
+            _sprite_shader.uniform_matrix4("u_projection_view", camera->projection_view());
+        }
 
         mat4 model = glm::translate(glm::mat4(1.0f), glm::vec3(position.x, position.y, 0.0)) * glm::rotate(glm::mat4(1.0f), glm::radians(rotate), glm::vec3(0.0, 0.0, 1.0)) * glm::scale(glm::mat4(1.0f), glm::vec3(size.x, size.y, 1.0f)); 
 
@@ -103,53 +108,29 @@ namespace alg
     }
 
     void
-    renderer::begin_text(camera2d& camera)
+    renderer::draw_text(std::string& text, f32 x, f32 y, f32 scale, font_type font_t, vec3& color, camera2d* camera)
     {
-        _text_shader.bind();
-        glm::mat4 projection = camera.projection();
-        _text_shader.uniform_matrix4("projection", projection);
+        renderer::draw_text(text.c_str(), x, y, scale, font_t, color, camera);
     }
 
     void
-    renderer::begin_shader(shader& shader)
+    renderer::draw_text(const char* text, f32 x, f32 y, f32 scale, font_type font_t, vec3& color, camera2d* camera)
     {
-        shader.bind();
-    }
-
-    void
-    renderer::end_shader()
-    {
-        glUseProgram(0);
-    }
-
-    void
-    renderer::draw_text(std::string& text, f32 x, f32 y, f32 scale, font_type font_t, vec3& color)
-    {
-        _text_shader.uniform_vector3f("textColor", color);
-        _text_shader.uniform_int("text", 0);
-        fonts[font_t]->draw(text.c_str(), x, y, scale, color);
-    }
-
-    void
-    renderer::draw_text(const char* text, f32 x, f32 y, f32 scale, font_type font_t, vec3& color)
-    {
-        _text_shader.uniform_vector3f("textColor", color);
-        _text_shader.uniform_int("text", 0);
+        if (camera != nullptr)
+        {
+            _sprite_shader.uniform_matrix4("u_projection_view", camera->projection_view());
+        }
+        _sprite_shader.uniform_vector3f("spriteColor", color);
+        _sprite_shader.uniform_int("u_texture", 0);
+        mat4 model = translate(mat4(1.0f), vec3(x, y, 0));
+        _sprite_shader.uniform_matrix4("u_model", model);
         fonts[font_t]->draw(text, x, y, scale, color);
     }
-
+    
     void
-    renderer::end_sprite()
+    renderer::end2d()
     {
         _sprite_shader.unbind();
-        glBindVertexArray(0);
-    }
-
-    void
-    renderer::end_text()
-    {
-        _text_shader.unbind();
-        glBindVertexArray(0);
     }
 
     void

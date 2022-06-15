@@ -81,7 +81,7 @@ endif(WIN32)
 
 if(UNIX)
         set(GLFW_LIB "${GLFW_DIR}/build/src/libglfw3.a")
-        set(FT2_LIB "${LIB_DIR}/freetype-2.11.1/build/libfreetype.a")
+        set(FT2_LIB "${FT2_DIR}/build/libfreetype.a")
         set(BOX2D_LIB "${LIB_DIR}/box2d/build/bin/libbox2d.a")
 endif(UNIX)
 
@@ -105,7 +105,15 @@ include_directories(${GLFW_INCLUDE} ${GLAD_INCLUDE} ${BOX2D_INCLUDE} ${FT2_INCLU
 
 add_executable(Anthology ${SOURCE_FILES} ${GLAD_LIB} ${STB_IMAGE_LIB} ${HEADER_FILES})
 
-set_target_properties(Anthology PROPERTIES VS_DEBUGGER_WORKING_DIRECTORY "${CMAKE_SOURCE_DIR}/build")
+if(WIN32)
+        set_target_properties(Anthology PROPERTIES VS_DEBUGGER_WORKING_DIRECTORY "${CMAKE_SOURCE_DIR}/build")
+endif(WIN32)
 
-target_link_libraries(Anthology "${GLFW_LIB}" "${BOX2D_LIB}" "${FT2_LIB}")
+if(WIN32)
+        target_link_libraries(Anthology "${GLFW_LIB}" "${BOX2D_LIB}" "${FT2_LIB}")
+endif(WIN32)
+
+if(UNIX)
+        target_link_libraries(Anthology ${GLFW_LIB} ${BOX2D_LIB} ${FT2_LIB} ${CMAKE_DL_LIBS})
+endif(UNIX)
 #"${PX_LIB}" "${RAYLIB_LIB}" 

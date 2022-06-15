@@ -73,9 +73,9 @@ namespace alg
 
         void on_event(event* event);
 
-        virtual void on_button_press() { return; }
+        virtual void on_button_press(event* event) { return; }
 
-        virtual void on_button_hover() { return; }
+        virtual void on_button_hover(event* event) { return; }
 
         void set_texture(texture2d texture) { _texture = texture; }
         texture2d get_texture() { return _texture; }

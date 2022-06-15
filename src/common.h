@@ -36,5 +36,3 @@ namespace alg
 
     static f32 pixel2screen = 3.2f/455.0f;
 }
-
-#include "gmath.h"

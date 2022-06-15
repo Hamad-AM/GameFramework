@@ -64,18 +64,15 @@ namespace alg
     {
         camera.update(camera_position);
         
-        render.begin_sprite(camera);
+        render.begin2d(camera);
 
         render.draw_sprite(test_sprite, { 500, 200 }, {100, 100});
-        
-        render.end_sprite();
-
-        render.begin_text(camera);
-
         vec3 color = vec3(0.9, 0.9, 0.9);
         render.draw_text("Test", screen_width_/2, screen_height_/2, 1, font_type::Montserrat, color);
+        
+        render.end2d();
 
-        render.end_text();
+
     }
 
     void application::close()

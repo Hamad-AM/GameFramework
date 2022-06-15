@@ -69,16 +69,26 @@ namespace alg
     {
         glGenVertexArrays(1, &_va);
         glGenBuffers(1, &_vb);
+        glGenBuffers(1, &_ib);
 
         glBindVertexArray(_va);
 
+        // Vertex Buffer
         glBindBuffer(GL_ARRAY_BUFFER, _vb);
-        glBufferData(GL_ARRAY_BUFFER, sizeof(float) * 6*4, NULL, GL_DYNAMIC_DRAW);
+        glBufferData(GL_ARRAY_BUFFER, sizeof(float) * 4*5, NULL, GL_DYNAMIC_DRAW);
+
+        // Index Buffer
+        glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, _ib);
+        glBufferData(GL_ELEMENT_ARRAY_BUFFER, sizeof(u32) * 6, NULL, GL_DYNAMIC_DRAW);
         
+        glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, 5 * sizeof(float), 0);
         glEnableVertexAttribArray(0);
-        glVertexAttribPointer(0, 4, GL_FLOAT, GL_FALSE, 4 * sizeof(float), 0);
+
+        glVertexAttribPointer(1, 2, GL_FLOAT, GL_FALSE, 5 * sizeof(float), (void*)(3 * sizeof(float)));
+        glEnableVertexAttribArray(1);
 
         glBindBuffer(GL_ARRAY_BUFFER, 0);
+        glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, 0);
         glBindVertexArray(0);
 
         _renderable = true;
@@ -100,22 +110,31 @@ namespace alg
 
             f32 width = ch.size.x * scale;
             f32 height = ch.size.y * scale;
-            float vertices[6][4] = {
-                { xpos, ypos + height, 0.0f, 0.0f },
-                { xpos, ypos, 0.0f, 1.0f },
-                { xpos + width, ypos, 1.0f, 1.0f },
-                { xpos, ypos + height, 0.0f, 0.0f },
-                { xpos + width, ypos, 1.0f, 1.0f },
-                { xpos + width, ypos + height, 1.0f, 0.0f }
+            float vertices[4][5] = {
+                { xpos, ypos + height, 0.0f, 0.0f, 0.0f }, // bottom left
+                { xpos + width, ypos + height, 0.0f, 1.0f, 0.0f }, // bottom right
+                { xpos + width, ypos, 0.0f, 1.0f, 1.0f }, // top right
+                { xpos, ypos, 0.0f, 0.0f, 1.0f }, // top left
+            };
+
+            u32 indices[] = {
+                0, 1, 2,
+                2, 3, 0
             };
 
             ch.texture.bind();
             
             glBindBuffer(GL_ARRAY_BUFFER, _vb);
             glBufferSubData(GL_ARRAY_BUFFER, 0, sizeof(vertices), vertices);
-            glBindBuffer(GL_ARRAY_BUFFER, 0);
 
-            glDrawArrays(GL_TRIANGLES, 0, 6);
+            glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, _ib);
+            glBufferSubData(GL_ELEMENT_ARRAY_BUFFER, 0, sizeof(indices), indices);
+
+            glBindVertexArray(_va);
+            glDrawElements(GL_TRIANGLES, 6, GL_UNSIGNED_INT, 0);
+
+            glBindBuffer(GL_ARRAY_BUFFER, 0);
+            glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, 0);
 
             x += (ch.advance >> 6) * scale;
         }
