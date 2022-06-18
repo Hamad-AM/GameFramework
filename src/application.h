@@ -10,7 +10,7 @@
 
 #include <iostream>
 
-namespace alg
+namespace atl
 {
     class application
     {

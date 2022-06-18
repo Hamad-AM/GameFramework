@@ -8,7 +8,7 @@
 #include <glm/gtc/matrix_transform.hpp>
 #include <glm/gtc/matrix_inverse.hpp>
 
-namespace alg
+namespace atl
 {
     typedef glm::vec2 vec2;
     typedef glm::vec3 vec3;
@@ -71,6 +71,16 @@ namespace alg
     inline mat4 transpose(mat4& m)
     {
         return glm::transpose(m);
+    }
+
+    inline f32 deg2rad(f32 degrees)
+    {
+        return glm::radians(degrees);
+    }
+
+    inline f32 rad2deg(f32 radians)
+    {
+        return glm::degrees(radians);
     }
 }
 // class v2

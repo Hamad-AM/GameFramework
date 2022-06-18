@@ -7,7 +7,7 @@
 #include "graphics/texture.h"
 #include "graphics/renderer2d.h"
 
-namespace alg
+namespace atl
 {
     class ui_element
     {
@@ -63,7 +63,7 @@ namespace alg
     private:
         const char* _text;
         font_type _font = font_type::Montserrat;
-        vec3 _color{0.0f, 0.0f, 0.0f};
+        vec4 _color{0.0f, 0.0f, 0.0f, 1.0f};
     };
 
     class button : public ui_element

@@ -5,7 +5,7 @@
 
 #include "common.h"
 
-namespace alg
+namespace atl
 {
     enum event_type
     {

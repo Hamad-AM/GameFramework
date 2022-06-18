@@ -7,7 +7,7 @@
 #include "physics/collision_shape2d.h"
 #include "physics/physics_body2d.h"
 #include "event.h"
-namespace alg
+namespace atl
 {
     class entity
     {

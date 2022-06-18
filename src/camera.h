@@ -3,7 +3,7 @@
 #include "common.h"
 #include "gmath.h"
 
-namespace alg
+namespace atl
 {
     class camera2d
     {

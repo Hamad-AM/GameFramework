@@ -4,7 +4,7 @@
 #include "../event.h"
 
 
-namespace alg
+namespace atl
 {
     class entity;
 

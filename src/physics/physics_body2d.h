@@ -5,7 +5,7 @@
 
 #include "collision_shape2d.h"
 
-namespace alg
+namespace atl
 {
     enum body_type { static_body = 0, kinematic_body, dynamic_body };
 

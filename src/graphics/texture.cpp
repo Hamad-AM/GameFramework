@@ -4,7 +4,7 @@
 #include <iostream>
 #include <stb_image.h>
 
-namespace alg
+namespace atl
 {
     texture2d::texture2d()
     {}

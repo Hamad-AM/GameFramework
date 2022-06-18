@@ -10,7 +10,7 @@
 
 #include "texture.h"
 
-namespace alg
+namespace atl
 {
     class font
     {

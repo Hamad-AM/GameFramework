@@ -1,6 +1,6 @@
 #include "event.h"
 
-namespace alg
+namespace atl
 {
     void
     event_system::subscribe(event_type type, event_callback callback)

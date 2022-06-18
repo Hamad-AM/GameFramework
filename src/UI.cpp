@@ -5,7 +5,7 @@
 #include "event.h"
 #include "input.h"
 
-namespace alg
+namespace atl
 {
     void
     container::draw(renderer* render, vec2 position)
@@ -36,6 +36,6 @@ namespace alg
     button::draw(renderer* render, vec2 position)
     {
         vec2 screen_pos{ position.x + this->get_position().x, position.y + this->get_position().y};
-        render->draw_sprite(_texture, { screen_pos.x, screen_pos.y }, { get_size().x, get_size().y });
+        render->draw_sprite(_texture, screen_pos, { get_size().x, get_size().y });
     }
 }

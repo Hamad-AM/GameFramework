@@ -8,7 +8,7 @@
 #include <GLFW/glfw3.h>
 #include "application.h"
 
-namespace alg
+namespace atl
 {
     class glfw_window : public window
     {

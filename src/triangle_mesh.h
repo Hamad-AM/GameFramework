@@ -4,7 +4,7 @@
 #include "gmath.h"
 #include "graphics/texture.h"
 
-namespace alg
+namespace atl
 {
     struct vertex_1p
     {

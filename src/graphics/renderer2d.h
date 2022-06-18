@@ -13,7 +13,7 @@
 #include "texture.h"
 #include "font.h"
 
-namespace alg
+namespace atl
 {
 
     enum font_type
@@ -37,15 +37,12 @@ namespace alg
 
         void begin2d(camera2d& camera);
 
-        void draw_sprite(texture2d& texture, vec2 position, vec2 size = vec2(1.0f, 1.0f), f32 rotate = 0.0f, vec3 color = vec3(1.0f), camera2d* camera = nullptr);
+        void draw_sprite(texture2d& texture, vec2& position, const vec2& size = vec2(1.0f, 1.0f), f32 rotate = 0.0f, vec4 color = vec4(1.0f), const camera2d* camera = nullptr);
+        void draw_text(std::string& text, f32 x, f32 y, f32 scale, font_type font_t, vec4& color, const camera2d* camera = nullptr);
+        void draw_text(const char* text, f32 x, f32 y, f32 scale, font_type font_t, vec4& color, const camera2d* camera = nullptr);
+
 
         void end2d();
-
-        void draw_text(std::string& text, f32 x, f32 y, f32 scale, font_type font_t, vec3& color, camera2d* camera = nullptr);
-        void draw_text(const char* text, f32 x, f32 y, f32 scale, font_type font_t, vec3& color, camera2d* camera = nullptr);
-
-        void begin_shader(shader& shader);
-        void end_shader();
 
         void begin3D(camera3d& camera);
         void end3D();
@@ -67,9 +64,6 @@ namespace alg
         u32 quad_va_;
         u32 text_quad_va_;
         u32 text_vb_;
-
-        FT_Library ft;
-        FT_Face face;
     };
 
 }

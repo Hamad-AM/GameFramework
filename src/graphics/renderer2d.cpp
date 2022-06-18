@@ -6,7 +6,7 @@
 
 #include <iostream>
 
-namespace alg
+namespace atl
 {
     renderer::renderer()
     {
@@ -82,7 +82,7 @@ namespace alg
         _sprite_shader.uniform_matrix4("u_projection_view", projection_view);
     }
 
-    void renderer::draw_sprite(texture2d& texture, vec2 position, vec2 size, f32 rotate, glm::vec3 color, camera2d* camera)
+    void renderer::draw_sprite(texture2d& texture, vec2& position, vec2& size, f32 rotate, vec4 color, const camera2d* camera)
     {
         texture.bind();
 
@@ -91,10 +91,13 @@ namespace alg
             _sprite_shader.uniform_matrix4("u_projection_view", camera->projection_view());
         }
 
-        mat4 model = glm::translate(glm::mat4(1.0f), glm::vec3(position.x, position.y, 0.0)) * glm::rotate(glm::mat4(1.0f), glm::radians(rotate), glm::vec3(0.0, 0.0, 1.0)) * glm::scale(glm::mat4(1.0f), glm::vec3(size.x, size.y, 1.0f)); 
+        mat4 model = translate(mat4(1.0f), vec3(position.x, position.y, 0.0))
+                     * rotate(glm::mat4(1.0f), rad2deg(rotate), vec3(0.0, 0.0, 1.0))
+                     * scale(glm::mat4(1.0f), vec3(size.x, size.y, 1.0f)); 
 
         _sprite_shader.uniform_matrix4("u_model", model);
         _sprite_shader.uniform_int("u_texture", texture.slot());
+        _sprite_shader.uniform_vector3f("spriteColor", color);
 
         glBindVertexArray(quad_va_);
         glDrawElements(GL_TRIANGLES, 6, GL_UNSIGNED_INT, 0);
@@ -108,19 +111,19 @@ namespace alg
     }
 
     void
-    renderer::draw_text(std::string& text, f32 x, f32 y, f32 scale, font_type font_t, vec3& color, camera2d* camera)
+    renderer::draw_text(std::string& text, f32 x, f32 y, f32 scale, font_type font_t, vec4& color, camera2d* camera)
     {
         renderer::draw_text(text.c_str(), x, y, scale, font_t, color, camera);
     }
 
     void
-    renderer::draw_text(const char* text, f32 x, f32 y, f32 scale, font_type font_t, vec3& color, camera2d* camera)
+    renderer::draw_text(const char* text, f32 x, f32 y, f32 scale, font_type font_t, vec4& color, camera2d* camera)
     {
         if (camera != nullptr)
         {
             _sprite_shader.uniform_matrix4("u_projection_view", camera->projection_view());
         }
-        _sprite_shader.uniform_vector3f("spriteColor", color);
+        _sprite_shader.uniform_vector4f("spriteColor", color);
         _sprite_shader.uniform_int("u_texture", 0);
         mat4 model = translate(mat4(1.0f), vec3(x, y, 0));
         _sprite_shader.uniform_matrix4("u_model", model);

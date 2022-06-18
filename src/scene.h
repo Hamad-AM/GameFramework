@@ -6,7 +6,7 @@
 
 #include "entity.h"
 
-namespace alg
+namespace atl
 {
     class scene
     {

@@ -2,7 +2,7 @@
 
 #include "../common.h"
 
-namespace alg
+namespace atl
 {
 
     struct vertex_p

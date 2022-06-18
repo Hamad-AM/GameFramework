@@ -11,7 +11,7 @@
 #include "physics_body2d.h"
 #include "collision_shape2d.h"
 #include "collision_event.h"
-namespace alg
+namespace atl
 {
     class physics_system
     {

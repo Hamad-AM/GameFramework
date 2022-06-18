@@ -5,7 +5,7 @@
 #include "shader.h"
 #include "texture.h"
 
-namespace alg
+namespace atl
 {
     class render_device
     {

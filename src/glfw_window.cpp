@@ -8,7 +8,7 @@
 
 #include <iostream>
 
-namespace alg
+namespace atl
 {
     void GLAPIENTRY
     MessageCallback( GLenum source,
@@ -19,7 +19,7 @@ namespace alg
                     const GLchar* message,
                     const void* userParam )
     {
-    fprintf( stderr, "GL CALLBACK: %s type = 0x%x, severity = 0x%x, message = %s\n",
+        fprintf( stderr, "GL CALLBACK: %s type = 0x%x, severity = 0x%x, message = %s\n",
             ( type == GL_DEBUG_TYPE_ERROR ? "** GL ERROR **" : "" ),
                 type, severity, message );
     }
@@ -43,7 +43,7 @@ namespace alg
 
         if (!glfwInit())
             assert(true);
-        
+
         glfwWindowHint(GLFW_CONTEXT_VERSION_MAJOR, 4);
         glfwWindowHint(GLFW_CONTEXT_VERSION_MINOR, 6);
         glfwWindowHint(GLFW_OPENGL_PROFILE, GLFW_OPENGL_CORE_PROFILE);
@@ -56,14 +56,16 @@ namespace alg
             assert(true);
         }
 
+        glfwMakeContextCurrent(window);
+
         glfwSetKeyCallback(window, key_callback);
 
-        glfwMakeContextCurrent(window);
+        // glfwMakeContextCurrent(window);
         if (!gladLoadGLLoader((GLADloadproc)glfwGetProcAddress))
         {
             std::cout << "Failed to initialize GLAD" << std::endl;
             assert(false);
-        }    
+        }
         glfwSwapInterval(1);
 
 
@@ -84,14 +86,14 @@ namespace alg
         {
             input::set_key_state(key::ESCAPE, input_state::down);
             return true;
-        } else 
+        } else
         {
             input::set_key_state(key::ESCAPE, input_state::up);
         }
         if (glfwGetKey(window, GLFW_KEY_W) == GLFW_PRESS)
         {
             input::set_key_state(key::w, input_state::down);
-        } else 
+        } else
         {
             input::set_key_state(key::w, input_state::up);
         }
@@ -105,28 +107,28 @@ namespace alg
         if (glfwGetKey(window, GLFW_KEY_A) == GLFW_PRESS)
         {
             input::set_key_state(key::a, input_state::down);
-        } else 
+        } else
         {
             input::set_key_state(key::a, input_state::up);
         }
         if (glfwGetKey(window, GLFW_KEY_D) == GLFW_PRESS)
         {
             input::set_key_state(key::d, input_state::down);
-        } else 
+        } else
         {
             input::set_key_state(key::d, input_state::up);
         }
         if (glfwGetKey(window, GLFW_KEY_P) == GLFW_PRESS)
         {
             input::set_key_state(key::p, input_state::down);
-        } else 
+        } else
         {
             input::set_key_state(key::p, input_state::up);
         }
         if (glfwGetKey(window, GLFW_KEY_SPACE) == GLFW_PRESS)
         {
             input::set_key_state(key::SPACE, input_state::down);
-        } else 
+        } else
         {
             input::set_key_state(key::SPACE, input_state::up);
         }
@@ -159,7 +161,7 @@ namespace alg
         {
             glTexImage2D(GL_TEXTURE_2D, 0, , width, height, 0, GL_RGBA, GL_UNSIGNED_BYTE, data);
         }
-    else
+        else
         {
             std::cout << "Failed to load texture" << std::endl;
         }
@@ -177,8 +179,8 @@ namespace alg
 
             glfwPollEvents();
             close_window = handle_input();
-            
-            double time = (double) glfwGetTime();
+
+            f64 time = (f64) glfwGetTime();
             f32 dt = previous_time - time;
             previous_time = time;
 
@@ -200,7 +202,7 @@ namespace alg
 }
 int main()
 {
-    alg::glfw_window window;
+    atl::glfw_window window;
 
     window.initialize(1280, 720, "Bobinon's great video game.");
     window.update();

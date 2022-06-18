@@ -1,6 +1,6 @@
 #include "input.h"
 
-namespace alg
+namespace atl
 {
     input* input::s_instance = new input(); 
 

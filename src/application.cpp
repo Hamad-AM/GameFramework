@@ -9,7 +9,7 @@
 #include <iostream>
 #include <map>
 
-namespace alg
+namespace atl
 {
     application::application() {}
 
@@ -66,8 +66,9 @@ namespace alg
         
         render.begin2d(camera);
 
-        render.draw_sprite(test_sprite, { 500, 200 }, {100, 100});
-        vec3 color = vec3(0.9, 0.9, 0.9);
+        vec2 sprite_position{ 500, 200 };
+        render.draw_sprite(test_sprite, sprite_position, {100, 100});
+        vec4 color{ 0.9, 0.9, 0.9, 1.0f };
         render.draw_text("Test", screen_width_/2, screen_height_/2, 1, font_type::Montserrat, color);
         
         render.end2d();

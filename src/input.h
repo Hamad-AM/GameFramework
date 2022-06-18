@@ -4,7 +4,7 @@
 #include "gmath.h"
 #include "event.h"
 
-namespace alg
+namespace atl
 {
     enum input_state
     {

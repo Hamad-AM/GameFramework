@@ -9,7 +9,7 @@
 #include <glm/gtc/matrix_transform.hpp>
 
 
-namespace alg
+namespace atl
 {
     typedef uint8_t  u8;
     typedef uint16_t u16;

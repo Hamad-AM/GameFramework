@@ -4,7 +4,7 @@
 
 #include <glad/glad.h>
 
-namespace alg
+namespace atl
 {
     enum texture_type
     {

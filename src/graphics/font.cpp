@@ -3,7 +3,7 @@
 #include <iostream>
 #include <filesystem>
 
-namespace alg
+namespace atl
 {
     //static font::font_library = nullptr;
     FT_Library font::font_library = nullptr;

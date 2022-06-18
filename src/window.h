@@ -3,7 +3,7 @@
 #include "common.h"
 #include "input.h"
 
-namespace alg
+namespace atl
 {
     class window
     {

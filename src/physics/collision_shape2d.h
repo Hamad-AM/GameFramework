@@ -3,7 +3,7 @@
 #include "../common.h"
 #include "../components.h"
 
-namespace alg
+namespace atl
 {
     class collision_shape2d : public component<collision_shape2d>
     {
