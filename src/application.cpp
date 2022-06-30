@@ -67,9 +67,9 @@ namespace atl
         render.begin2d(camera);
 
         vec2 sprite_position{ 500, 200 };
-        render.draw_sprite(test_sprite, sprite_position, {100, 100});
+        render.draw_sprite(test_sprite, sprite_position, {100, 100}, 0.0f, color(1.0f, 1.0f, 1.0f), 10.0f, &camera);
         vec4 color{ 0.9, 0.9, 0.9, 1.0f };
-        render.draw_text("Test", screen_width_/2, screen_height_/2, 1, font_type::Montserrat, color);
+        render.draw_text("Test", screen_width_/2, screen_height_/2, 1, font_type::Montserrat, color, &camera);
         
         render.end2d();
 

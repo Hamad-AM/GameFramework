@@ -43,7 +43,7 @@ namespace atl
         return glm::scale(m, v);
     }
 
-    inline mat4 rotate(mat4& m, f32 angle, vec3 axis)
+    inline mat4 rotate(mat4& m, f32 angle, vec3& axis)
     {
         return glm::rotate(m, angle, axis);
     }

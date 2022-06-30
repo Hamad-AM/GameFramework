@@ -2,7 +2,7 @@
 
 #include "../common.h"
 
-#include "gmath.h"
+#include "../gmath.h"
 
 namespace atl
 {
@@ -24,12 +24,12 @@ namespace atl
 
         void compile(const char* vs, const char* fs);
 
-        void uniform_float      (const char* name, f32 value);
-        void uniform_int        (const char* name, s32 value);
-        void uniform_vector2f   (const char* name, vec2& value);
-        void uniform_vector3f   (const char* name, vec3& value);
-        void uniform_vector4f   (const char* name, vec4& value);
-        void uniform_matrix4    (const char* name, mat4& value);
+        void uniform_float      (const char* name, const f32 value);
+        void uniform_int        (const char* name, const s32 value);
+        void uniform_vector2f   (const char* name, const vec2& value);
+        void uniform_vector3f   (const char* name, const vec3& value);
+        void uniform_vector4f   (const char* name, const vec4& value);
+        void uniform_matrix4    (const char* name, const mat4& value);
 
     private:
         s32 uniform_location(const char* name);

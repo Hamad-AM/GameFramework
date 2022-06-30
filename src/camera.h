@@ -8,12 +8,12 @@ namespace atl
     class camera2d
     {
     public:
-        mat4&
-        projection_view() { return projection_view_; }
-        mat4&
-        projection() { return projection_; }
-        mat4&
-        view() { return view_; }
+        const mat4&
+        projection_view() const { return projection_view_; }
+        const mat4&
+        projection() const { return projection_; }
+        const mat4&
+        view() const { return view_; }
 
         void
         update(vec3 new_position)

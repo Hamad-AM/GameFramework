@@ -168,34 +168,34 @@ namespace atl
     }
 
     void
-    shader::uniform_float(const char* name, f32 value)
+    shader::uniform_float(const char* name, const f32 value)
     {
         glUniform1f(uniform_location(name), value);
     }
 
     void
-    shader::uniform_int(const char* name, s32 value)
+    shader::uniform_int(const char* name, const s32 value)
     {
         glUniform1i(uniform_location(name), value);
     }
     void
-    shader::uniform_vector2f(const char* name, vec2& value)
+    shader::uniform_vector2f(const char* name, const vec2& value)
     {
         glUniform2f(uniform_location(name), value.x, value.y);
     }
 
     void 
-    shader::uniform_vector3f   (const char* name, vec3& value)
+    shader::uniform_vector3f   (const char* name, const vec3& value)
     {
         glUniform3f(uniform_location(name), value.x, value.y, value.z);
     }
     void
-    shader::uniform_vector4f   (const char* name, vec4& value)
+    shader::uniform_vector4f   (const char* name, const vec4& value)
     {
         glUniform4f(uniform_location(name), value.x, value.y, value.z, value.w);
     }
     void
-    shader::uniform_matrix4    (const char* name, mat4& value)
+    shader::uniform_matrix4    (const char* name, const mat4& value)
     {
         glUniformMatrix4fv(uniform_location(name), 1, GL_FALSE, glm::value_ptr(value));
     }
