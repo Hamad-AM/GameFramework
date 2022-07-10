@@ -65,6 +65,8 @@ namespace atl
         u32 quad_va_;
         u32 text_quad_va_;
         u32 text_vb_;
+
+        friend texture_atlas;
     };
 
 }
