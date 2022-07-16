@@ -9,7 +9,7 @@ namespace atl
     FT_Library font::font_library = nullptr;
 
     void
-    font::delete_fonts()
+    font::delete_font_library()
     {
         FT_Done_FreeType(font::font_library);
     }
@@ -59,7 +59,10 @@ namespace atl
         submit_render();
     }
 
-    font::~font()
+    font::~font() {}
+
+    void
+    font::delete_font_face()
     {
         FT_Done_Face(_face);
     }

@@ -23,7 +23,8 @@ namespace atl
 
         u32 get_size() { return _size; }
 
-        static void delete_fonts();
+        static void delete_font_library();
+        void delete_font_face();
 
     private:
         struct character

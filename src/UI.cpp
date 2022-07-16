@@ -36,6 +36,6 @@ namespace atl
     button::draw(renderer* render, vec2 position)
     {
         vec2 screen_pos{ position.x + this->get_position().x, position.y + this->get_position().y};
-        render->draw_sprite(_texture, screen_pos, { get_size().x, get_size().y });
+        render->draw_texture(_texture, screen_pos, { get_size().x, get_size().y });
     }
 }

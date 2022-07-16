@@ -4,50 +4,82 @@
 #include "input.h"
 #include "components.h"
 
-#include "box2d/box2d.h"
+#include "Box.h"
+
+#include <box2d/box2d.h>
 
 #include <iostream>
 #include <map>
+#include <chrono>
 
 namespace atl
 {
+
     application::application() {}
 
-    application::~application() {}
+    application::~application()
+    {
+        delete window;
+    }
 
     void application::initialize(u32 screen_width, u32 screen_height)
     {
-        // s = con.load_shader("sprite", "sprite.vs", "sprite.fs");
-        // sprite_render.initialize(&s);
-        
-        // texture_param param{texture_wrap::CLAMP_TO_EDGE, texture_filter::NEAREST_NEIGHBOR, texture_type::DIFFUSE, 0, texture_format::RGB, texture_format::RGB};
-        // texture = con.load_texture("test.png", param);
-        camera_position = vec3(0.0f, 0.0f, 0.0f);
-        camera.update(camera_position);
-        // camera.set_projection(glm::ortho(-1.6f,  1.6f, -0.9f, 0.9f, -1.0f, 1.0f));
-        camera.set_projection(glm::ortho(0.0f,  1280.0f, 0.0f, 720.0f, -1.0f, 1.0f));
 
-        texture_param test_sprite_param{ texture_wrap::CLAMP_TO_EDGE, texture_filter::NEAREST_NEIGHBOR, texture_type::DIFFUSE, 0, texture_format::RGBA, texture_format::RGBA };
-        test_sprite.create("../assets/textures/container2.png", test_sprite_param);
-
-        // ref<physics_object> b = create_bird(glm::vec3(1.0f, 0.6f, 0.0f));
-        // physics_system.create_body2d(b, physics_body_component::body_type::dynamic_body)
-
+        window = new glfw_window();
         screen_width_ = screen_width;
         screen_height_ = screen_height;
-        render.initialize();
+        window->initialize(screen_width_, screen_height_, "Bob McGee's Very Good Game");
+
+
+        state.camera_position = vec3(0.0f, 0.0f, 0.0f);
+        state.camera.update(state.camera_position);
+        state.camera.set_projection(glm::ortho(0.0f,  1280.0f, 0.0f, 720.0f, -1.0f, 1.0f));
+
+        state.render.initialize();
+
+        dbg.start();
+        state.physics.initialize2d();
+
+        ref<Ground> ground(new Ground());
+        ref<Box> box(new Box());
+
+        state.entities.push_back(ground);
+        state.entities.push_back(box);
+
+        for (u32 i = 0; i < state.entities.size(); ++i)
+        {
+            state.entities[i]->init(state);
+        }
+    }
+
+    void application::run()
+    {
+        previous_time = window->get_time();
+
+        while (!window->should_close())
+        {
+            window->handle_input();
+
+            f64 current_time = window->get_time();            
+            f64 dt = previous_time - current_time;
+            if (dt < 0)
+                dt = 0.0001;
+            update(dt);
+
+            window->swap_buffers();
+        }
     }
 
     void application::update(f32 dt)
     {
         if (input::is_key_down(key::d))
-            camera_position.x += 0.01f;
+            state.camera_position.x += 0.01f;
         else if (input::is_key_down(key::a))
-            camera_position.x -= 0.01f;
+            state.camera_position.x -= 0.01f;
         else if (input::is_key_down(key::w))
-            camera_position.y += 0.01f;
+            state.camera_position.y += 0.01f;
         else if (input::is_key_down(key::s))
-            camera_position.y -= 0.01f;
+            state.camera_position.y -= 0.01f;
         else if (input::is_key_down(key::p))
             return;
 
@@ -58,26 +90,40 @@ namespace atl
         }
         mouse_event move_event{event_type::mouse_move, input::mouse_position()};
         event_system::get().post_all(event_type::mouse_move, &move_event);
-    }
 
-    void application::draw(f32 dt)
-    {
-        camera.update(camera_position);
+        state.camera.update(state.camera_position);
+
+        state.physics.update(dt);
         
-        render.begin2d(camera);
+        state.render.begin2d(state.camera);
 
-        vec2 sprite_position{ 500, 200 };
-        render.draw_sprite(test_sprite, sprite_position, {100, 100}, 0.0f, color(1.0f, 1.0f, 1.0f), 10.0f, &camera);
+        dbg.draw_collisions(state);
+        dbg.flush();
+
         vec4 color{ 0.9, 0.9, 0.9, 1.0f };
-        render.draw_text("Test", screen_width_/2, screen_height_/2, 1, font_type::Montserrat, color, &camera);
+        state.render.draw_text("Test", screen_width_/2, screen_height_/2, 1, font_type::Montserrat, color, &state.camera);
+
+
+        for (u32 i = 0; i < state.entities.size(); ++i)
+        {
+            ref<entity> e = state.entities[i];
+            if (e->get_sprite() != nullptr)
+            {
+                vec2 p(e->get_transform().position.x, e->get_transform().position.y);
+                state.render.draw_texture(e->get_sprite()->texture, p, e->get_sprite()->size, e->get_transform().rotation.z, e->get_sprite()->color, e->get_sprite()->tiling_factor, &state.camera);
+            }
+        }
+
         
-        render.end2d();
-
-
+        state.render.end2d();
     }
 
     void application::close()
     {
-        render.render_delete();
+        dbg.end();
+        state.physics.destroy();
+
+        state.render.render_delete();
+        window->close();
     }
 }

@@ -95,53 +95,53 @@ namespace atl
 
     private:
 
-    GLenum
-    convert_to_gl_wrap(texture_wrap wrap)
-    {
-        switch(wrap)
+        GLenum
+        convert_to_gl_wrap(texture_wrap wrap)
         {
-            case texture_wrap::CLAMP_TO_BORDER:
-                return GL_CLAMP_TO_BORDER;
-            case texture_wrap::CLAMP_TO_EDGE:
-                return GL_CLAMP_TO_EDGE;
-            case texture_wrap::MIRRORED_REPEAT:
-                return GL_MIRRORED_REPEAT;
-            case texture_wrap::REPEAT:
-                return GL_REPEAT;
-            default:
-                return GL_CLAMP_TO_EDGE;
+            switch(wrap)
+            {
+                case texture_wrap::CLAMP_TO_BORDER:
+                    return GL_CLAMP_TO_BORDER;
+                case texture_wrap::CLAMP_TO_EDGE:
+                    return GL_CLAMP_TO_EDGE;
+                case texture_wrap::MIRRORED_REPEAT:
+                    return GL_MIRRORED_REPEAT;
+                case texture_wrap::REPEAT:
+                    return GL_REPEAT;
+                default:
+                    return GL_CLAMP_TO_EDGE;
+            }
         }
-    }
 
-    GLenum
-    convert_to_gl_filter(texture_filter filter)
-    {
-        switch(filter)
+        GLenum
+        convert_to_gl_filter(texture_filter filter)
         {
-            case texture_filter::NEAREST_NEIGHBOR:
-                return GL_NEAREST;
-            case texture_filter::BILINEAR:
-                return GL_LINEAR;
-            default:
-                return GL_LINEAR;
+            switch(filter)
+            {
+                case texture_filter::NEAREST_NEIGHBOR:
+                    return GL_NEAREST;
+                case texture_filter::BILINEAR:
+                    return GL_LINEAR;
+                default:
+                    return GL_LINEAR;
+            }
         }
-    }
 
-    GLenum
-    convert_to_gl_format(texture_format format)
-    {
-        switch(format)
+        GLenum
+        convert_to_gl_format(texture_format format)
         {
-            case texture_format::RGB:
-                return GL_RGB;
-            case texture_format::RGBA:
-                return GL_RGBA;
-            case texture_format::RED:
-                return GL_RED;
-            default:
-                return GL_RGB;
+            switch(format)
+            {
+                case texture_format::RGB:
+                    return GL_RGB;
+                case texture_format::RGBA:
+                    return GL_RGBA;
+                case texture_format::RED:
+                    return GL_RED;
+                default:
+                    return GL_RGB;
+            }
         }
-    }
     };
 
 }

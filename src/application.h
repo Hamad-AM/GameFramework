@@ -7,6 +7,13 @@
 #include "physics/physics_system.h"
 #include "input.h"
 #include "entity.h"
+#include "glfw_window.h"
+#include "game_state.h"
+#include "debug/debug.h"
+
+#include "debug/b2_debug_draw.h"
+
+#include "Ground.h"
 
 #include <iostream>
 
@@ -19,21 +26,18 @@ namespace atl
         ~application();
 
         void initialize(u32 screen_width, u32 screen_height);
+        void run();
         void update(f32 dt);
-        void draw(f32 dt);
         void close();
 
     private:
-        renderer render;
+        game_state state;
 
-        texture2d test_sprite;
-
-        camera2d camera;
-        vec3 camera_position;
+        debugger dbg;
 
         u32 screen_width_;
         u32 screen_height_;
-
-        physics_system physics_system_;
+        f64 previous_time;
+        platform_window* window;
     };
 }

@@ -20,22 +20,29 @@ namespace atl
         }
     };
 
-    class sprite_component : public component<sprite_component>
+    class sprite : public component<sprite>
     {
     public:
         texture2d texture;
         vec4 color;
         vec2 size;
+        f32 tiling_factor;
+
 
         void update(f32 dt) {}
+
+        void destroy() { return; }
     };
 
-    class transform_component : public component<transform_component>
+    class transform : public component<transform>
     {
     public:
         vec3 position;
+        vec2 size;
         vec3 rotation;
 
         void update(f32 dt) {}
+
+        void destroy() { return; }
     };
 }

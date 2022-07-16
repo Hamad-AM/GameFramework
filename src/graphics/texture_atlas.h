@@ -1,32 +1,27 @@
 #pragma once
 
 #include "../common.h"
-
 #include "../gmath.h"
+#include "texture.h"
+
+#include <map>
 
 namespace atl
 {
-    namespace
+    struct sub_texture
     {
-        struct sub_texture
-        {
-            ivec2 position;
-            ivec2 size;
-            u32 vertex_array_handle;
-            u32 vertex_buffer_handle;
-            u32 index_buffer_handle;
-        };
-    }
+        ivec2 position;
+        u32 va;
+        u32 vb;
+        u32 ib;
+    };
 
     struct texture_atlas
     {
         std::map<std::string, sub_texture> sub_textures;
         texture2d texture;
+        ivec2 cell_size{32, 32};
 
-    private:
-        u32& get_vertex_array(const std::string& name) const
-        {
-            return sub_textures[name];
-        }        
+        void create_sub_texture(std::string& name, ivec2& position);    
     };
 }

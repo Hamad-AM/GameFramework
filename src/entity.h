@@ -2,35 +2,58 @@
 
 #include <vector>
 
+#include "event.h"
 #include "components.h"
 #include "physics/collision_event.h"
 #include "physics/collision_shape2d.h"
 #include "physics/physics_body2d.h"
-#include "event.h"
+
+
 namespace atl
 {
+    class game_state;
+    
     class entity
     {
     public:
-        // game_object() {}
+        entity() {}
 
-        virtual void start() = 0;
-        virtual void update(f32 dt) = 0;
-        virtual void destroy() = 0;
+        virtual void init(game_state& state) = 0;
+
+        virtual void update(f32 dt, game_state& state) = 0;
+
+        void destroy()
+        {
+            if (_sprite != nullptr)
+                delete _sprite;
+            if (_physics_body != nullptr)
+                delete _physics_body;
+            if (_collision_shape != nullptr)
+                delete _collision_shape;
+        }
 
 
-        transform_component& get_transform() { return _transform; }
-        sprite_component* get_sprite() { return _sprite; }
+        transform& get_transform() { return _transform; }
+        vec3& get_position() { return _transform.position; }
+        vec2 get_position2d() { return vec2(_transform.position.x, _transform.position.y); }
+        sprite* get_sprite() { return _sprite; }
         
         void set_position(vec2 position) { _transform.position = {position.x, position.y, 0}; }
-        void set_sprite(sprite_component* sprite) { _sprite = sprite; }
+        void set_sprite(sprite* sp) { _sprite = sp; }
 
-        virtual void on_collision_enter(collision_event collision) { return; }
+        void add_collision_shape(collision_shape2d* shape) { _collision_shape = shape; }
+
+        void add_physics_body(physics_body2d* body) { _physics_body = body; }
+
+        collision_shape2d* get_collision_shape() { return _collision_shape; }
+        physics_body2d* get_physics_body() { return _physics_body; }
+
+        virtual void on_collision_enter(collision_event& collision) { return; }
         
     private:
-        transform_component _transform;
+        transform _transform;
 
-        sprite_component*   _sprite          = nullptr;
+        sprite*             _sprite          = nullptr;
         physics_body2d*     _physics_body    = nullptr;
         collision_shape2d*  _collision_shape = nullptr;
     };

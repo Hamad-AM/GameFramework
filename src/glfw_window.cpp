@@ -76,12 +76,12 @@ namespace atl
         glEnable(GL_BLEND);
         glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
 
-
-        game_.initialize(width, height);
     }
 
     b32 glfw_window::handle_input()
     {
+        glfwPollEvents();
+
         if (glfwGetKey(window, GLFW_KEY_ESCAPE) == GLFW_PRESS)
         {
             input::set_key_state(key::ESCAPE, input_state::down);
@@ -140,56 +140,38 @@ namespace atl
         return b32();
     }
 
-    void glfw_window::update()
+    // void glfw_window::update()
+    // {
+    //     previous_time = glfwGetTime();
+    //     srand(previous_time);
+
+    //     b32 close_window = false;
+    //     while (!glfwWindowShouldClose(window))
+    //     {
+    //         glClearColor(0.2f, 0.3f, 0.3f, 1.0f);
+    //         glClear(GL_COLOR_BUFFER_BIT);
+
+    //         close_window = handle_input();
+
+    //         f64 time = (f64) glfwGetTime();
+    //         f32 dt = previous_time - time;
+    //         previous_time = time;
+    //     }
+    // }
+
+    b32 glfw_window::should_close()
     {
+        return glfwWindowShouldClose(window);
+    }
 
-    #if 0
-        unsigned int texture;
-        glGenTextures(1, &texture);
-        glBindTexture(GL_TEXTURE_2D, texture); // all upcoming GL_TEXTURE_2D operations now have effect on this texture object
-        // set the texture wrapping parameters
-        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, );	// set texture wrapping to GL_REPEAT (default wrapping method)
-        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
-        // set texture filtering parameters
-        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, );
-        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
-        // load image, create texture and generate mipmaps
-        int width, height, nrChannels;
-        // The FileSystem::getPath(...) is part of the GitHub repository so we can find files on any IDE/platform; replace it with your own image path.
-        unsigned char *data = stbi_load("test.png", &width, &height, &nrChannels, 0);
-        if (data)
-        {
-            glTexImage2D(GL_TEXTURE_2D, 0, , width, height, 0, GL_RGBA, GL_UNSIGNED_BYTE, data);
-        }
-        else
-        {
-            std::cout << "Failed to load texture" << std::endl;
-        }
-        stbi_image_free(data);
-    #endif
+    f64 glfw_window::get_time()
+    {
+        return (f64)glfwGetTime();
+    }
 
-        previous_time = glfwGetTime();
-        srand(previous_time);
-
-        b32 close_window = false;
-        while (!glfwWindowShouldClose(window))
-        {
-            glClearColor(0.2f, 0.3f, 0.3f, 1.0f);
-            glClear(GL_COLOR_BUFFER_BIT);
-
-            glfwPollEvents();
-            close_window = handle_input();
-
-            f64 time = (f64) glfwGetTime();
-            f32 dt = previous_time - time;
-            previous_time = time;
-
-            game_.update(dt);
-            game_.draw(dt);
-
-
-            glfwSwapBuffers(window);
-        }
+    void glfw_window::swap_buffers()
+    {
+        glfwSwapBuffers(window);
     }
 
     void glfw_window::close()
@@ -199,14 +181,4 @@ namespace atl
     }
 
 
-}
-int main()
-{
-    atl::glfw_window window;
-
-    window.initialize(1280, 720, "Bobinon's great video game.");
-    window.update();
-    window.close();
-
-    return 0;
 }

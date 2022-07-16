@@ -77,12 +77,26 @@ namespace atl
 
     void renderer::begin2d(camera2d& camera)
     {
+        clear();
+
         _sprite_shader.bind();
         mat4 projection_view = camera.projection_view();
         _sprite_shader.uniform_matrix4("u_projection_view", projection_view);
     }
 
-    void renderer::draw_sprite(texture2d& texture, vec2& position, const vec2& size, f32 rotation, const color& col, f32 tiling_factor, const camera2d* cam)
+    void renderer::draw_texture(texture2d& texture, vec2& position, const vec2& size, f32 rotation, const color& col, f32 tiling_factor, const camera2d* cam)
+    {
+        draw_quad(quad_va_, texture, position, size, rotation, col, tiling_factor, cam);
+    }
+
+    void
+    renderer::draw_texture(std::string& name, texture_atlas& atlas, vec2& position, const vec2& size, f32 rotation, const color& col, f32 tiling_factor, const camera2d* cam)
+    {
+        draw_quad(atlas.sub_textures[name].va, atlas.texture, position, size, rotation, col, tiling_factor, cam);
+    }
+
+    void
+    renderer::draw_quad(u32 vertex_array, texture2d& texture, vec2& position, const vec2& size, f32 rotation, const color& col, f32 tiling_factor, const camera2d* cam)
     {
         _sprite_shader.bind();
         texture.bind();
@@ -102,12 +116,9 @@ namespace atl
         _sprite_shader.uniform_vector3f("spriteColor", col);
         _sprite_shader.uniform_float("u_tiling_factor", tiling_factor);
 
-        glBindVertexArray(quad_va_);
+
+        glBindVertexArray(vertex_array);
         glDrawElements(GL_TRIANGLES, 6, GL_UNSIGNED_INT, 0);
-
-        // std::cout << "Vertex Array   : " << quad_va_ << std::endl;
-        // std::cout << "Texture Handle : " << texture.handle() << std::endl;
-
 
         glBindTexture(GL_TEXTURE_2D, 0);
         glBindVertexArray(0);
@@ -144,7 +155,18 @@ namespace atl
     void
     renderer::render_delete()
     {
+        for (s32 i = 0; i < font_type::NUMBER_OF_FONTS; ++i)
+        {
+            fonts[i]->delete_font_face();
+        }
         _sprite_shader.delete_shader();
-        font::delete_fonts();
+        font::delete_font_library();
+    }
+
+    void
+    renderer::clear()
+    {
+        glClearColor(0.2f, 0.3f, 0.3f, 1.0f);
+        glClear(GL_COLOR_BUFFER_BIT);
     }
 }

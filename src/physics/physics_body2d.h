@@ -5,6 +5,8 @@
 
 #include "collision_shape2d.h"
 
+#include <box2d/box2d.h>
+
 namespace atl
 {
     enum body_type { static_body = 0, kinematic_body, dynamic_body };
@@ -12,6 +14,8 @@ namespace atl
     class physics_body2d : public component<physics_body2d>
     {
     public:
+        physics_body2d() {}
+
         void update(f32 dt) {}
 
         f32 get_mass();
@@ -28,10 +32,10 @@ namespace atl
         void apply_angular_impulse(f32 impulse);
 
         body_type type = body_type::static_body;
-        glm::vec2 position;
+        vec2 position;
         b32 fixed_rotation;
         std::vector<collision_shape2d> shapes;
-        void* body;
+        b2Body* body;
 
     };
 }

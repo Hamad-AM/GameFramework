@@ -11,16 +11,17 @@
 #include "physics_body2d.h"
 #include "collision_shape2d.h"
 #include "collision_event.h"
+
 namespace atl
 {
+
     class physics_system
     {
     public:
-        physics_system(std::vector<entity>* entities)
-            : _entities(entities)
+        physics_system()
         {}
 
-        physics_system() {}
+        ~physics_system() {}
 
         void initialize2d();
 
@@ -37,8 +38,6 @@ namespace atl
     private:
         b2Vec2 gravity2d;
         b2World* world2d;
-
-        std::vector<entity>* _entities;
 
         std::vector<physics_body2d>    bodies2d;
         std::vector<collision_shape2d> shapes2d;

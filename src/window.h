@@ -5,7 +5,7 @@
 
 namespace atl
 {
-    class window
+    class platform_window
     {
     public:
         virtual void
@@ -16,12 +16,18 @@ namespace atl
 
         virtual b32
         is_gamepad_connected(void) = 0;
-
-        virtual void
-        update(void) = 0;
-
+        
         virtual void
         close(void) = 0;
+
+        virtual f64
+        get_time() = 0;
+
+        virtual void
+        swap_buffers() = 0;
+
+        virtual b32
+        should_close() = 0;
 
         u32
         height(void) { return height_; }
