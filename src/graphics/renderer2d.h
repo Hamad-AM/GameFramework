@@ -17,6 +17,7 @@
 namespace atl
 {
     typedef vec3 color;
+    class game_state;
 
     enum font_type
     {

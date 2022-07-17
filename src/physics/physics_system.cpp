@@ -6,11 +6,11 @@ namespace atl
     void
     physics_system::initialize2d()
     {
-        gravity2d = b2Vec2(0.0f, -1.0f);
+        gravity2d = b2Vec2(0.0f, -9.8f);
         world2d = new b2World(gravity2d);
     }
 
-    physics_body2d*
+    ref<physics_body2d>
     physics_system::create_body2d(entity* entity, f32 x, f32 y, f32 rotation, body_type type)
     {
         physics_body2d body;
@@ -26,13 +26,13 @@ namespace atl
 
         body.body           = world2d->CreateBody(&body_def);
 
-        bodies2d.push_back(body);
+        bodies2d.push_back(make_ref<physics_body2d>(body));
 
-        return &bodies2d[bodies2d.size()-1];
+        return bodies2d[bodies2d.size()-1];
     }
 
-    collision_shape2d*
-    physics_system::add_shape2d(physics_body2d* body, f32 size_x, f32 size_y)
+    ref<collision_shape2d>
+    physics_system::add_shape2d(ref<physics_body2d> body, f32 size_x, f32 size_y)
     {
         collision_shape2d shape;
         b2PolygonShape pshape;
@@ -51,9 +51,9 @@ namespace atl
 
         static_cast<b2Body*>(body->body)->CreateFixture(&fixture_def);
 
-        shapes2d.push_back(shape);
+        shapes2d.push_back(make_ref<collision_shape2d>(shape));
 
-        return &shapes2d[shapes2d.size()-1];
+        return shapes2d[shapes2d.size()-1];
     }
 
     void
@@ -61,13 +61,15 @@ namespace atl
     {
         s32 velocity_iterations = 6;
         s32 position_iterations = 2;
-        world2d->Step(-dt, velocity_iterations, position_iterations);
+        constexpr f32 ts = 1.0f / 60.0f;
+        world2d->Step(dt, velocity_iterations, position_iterations);
 
-        for (physics_body2d& pb : bodies2d)
+        for (ref<physics_body2d> pb : bodies2d)
         {
-            b2Body* body = static_cast<b2Body*>(pb.body);
-            pb.position = { body->GetPosition().x, body->GetPosition().y};
-            ((entity*)body->GetUserData().pointer)->set_position(pb.position);
+            b2Body* body = static_cast<b2Body*>(pb->body);
+            pb->position = { body->GetPosition().x, body->GetPosition().y};
+            entity* e = (entity*)body->GetUserData().pointer;
+            e->set_position(pb->position);
         }
 
         for (b2Contact* c = world2d->GetContactList(); c; c = c->GetNext())

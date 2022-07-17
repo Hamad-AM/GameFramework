@@ -12,6 +12,12 @@
 #include <map>
 #include <chrono>
 
+#ifdef _WIN32
+#include <Windows.h>
+#else
+#include <unistd.h>
+#endif
+
 namespace atl
 {
 
@@ -46,6 +52,8 @@ namespace atl
         state.entities.push_back(ground);
         state.entities.push_back(box);
 
+
+
         for (u32 i = 0; i < state.entities.size(); ++i)
         {
             state.entities[i]->init(state);
@@ -60,10 +68,13 @@ namespace atl
         {
             window->handle_input();
 
-            f64 current_time = window->get_time();            
-            f64 dt = previous_time - current_time;
+            f64 current_time = window->get_time();
+            f64 dt = current_time - previous_time;
+            previous_time = current_time;
+
             if (dt < 0)
                 dt = 0.0001;
+            
             update(dt);
 
             window->swap_buffers();
@@ -94,14 +105,11 @@ namespace atl
         state.camera.update(state.camera_position);
 
         state.physics.update(dt);
-        
+
         state.render.begin2d(state.camera);
 
-        dbg.draw_collisions(state);
-        dbg.flush();
-
         vec4 color{ 0.9, 0.9, 0.9, 1.0f };
-        state.render.draw_text("Test", screen_width_/2, screen_height_/2, 1, font_type::Montserrat, color, &state.camera);
+        state.render.draw_text(std::to_string((u32)round(dt*1000)) + " ms", screen_width_*0.9, screen_height_*0.95, 0.5, font_type::Montserrat, color, &state.camera);
 
 
         for (u32 i = 0; i < state.entities.size(); ++i)
@@ -114,7 +122,9 @@ namespace atl
             }
         }
 
-        
+        dbg.draw_collisions(state);
+        dbg.flush();
+    
         state.render.end2d();
     }
 

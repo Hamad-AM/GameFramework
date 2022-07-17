@@ -8,6 +8,7 @@
 
 namespace atl
 {
+    
     renderer::renderer()
     {
         

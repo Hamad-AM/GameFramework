@@ -25,8 +25,8 @@ namespace atl
 
         void initialize2d();
 
-        physics_body2d* create_body2d(entity* entity, f32 x, f32 y, f32 rotation, body_type type);
-        collision_shape2d* add_shape2d(physics_body2d* body, f32 size_x, f32 size_y);
+        ref<physics_body2d> create_body2d(entity* entity, f32 x, f32 y, f32 rotation, body_type type);
+        ref<collision_shape2d> add_shape2d(ref<physics_body2d> body, f32 size_x, f32 size_y);
 
         void update(f32 dt);
 
@@ -39,7 +39,7 @@ namespace atl
         b2Vec2 gravity2d;
         b2World* world2d;
 
-        std::vector<physics_body2d>    bodies2d;
-        std::vector<collision_shape2d> shapes2d;
+        std::vector<ref<physics_body2d>>    bodies2d;
+        std::vector<ref<collision_shape2d>> shapes2d;
     };
 }

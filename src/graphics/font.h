@@ -12,6 +12,8 @@
 
 namespace atl
 {
+    class game_state;
+
     class font
     {
     public:

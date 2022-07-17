@@ -26,10 +26,6 @@ namespace atl
         {
             if (_sprite != nullptr)
                 delete _sprite;
-            if (_physics_body != nullptr)
-                delete _physics_body;
-            if (_collision_shape != nullptr)
-                delete _collision_shape;
         }
 
 
@@ -41,12 +37,12 @@ namespace atl
         void set_position(vec2 position) { _transform.position = {position.x, position.y, 0}; }
         void set_sprite(sprite* sp) { _sprite = sp; }
 
-        void add_collision_shape(collision_shape2d* shape) { _collision_shape = shape; }
+        void add_collision_shape(ref<collision_shape2d> shape) { _collision_shape = shape; }
 
-        void add_physics_body(physics_body2d* body) { _physics_body = body; }
+        void add_physics_body(ref<physics_body2d> body) { _physics_body = body; }
 
-        collision_shape2d* get_collision_shape() { return _collision_shape; }
-        physics_body2d* get_physics_body() { return _physics_body; }
+        ref<collision_shape2d> get_collision_shape() { return _collision_shape; }
+        ref<physics_body2d> get_physics_body() { return _physics_body; }
 
         virtual void on_collision_enter(collision_event& collision) { return; }
         
@@ -54,7 +50,7 @@ namespace atl
         transform _transform;
 
         sprite*             _sprite          = nullptr;
-        physics_body2d*     _physics_body    = nullptr;
-        collision_shape2d*  _collision_shape = nullptr;
+        ref<physics_body2d>     _physics_body;
+        ref<collision_shape2d>  _collision_shape;
     };
 }
