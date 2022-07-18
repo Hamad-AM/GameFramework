@@ -14,7 +14,7 @@ namespace atl
         sprite s;
         s.texture.create("../assets/textures/container2.png", ground_param);
         s.color = vec4(1.0f);
-        s.size = vec2(1280.0f, 100.0f);
+        s.size = vec2(640.0f, 50.0f);
         s.tiling_factor = 1.0f;
         set_sprite(new sprite(s));
 

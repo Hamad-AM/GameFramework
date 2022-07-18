@@ -21,7 +21,7 @@ namespace atl
         body_def.type                  = game_type_to_b2_type(body.type);
         body_def.angle                 = rotation;
         body_def.fixedRotation         = body.fixed_rotation;
-        body_def.position.Set(x, y);
+        body_def.position.Set(to_box2d_units(x), to_box2d_units(y));
         body_def.userData.pointer      = (uintptr_t)entity;
 
         body.body           = world2d->CreateBody(&body_def);
@@ -36,7 +36,7 @@ namespace atl
     {
         collision_shape2d shape;
         b2PolygonShape pshape;
-        shape.size = {size_x, size_y};
+        shape.size = { to_box2d_units(size_x), to_box2d_units(size_y) };
         pshape.SetAsBox(shape.size.x, shape.size.y);
 
         b2FixtureDef fixture_def;
@@ -67,7 +67,7 @@ namespace atl
         for (ref<physics_body2d> pb : bodies2d)
         {
             b2Body* body = static_cast<b2Body*>(pb->body);
-            pb->position = { body->GetPosition().x, body->GetPosition().y};
+            pb->position = { to_game_units(body->GetPosition().x), to_game_units(body->GetPosition().y) };
             entity* e = (entity*)body->GetUserData().pointer;
             e->set_position(pb->position);
         }

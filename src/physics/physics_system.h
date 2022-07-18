@@ -32,12 +32,17 @@ namespace atl
 
         void destroy();
 
+        inline f32 to_box2d_units(f32 p) const { return p / pixels_per_meter; };
+        inline f32 to_game_units(f32 p) const { return p * pixels_per_meter; }
+
     private:
         b2BodyType game_type_to_b2_type(body_type type);
+
 
     private:
         b2Vec2 gravity2d;
         b2World* world2d;
+        const u32 pixels_per_meter = 128;
 
         std::vector<ref<physics_body2d>>    bodies2d;
         std::vector<ref<collision_shape2d>> shapes2d;

@@ -10,6 +10,7 @@
 #include "glfw_window.h"
 #include "game_state.h"
 #include "debug/debug.h"
+#include "audio.h"
 
 #include "debug/b2_debug_draw.h"
 
@@ -32,6 +33,7 @@ namespace atl
 
     private:
         game_state state;
+        ref<sound> coin_sound;
 
         debugger dbg;
 

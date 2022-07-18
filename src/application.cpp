@@ -46,6 +46,10 @@ namespace atl
         dbg.start();
         state.physics.initialize2d();
 
+        state.audio.init();
+
+        coin_sound = state.audio.create_sound("../assets/sound/coin_pickup.wav");
+
         ref<Ground> ground(new Ground());
         ref<Box> box(new Box());
 
@@ -64,9 +68,26 @@ namespace atl
     {
         previous_time = window->get_time();
 
+        ref<sound_channel> coin_channel;
+
+        char* name = new char[512];
+        FMOD_SOUND_TYPE *type;
+        FMOD_SOUND_FORMAT *format;
+        int* a;
+        int* b;
+        FMOD_RESULT result = coin_sound->fmod_sound->getFormat(type, format, a, b);
+        std::cout << name << std::endl;
+
+        delete name;
+
         while (!window->should_close())
         {
             window->handle_input();
+            state.audio.update();
+
+            // coin_channel = state.audio.play(coin_sound);
+            // b32 finished = coin_channel->finished_playing();
+            // std::cout << finished << std::endl;
 
             f64 current_time = window->get_time();
             f64 dt = current_time - previous_time;
@@ -110,7 +131,8 @@ namespace atl
 
         vec4 color{ 0.9, 0.9, 0.9, 1.0f };
         state.render.draw_text(std::to_string((u32)round(dt*1000)) + " ms", screen_width_*0.9, screen_height_*0.95, 0.5, font_type::Montserrat, color, &state.camera);
-
+        // std::string memory_str = std::to_string(allocated_memory/1000) + " MB";
+        // state.render.draw_text(memory_str, screen_width_*0.875, screen_height_*0.9, 0.5, font_type::Montserrat, color, &state.camera);
 
         for (u32 i = 0; i < state.entities.size(); ++i)
         {
