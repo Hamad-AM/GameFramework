@@ -1,4 +1,5 @@
-#include "audio.h"
+#if 0
+#include "../audio.h"
 
 #include <fmod_errors.h>
 
@@ -14,7 +15,7 @@ namespace atl
         }
     }
 
-    void audio_system::init()
+    void fmod_audio_system::init()
     {
         result = FMOD::System_Create(&system);
         fmod_error(result);
@@ -23,47 +24,49 @@ namespace atl
         fmod_error(result);
     }
 
-    ref<sound> audio_system::create_sound(const char* file)
+    ref<sound> fmod_audio_system::create_sound(const char* file)
     {
         sound s;
         s.name = file;
-        result = system->createSound(file, FMOD_DEFAULT, {}, &s.fmod_sound);
+        FMOD::Sound* internal_sound;
+        result = system->createSound(file, FMOD_DEFAULT, {}, &internal_sound);
         fmod_error(result);
         ref<sound> s_p = make_ref<sound>(s);
+        s_p->internal_sound = internal_sound;
         sounds.push_back(s_p);
         return s_p;
     }
 
-    ref<sound_channel> audio_system::play(ref<sound>& playing_sound, f32 volume, f32 pan, f32 frequency, b32 start_paused)
+    ref<sound_channel> fmod_audio_system::play(ref<sound>& playing_sound, f32 volume, f32 pan, f32 frequency, b32 start_paused)
     {
         FMOD::Channel* f_channel = nullptr;
-        result = system->playSound(playing_sound->fmod_sound, nullptr, false, &f_channel);
+        playing_sound->internal_sound->setMode(FMOD_LOOP_OFF);
+        result = system->playSound(playing_sound->internal_sound, nullptr, false, &f_channel);
         fmod_error(result);
 
-        ref<sound_channel> game_channel = make_ref<sound_channel>(f_channel);
+        ref<sound_channel> game_channel = make_ref<fmod_sound_channel>(f_channel);
         game_channel->set_volume(volume);
         game_channel->set_pan(pan);
-        game_channel->set_frequency(frequency);
+        // game_channel->set_frequency(frequency);
         game_channel->pause(start_paused);
 
         channels.push_back(game_channel);
-
         return game_channel;
     }
 
-    ref<sound_channel> audio_system::play(ref<sound>& playing_sound, const vec3& position, const vec3& velocity, f32 volume, f32 pan, f32 frequency, b32 start_paused)
+    ref<sound_channel> fmod_audio_system::play(ref<sound>& playing_sound, const vec3& position, const vec3& velocity, f32 volume, f32 pan, f32 frequency, b32 start_paused)
     {
         ref<sound_channel> chan = play(playing_sound, volume, pan, frequency, start_paused);
         chan->set_3d_attributes(position, velocity);
         return chan;
     }
 
-    audio_system::~audio_system()
+    fmod_audio_system::~fmod_audio_system()
     {
         destroy();
     }
 
-    void audio_system::destroy()
+    void fmod_audio_system::destroy()
     {
         result = system->close();
         fmod_error(result);
@@ -72,18 +75,18 @@ namespace atl
         system = nullptr;
     }
 
-    void audio_system::update()
+    void fmod_audio_system::update()
     {
         result = system->update();
         fmod_error(result);
     }
 
-    sound_channel::~sound_channel()
+    fmod_sound_channel::~fmod_sound_channel()
     {
         channel = nullptr;
     }
 
-    void sound_channel::pause(b32 do_pause)
+    void fmod_sound_channel::pause(b32 do_pause)
     {
         if (channel != nullptr)
         {
@@ -91,7 +94,7 @@ namespace atl
         }
     }
 
-    b32 sound_channel::is_paused() const
+    b32 fmod_sound_channel::is_paused() const
     {
         b32 paused = true;
         if (channel != nullptr)
@@ -101,7 +104,7 @@ namespace atl
         return paused;
     }
 
-    b32 sound_channel::finished_playing() const
+    b32 fmod_sound_channel::finished_playing() const
     {
         if (channel == nullptr)
         {
@@ -115,7 +118,7 @@ namespace atl
         }
     }
 
-    void sound_channel::stop()
+    void fmod_sound_channel::stop()
     {
         if (channel != nullptr)
         {
@@ -124,7 +127,7 @@ namespace atl
         }
     }
 
-    void sound_channel::set_volume(f32 v)
+    void fmod_sound_channel::set_volume(f32 v)
     {
         if (channel != nullptr)
         {
@@ -132,14 +135,14 @@ namespace atl
         }
     }
 
-    void sound_channel::set_pan(f32 p)
+    void fmod_sound_channel::set_pan(f32 p)
     {
         if (channel != nullptr)
         {
             channel->setPan(p);
         }
     }
-    void sound_channel::set_frequency(f32 hz)
+    void fmod_sound_channel::set_frequency(f32 hz)
     {
         if (channel != nullptr)
         {
@@ -147,7 +150,7 @@ namespace atl
         }
     }
 
-    void sound_channel::set_3d_attributes(const vec3& position, const vec3& velocity)
+    void fmod_sound_channel::set_3d_attributes(const vec3& position, const vec3& velocity)
     {
         if (channel != nullptr)
         {
@@ -155,17 +158,18 @@ namespace atl
         }
     }
 
-    void sound_channel::destroy()
+    void fmod_sound_channel::destroy()
     {
         channel = nullptr;
     }
 
-    sound::~sound()
+    fmod_sound::~fmod_sound()
     {
-        if (fmod_sound)
+        if (internal_sound)
         {
-            fmod_sound->release();
-            fmod_sound = nullptr;
+            internal_sound->release();
+            internal_sound = nullptr;
         }
     }
 }
+#endif

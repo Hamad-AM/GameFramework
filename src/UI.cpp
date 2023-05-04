@@ -27,9 +27,9 @@ namespace atl
     button::button(ui_text text, texture2d texture, vec2 position, vec2 size) : _text(text), _texture(texture), ui_element(position, size)
     {
         event_callback btn_press = [this](event* event) { this->on_button_press(event); };
-        event_system::get().subscribe(event_type::left_mouse_button_press, btn_press);
+        event_system::get()->subscribe(event_type::left_mouse_button_press, btn_press);
         event_callback btn_hover = [this](event* event) { this->on_button_hover(event); };
-        event_system::get().subscribe(event_type::mouse_move, btn_hover);
+        event_system::get()->subscribe(event_type::mouse_move, btn_hover);
     }
 
     void

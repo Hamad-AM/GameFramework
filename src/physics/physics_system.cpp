@@ -99,6 +99,8 @@ namespace atl
     physics_system::destroy()
     {
         delete world2d;
+        bodies2d.clear();
+        shapes2d.clear();
     }
 
     b2BodyType

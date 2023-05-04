@@ -22,11 +22,28 @@ namespace atl
         add_physics_body(body);
         ref<collision_shape2d> shape = state.physics.add_shape2d(body, get_sprite()->size.x, get_sprite()->size.y);
         add_collision_shape(shape);
+
+        box_drop = state.audio.create_sound("../assets/sound/box_drop.wav");
     }
 
     void
     Box::update(f32 dt, game_state& state)
     {
-        return;
+        if (play == true)
+        {
+            box_drop->start();
+            play = false;
+            played = true;
+        }
+    }
+
+    void
+    Box::on_collision_enter(collision_event& collision)
+    {
+        if (!played)
+        {
+            play = true;
+            played = false;
+        }
     }
 }

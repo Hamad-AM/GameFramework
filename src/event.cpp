@@ -2,6 +2,8 @@
 
 namespace atl
 {
+    event_system* event_system::s_event_system = new event_system();
+
     void
     event_system::subscribe(event_type type, event_callback callback)
     {

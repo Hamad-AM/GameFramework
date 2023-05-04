@@ -20,6 +20,7 @@
 
 namespace atl
 {
+    
     class application
     {
     public:
@@ -31,9 +32,11 @@ namespace atl
         void update(f32 dt);
         void close();
 
+        template<typename T>
+        void switch_state();
+
     private:
-        game_state state;
-        ref<sound> coin_sound;
+        ref<game_state> state;
 
         debugger dbg;
 

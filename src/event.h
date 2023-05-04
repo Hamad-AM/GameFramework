@@ -31,10 +31,9 @@ namespace atl
         event_system()
         {}
 
-        static event_system& get()
+        static event_system* get()
         { 
-            static event_system s_es;
-            return s_es;
+            return s_event_system;
         }
 
         void subscribe(event_type type, event_callback callback);
@@ -44,6 +43,6 @@ namespace atl
     private:
         std::unordered_map< event_type, callback_functions> observers;
 
-        static event_system* g_event_system;
+        static event_system* s_event_system;
     };
 }
