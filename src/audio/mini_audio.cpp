@@ -16,7 +16,8 @@ namespace atl
     void mini_audio_system::destroy()
     {
         ma_engine_uninit(&engine);
-        sounds.clear();
+        // Sounds vector is not defined
+        // sounds.clear();
     }
 
     f64 mini_audio_system::get_time()
@@ -26,8 +27,7 @@ namespace atl
 
     ref<sound> mini_audio_system::create_sound(const char* file)
     {
-        ref<mini_sound> s(new mini_sound());
-        s->file = file;
+        ref<mini_sound> s(new mini_sound(file));
         result = ma_sound_init_from_file(&engine, file, 0, NULL, NULL, &s->internal_sound);
         assert(result == MA_SUCCESS);
         return s;

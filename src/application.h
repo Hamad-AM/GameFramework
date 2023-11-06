@@ -36,7 +36,7 @@ namespace atl
         void switch_state();
 
     private:
-        ref<game_state> state;
+        game_state* state;
 
         debugger dbg;
 

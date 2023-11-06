@@ -1,0 +1,1 @@
+cmake --build c:/dev/game_framework/build --config Debug --target Anthology -j 1

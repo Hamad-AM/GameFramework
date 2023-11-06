@@ -31,11 +31,11 @@ set(GLAD_DIR "${LIB_DIR}/glad")
 set(GLM_DIR  "${LIB_DIR}/glm")
 set(GLFW_DIR "${LIB_DIR}/glfw")
 set(STB_IMAGE_DIR "${LIB_DIR}/stb_image")
-set(PX_DIR "${LIB_DIR}/PhysX")
-set(RAYLIB_DIR "${LIB_DIR}/raylib")
+# set(PX_DIR "${LIB_DIR}/PhysX")
+# set(RAYLIB_DIR "${LIB_DIR}/raylib")
 set(BOX2D_DIR "${LIB_DIR}/box2d")
 set(FT2_DIR "${LIB_DIR}/freetype-2.12.1")
-set(FMOD_DIR "${LIB_DIR}/fmod/api/core")
+# set(FMOD_DIR "${LIB_DIR}/fmod/api/core")
 
 # INCLUDE DIRECTORS
 
@@ -45,10 +45,10 @@ set(BOX2D_INCLUDE "${BOX2D_DIR}/include/")
 set(STB_IMAGE_INCLUDE "${STB_IMAGE_DIR}/")
 set(GLM_INCLUDE "${GLM_DIR}/")
 set(FT2_INCLUDE "${FT2_DIR}/include/")
-set(PX_INCLUDE "${PX_DIR}/physx/include/")
-set(PX_SHARED_INCLUDE "${PX_DIR}/pxshared/include/")
-set(RAYLIB_INCLUDE "${RAYLIB_DIR}/src/")
-set(FMOD_INCLUDE "${FMOD_DIR}/inc/")
+# set(PX_INCLUDE "${PX_DIR}/physx/include/")
+# set(PX_SHARED_INCLUDE "${PX_DIR}/pxshared/include/")
+# set(RAYLIB_INCLUDE "${RAYLIB_DIR}/src/")
+# set(FMOD_INCLUDE "${FMOD_DIR}/inc/")
 # set(SDL2_INCLUDE "${SDL2_DIR}/include")
 
 set(GLAD_LIB "${GLAD_DIR}/src/glad.c")
@@ -56,26 +56,26 @@ set(STB_IMAGE_LIB "${STB_IMAGE_DIR}/stb_image.cpp")
 
 
 if(WIN32)
-        set(GLFW_LIB "${GLFW_DIR}/build/src/Debug/glfw3.lib")
+        set(GLFW_LIB "${GLFW_DIR}/build/src/RelWithDebInfo/glfw3.lib")
         set(BOX2D_LIB "${BOX2D_DIR}/build/bin/Debug/box2d.lib")
-        set(FT2_LIB "${FT2_DIR}/objs/freetype.lib")
-        set(RAYLIB_LIB "${RAYLIB_DIR}/build/raylib/RelWithDebInfo/raylib.lib")
+        set(FT2_LIB "${FT2_DIR}/build/RelWithDebInfo/freetype.lib")
+        # set(RAYLIB_LIB "${RAYLIB_DIR}/build/raylib/RelWithDebInfo/raylib.lib")
 
         # PHYSX
-        set(PX_LIB "${PX_DIR}/physx/bin/win.x86_64.vc142.mt/checked/PhysXExtensions_static_64.lib"
-        "${PX_DIR}/physx/bin/win.x86_64.vc142.mt/checked/PhysXFoundation_64.lib"
-        "${PX_DIR}/physx/bin/win.x86_64.vc142.mt/checked/PhysXPvdSDK_static_64.lib"
-        "${PX_DIR}/physx/bin/win.x86_64.vc142.mt/checked/PhysXTask_static_64.lib"
-        "${PX_DIR}/physx/bin/win.x86_64.vc142.mt/checked/PhysXVehicle_static_64.lib"
-        "${PX_DIR}/physx/bin/win.x86_64.vc142.mt/checked/SceneQuery_static_64.lib"
-        "${PX_DIR}/physx/bin/win.x86_64.vc142.mt/checked/SimulationController_static_64.lib"
-        "${PX_DIR}/physx/bin/win.x86_64.vc142.mt/checked/LowLevel_static_64.lib"
-        "${PX_DIR}/physx/bin/win.x86_64.vc142.mt/checked/LowLevelAABB_static_64.lib"
-        "${PX_DIR}/physx/bin/win.x86_64.vc142.mt/checked/LowLevelDynamics_static_64.lib"
-        "${PX_DIR}/physx/bin/win.x86_64.vc142.mt/checked/PhysX_64.lib"
-        "${PX_DIR}/physx/bin/win.x86_64.vc142.mt/checked/PhysXCharacterKinematic_static_64.lib"
-        "${PX_DIR}/physx/bin/win.x86_64.vc142.mt/checked/PhysXCommon_64.lib"
-        "${PX_DIR}/physx/bin/win.x86_64.vc142.mt/checked/PhysXCooking_64.lib")
+        # set(PX_LIB "${PX_DIR}/physx/bin/win.x86_64.vc142.mt/checked/PhysXExtensions_static_64.lib"
+        # "${PX_DIR}/physx/bin/win.x86_64.vc142.mt/checked/PhysXFoundation_64.lib"
+        # "${PX_DIR}/physx/bin/win.x86_64.vc142.mt/checked/PhysXPvdSDK_static_64.lib"
+        # "${PX_DIR}/physx/bin/win.x86_64.vc142.mt/checked/PhysXTask_static_64.lib"
+        # "${PX_DIR}/physx/bin/win.x86_64.vc142.mt/checked/PhysXVehicle_static_64.lib"
+        # "${PX_DIR}/physx/bin/win.x86_64.vc142.mt/checked/SceneQuery_static_64.lib"
+        # "${PX_DIR}/physx/bin/win.x86_64.vc142.mt/checked/SimulationController_static_64.lib"
+        # "${PX_DIR}/physx/bin/win.x86_64.vc142.mt/checked/LowLevel_static_64.lib"
+        # "${PX_DIR}/physx/bin/win.x86_64.vc142.mt/checked/LowLevelAABB_static_64.lib"
+        # "${PX_DIR}/physx/bin/win.x86_64.vc142.mt/checked/LowLevelDynamics_static_64.lib"
+        # "${PX_DIR}/physx/bin/win.x86_64.vc142.mt/checked/PhysX_64.lib"
+        # "${PX_DIR}/physx/bin/win.x86_64.vc142.mt/checked/PhysXCharacterKinematic_static_64.lib"
+        # "${PX_DIR}/physx/bin/win.x86_64.vc142.mt/checked/PhysXCommon_64.lib"
+        # "${PX_DIR}/physx/bin/win.x86_64.vc142.mt/checked/PhysXCooking_64.lib")
 endif(WIN32)
 
 if(UNIX)
@@ -83,9 +83,9 @@ if(UNIX)
         set(FT2_LIB "${FT2_DIR}/build/libfreetype.a")
         set(BOX2D_LIB "${LIB_DIR}/box2d/build/bin/libbox2d.a")
 
-        set (FMODL_LIB "${FMOD_DIR}/lib/x86_64/libfmodL.so")
-        set (FMOD_LIB "${FMOD_DIR}/lib/x86_64/libfmod.so")
-        set (FMOD13_LIB "${FMOD_DIR}/lib/x86_64/libfmod.so.13")
+        # set (FMODL_LIB "${FMOD_DIR}/lib/x86_64/libfmodL.so")
+        # set (FMOD_LIB "${FMOD_DIR}/lib/x86_64/libfmod.so")
+        # set (FMOD13_LIB "${FMOD_DIR}/lib/x86_64/libfmod.so.13")
 endif(UNIX)
 
 
@@ -104,7 +104,7 @@ endif(UNIX)
 
 # add_library(AnthologyLib )
 
-include_directories(${GLFW_INCLUDE} ${GLAD_INCLUDE} ${BOX2D_INCLUDE} ${FT2_INCLUDE} ${PX_INCLUDE} ${GLM_INCLUDE} ${PX_SHARED_INCLUDE} ${STB_IMAGE_INCLUDE} ${RAYLIB_INCLUDE} ${FMOD_INCLUDE})
+include_directories(${GLFW_INCLUDE} ${GLAD_INCLUDE} ${BOX2D_INCLUDE} ${FT2_INCLUDE} ${GLM_INCLUDE} ${PX_SHARED_INCLUDE} ${STB_IMAGE_INCLUDE})
 
 add_executable(Anthology ${SOURCE_FILES} ${GLAD_LIB} ${STB_IMAGE_LIB} ${HEADER_FILES})
 
@@ -117,6 +117,6 @@ if(WIN32)
 endif(WIN32)
 
 if(UNIX)
-        target_link_libraries(Anthology ${GLFW_LIB} ${BOX2D_LIB} ${FT2_LIB} ${CMAKE_DL_LIBS} ${FMOD_LIB} ${FMODL_LIB} ${FMOD13_LIB})
+        target_link_libraries(Anthology ${GLFW_LIB} ${BOX2D_LIB} ${FT2_LIB} ${CMAKE_DL_LIBS})
 endif(UNIX)
 #"${PX_LIB}" "${RAYLIB_LIB}" 

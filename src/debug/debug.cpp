@@ -12,12 +12,12 @@ namespace atl
         b2_debug_draw.Destroy();
     }
 
-    void debugger::draw_collisions(const game_state& state)
+    void debugger::draw_collisions(game_state* state)
     {
-        b2_debug_draw.set_proj(state.camera.projection_view());
+        b2_debug_draw.set_proj(state->camera.projection_view());
 
-        const std::vector<ref<entity>>& entities = state.entities;
-        const physics_system& physics = state.physics;
+        const std::vector<ref<entity>>& entities = state->entities;
+        const physics_system& physics = state->physics;
 
         for (ref<entity> ent : entities)
         {

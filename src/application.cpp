@@ -3,11 +3,12 @@
 #include "application.h"
 #include "input.h"
 #include "components.h"
-#include "start_up_state.h"
+#include "test_state.h"
 
 #include <iostream>
 #include <map>
 #include <chrono>
+#include <filesystem>
 
 #ifdef _WIN32
 #include <Windows.h>
@@ -18,7 +19,7 @@
 namespace atl
 {
 
-    application::application() : state(new start_up_state(this)) {}
+    application::application() : state(new test_state()) {}
 
     application::~application()
     {
@@ -27,7 +28,6 @@ namespace atl
 
     void application::initialize(u32 screen_width, u32 screen_height)
     {
-
         window = new glfw_window();
         screen_width_ = screen_width;
         screen_height_ = screen_height;
@@ -45,6 +45,9 @@ namespace atl
         {
             window->handle_input();
             // state.audio.update();
+
+            if (input::is_key_down(key::ESCAPE))
+                break;
 
             f64 current_time = window->get_time();
             f64 dt = current_time - previous_time;
@@ -112,6 +115,7 @@ namespace atl
         state->render.end2d();
     }
 
+    template<typename T>
     void application::switch_state()
     {
         state->destroy();

@@ -1,10 +1,13 @@
 #include "test_state.h"
 
+#include "Ground.h"
+#include "Box.h"
+
 namespace atl
 {
     void test_state::scene()
     {
-        add_entity(new Ground());
-        add_entity(new Box());
+        ref<entity> ground = add_entity(new Ground());
+        ref<entity> box = add_entity(new Box());
     }
 }

@@ -10,9 +10,9 @@ namespace atl
     public:
         Ground() {}
 
-        void init(game_state& state) override;
+        void init(game_state* state) override;
 
-        void update(f32 dt, game_state& state) override;
+        void update(f32 dt, game_state* state) override;
 
     private:
     };

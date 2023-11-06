@@ -18,7 +18,7 @@ namespace atl
         void start();
         void end();
 
-        void draw_collisions(const game_state& state);
+        void draw_collisions(game_state* state);
 
         void flush();
 

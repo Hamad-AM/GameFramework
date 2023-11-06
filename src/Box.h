@@ -11,9 +11,9 @@ namespace atl
     public:
         Box() {}
 
-        void init(game_state& state) override;
+        void init(game_state* state) override;
 
-        void update(f32 dt, game_state& state) override;
+        void update(f32 dt, game_state* state) override;
 
         void on_collision_enter(collision_event& collision) override;
 

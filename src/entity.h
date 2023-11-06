@@ -18,9 +18,9 @@ namespace atl
     public:
         entity() {}
 
-        virtual void init(game_state& state) = 0;
+        virtual void init(game_state* state) = 0;
 
-        virtual void update(f32 dt, game_state& state) = 0;
+        virtual void update(f32 dt, game_state* state) = 0;
 
         void destroy()
         {

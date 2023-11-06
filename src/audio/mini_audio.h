@@ -10,6 +10,7 @@ namespace atl
 
     struct mini_sound : public sound
     {
+        mini_sound(const char* filepath) : filepath(filepath) {}
         ~mini_sound() override;
         void destroy() override;
 
@@ -30,6 +31,7 @@ namespace atl
         b32 is_looping() const override;
     
     private:
+        const char* filepath;
         ma_sound internal_sound;
         friend class mini_audio_system;
     };

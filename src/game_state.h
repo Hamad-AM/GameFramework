@@ -14,7 +14,7 @@ namespace atl
 
     struct game_state
     {
-        game_state(application* app) : app(m_app) {}
+        game_state() {}
 
         std::vector<ref<entity>> entities;
 
@@ -27,17 +27,13 @@ namespace atl
 
         void init();
         void destroy();
-
-        template<typename T>
-        void switch_state() { m_app->switch_state<T>(); }
+        ref<entity> add_entity(entity* e);
 
     private:
         virtual void scene() {}
         void init_systems();
-        ref<entity> add_entity(entity* e);
         void initialize_entities();
 
-        const application* m_app;
     };
 
 

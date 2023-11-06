@@ -66,7 +66,7 @@ namespace atl
             std::cout << "Failed to initialize GLAD" << std::endl;
             assert(false);
         }
-        glfwSwapInterval(1);
+        glfwSwapInterval(0);
 
 
         // During init, enable debug output

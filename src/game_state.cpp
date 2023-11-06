@@ -8,8 +8,9 @@ namespace atl
         physics.destroy();
         audio.destroy();
         camera_position = vec3(1.0f);
-        camera.update(state->camera_position);
+        camera.update(camera_position);
     }
+    
     void game_state::init()
     {
         init_systems();
@@ -19,26 +20,27 @@ namespace atl
 
     void game_state::init_systems()
     {
-        state.camera_position = vec3(0.0f, 0.0f, 0.0f);
-        state.camera.set_projection(glm::ortho(0.0f,  1280.0f, 0.0f, 720.0f, -1.0f, 1.0f));
+        camera_position = vec3(0.0f, 0.0f, 0.0f);
+        camera.set_projection(glm::ortho(0.0f,  1280.0f, 0.0f, 720.0f, -1.0f, 1.0f));
         
-        state.render.initialize();
-        state.physics.initialize2d();
+        render.initialize();
+        physics.initialize2d();
 
-        state.audio.init();
+        audio.init();
     }
 
-    ref>entity> game_state::add_entity(entity* e)
+    ref<entity> game_state::add_entity(entity* e)
     {
         ref<entity> ref_entity(e);
-        state.entities.push_back(ref_entity);
+        entities.push_back(ref_entity);
+        return ref_entity;
     }
 
     void game_state::initialize_entities()
     {
-        for (u32 i = 0; i < state.entities.size(); ++i)
+        for (u32 i = 0; i < entities.size(); ++i)
         {
-            state.entities[i]->init(state);
+            entities[i]->init(this);
         }
     }
 }
