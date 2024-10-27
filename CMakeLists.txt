@@ -4,17 +4,45 @@ project(Anthology)
 
 set(CMAKE_CXX_STANDARD 20)
 set(CMAKE_CXX_STANDARD_REQUIRED True)
-set(CMAKE_CXX_FLAGS -pthread)
-set(CMAKE_BUILD_TYPE Debug)
+set(CMAKE_CXX_EXTENSIONS ON)
 
+if (MSVC)
+    set(CMAKE_CXX_FLAGS_DEBUG "${CMAKE_CXX_FLAGS_DEBUG} /D_ITERATOR_DEBUG_LEVEL=1")
+endif()
+
+set(CMAKE_RUNTIME_OUTPUT_DIRECTORY "${CMAKE_SOURCE_DIR}/bin")
+set(CMAKE_RUNTIME_OUTPUT_DIRECTORY_DEBUG "${CMAKE_RUNTIME_OUTPUT_DIRECTORY}")
+set(CMAKE_RUNTIME_OUTPUT_DIRECTORY_MINSIZEREL "${CMAKE_RUNTIME_OUTPUT_DIRECTORY}")
+set(CMAKE_RUNTIME_OUTPUT_DIRECTORY_RELEASE "${CMAKE_RUNTIME_OUTPUT_DIRECTORY}")
+set(CMAKE_RUNTIME_OUTPUT_DIRECTORY_RELWITHDEBINFO "${CMAKE_RUNTIME_OUTPUT_DIRECTORY}")
+set(DONUT_SHADERS_OUTPUT_DIR "${CMAKE_RUNTIME_OUTPUT_DIRECTORY}/shaders/framework")
+
+add_subdirectory(donut)
+
+set(LIB_DIR "${CMAKE_SORUCE_DIR}/libraries")
+
+add_subdirectory(libraries/glfw)
+add_subdirectory(libraries/glm)
+add_subdirectory(libraries/stb_image)
+add_subdirectory(libraries/box2d)
+add_subdirectory(libraries/)
+add_subdirectory(libraries/)
+add_subdirectory(libraries/)
 
 file(GLOB_RECURSE SOURCE_FILES
-        ${CMAKE_SOURCE_DIR}/src/*.c
-        ${CMAKE_SOURCE_DIR}/src/*.cpp)
+        ${CMAKE_SOURCE_DIR}/src/anthology.cpp)
 
 file (GLOB_RECURSE HEADER_FILES
         ${CMAKE_SOURCE_DIR}/src/*.h
         ${CMAKE_SOURCE_DIR}/src/*.hpp)
+
+add_executable(Anthology WIN32 ${SOURCE_FILES})
+target_link_libraries(Anthology donut_render donut_engine)
+
+if (MSVC)
+    set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} /W3 /MP")
+endif()
+
 
 set(LIB_DIR "${CMAKE_SOURCE_DIR}/libraries")
 
@@ -51,7 +79,7 @@ set(RAYLIB_INCLUDE "${RAYLIB_DIR}/src/")
 set(FMOD_INCLUDE "${FMOD_DIR}/inc/")
 # set(SDL2_INCLUDE "${SDL2_DIR}/include")
 
-set(GLAD_LIB "${GLAD_DIR}/src/glad.c")
+*set(GLAD_LIB "${GLAD_DIR}/src/glad.c")
 set(STB_IMAGE_LIB "${STB_IMAGE_DIR}/stb_image.cpp")
 
 
