@@ -1,3 +1,6 @@
 [submodule "libraries/stb"]
 	path = libraries/stb
 	url = https://github.com/nothings/stb.git
+[submodule "libraries/glfw"]
+	path = libraries/glfw
+	url = https://github.com/glfw/glfw.git
