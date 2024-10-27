@@ -16,3 +16,6 @@
 [submodule "libraries/Donut"]
 	path = libraries/Donut
 	url = https://github.com/Hamad-AM/donut.git
+[submodule "libraries/glm"]
+	path = libraries/glm
+	url = https://github.com/Hamad-AM/glm.git
