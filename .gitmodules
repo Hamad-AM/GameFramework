@@ -4,3 +4,15 @@
 [submodule "libraries/glfw"]
 	path = libraries/glfw
 	url = https://github.com/glfw/glfw.git
+[submodule "libraries/flecs"]
+	path = libraries/flecs
+	url = https://github.com/Hamad-AM/flecs.git
+[submodule "libraries/JoltPhysics"]
+	path = libraries/JoltPhysics
+	url = https://github.com/Hamad-AM/JoltPhysics.git
+[submodule "libraries/GameNetworkingSockets"]
+	path = libraries/GameNetworkingSockets
+	url = https://github.com/Hamad-AM/GameNetworkingSockets.git
+[submodule "libraries/Donut"]
+	path = libraries/Donut
+	url = https://github.com/Hamad-AM/donut.git
