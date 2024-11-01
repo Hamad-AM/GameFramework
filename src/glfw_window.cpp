@@ -37,6 +37,11 @@ namespace atl
         }
     }
 
+    static void mouse_callback(GLFWwindow* window, f64 xpos, f64 ypos)
+    {
+        input::set_mouse_position(xpos, ypos);
+    }
+
     void glfw_window::initialize(u32 width, u32 height, const char *title)
     {
         glfwSetErrorCallback(error_callback);
@@ -47,6 +52,7 @@ namespace atl
         glfwWindowHint(GLFW_CONTEXT_VERSION_MAJOR, 4);
         glfwWindowHint(GLFW_CONTEXT_VERSION_MINOR, 6);
         glfwWindowHint(GLFW_OPENGL_PROFILE, GLFW_OPENGL_CORE_PROFILE);
+        glfwWindowHint(GLFW_DEPTH_BITS, 24);
 
         window = glfwCreateWindow(width, height, title, NULL, NULL);
 
@@ -59,6 +65,8 @@ namespace atl
         glfwMakeContextCurrent(window);
 
         glfwSetKeyCallback(window, key_callback);
+        glfwSetInputMode(window, GLFW_CURSOR, GLFW_CURSOR_DISABLED);
+        glfwSetCursorPosCallback(window, mouse_callback);
 
         // glfwMakeContextCurrent(window);
         if (!gladLoadGLLoader((GLADloadproc)glfwGetProcAddress))

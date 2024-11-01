@@ -28,6 +28,12 @@ struct Camera3d
     glm::mat4 projection;
     glm::quat orientation;
     glm::vec3 position;
+    glm::vec3 front;
+    glm::vec3 up;
+    glm::vec3 right;
+    glm::mat4 view;
+    glm::vec3 target;
+    f32 speed;
 };
 struct Material
 {
@@ -41,7 +47,6 @@ struct Image
     u32 width;
     u32 height;
     texture_format format;
-    texture_type type;
     std::vector<u8> data;
 };
 struct Mesh
@@ -50,14 +55,29 @@ struct Mesh
     std::vector<glm::vec3> normals;
     std::vector<glm::vec2> uvs;
     std::vector<u32> indices;
-    std::shared_ptr<Image> alebdo;
-    std::shared_ptr<Image> metallicRoughness;
-    std::shared_ptr<Image> normalMap;
-    std::shared_ptr<Image> ao;
+    s32 albedo;
+    s32 metallicRoughness;
+    s32 normalMap;
+    s32 ao;
 };
 struct Model
 {
     std::vector<Mesh> meshes;
+};
+struct MeshOffset {
+    u32 vertexOffset = 0;
+    u32 indexOffset = 0;
+    u32 indexCount = 0;
+};
+struct RenderData
+{
+    std::vector<f32> vertices;
+    std::vector<u32> indices;
+    std::vector<MeshOffset> meshOffsets;
+    GLuint VBO;
+    GLuint VAO;
+    GLuint EBO;
+    GLuint albedoID;
 };
 
 class application
@@ -70,6 +90,9 @@ public:
     void run();
     void update(f32 dt);
     void close();
+    Model load_model(std::string path);
+    void BatchModel(Model& model);
+    void UploadDataToGL(RenderData& data);
 
 private:
 
@@ -90,5 +113,11 @@ private:
     Model sponza;
     std::unordered_map<s32, u32> gpu_textures;
     std::unordered_map<s32, std::shared_ptr<Image>> images;
+    std::vector<RenderData> meshRenderData;
+    Shader shader;
+    f32 current_position;
+    glm::vec2 lastMousePos;
+    f32 pitch = 0;
+    f32 yaw = 0;
 };
 }

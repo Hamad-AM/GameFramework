@@ -13,11 +13,11 @@
 
 namespace atl
 {
-    shader::shader()
+    Shader::Shader()
     {}
 
     void
-    shader::compile(const char* vs, const char* fs)
+    Shader::compile(const char* vs, const char* fs)
     {
         shader_name_ = vs;
 
@@ -138,25 +138,25 @@ namespace atl
     }
 
     void
-    shader::delete_shader()
+    Shader::delete_shader()
     {
         glDeleteProgram(program_);
     }
 
     void
-    shader::bind()
+    Shader::bind()
     {
         glUseProgram(program_);
     }
 
     void
-    shader::unbind()
+    Shader::unbind()
     {
         glUseProgram(0);
     }
 
     s32
-    shader::uniform_location(const char* name)
+    Shader::uniform_location(const char* name)
     {
         s32 location = glGetUniformLocation(program_, name);
         if (location == -1)
@@ -168,34 +168,34 @@ namespace atl
     }
 
     void
-    shader::uniform_float(const char* name, const f32 value)
+    Shader::uniform_float(const char* name, const f32 value)
     {
         glUniform1f(uniform_location(name), value);
     }
 
     void
-    shader::uniform_int(const char* name, const s32 value)
+    Shader::uniform_int(const char* name, const s32 value)
     {
         glUniform1i(uniform_location(name), value);
     }
     void
-    shader::uniform_vector2f(const char* name, const vec2& value)
+    Shader::uniform_vector2f(const char* name, const vec2& value)
     {
         glUniform2f(uniform_location(name), value.x, value.y);
     }
 
     void 
-    shader::uniform_vector3f   (const char* name, const vec3& value)
+    Shader::uniform_vector3f   (const char* name, const vec3& value)
     {
         glUniform3f(uniform_location(name), value.x, value.y, value.z);
     }
     void
-    shader::uniform_vector4f   (const char* name, const vec4& value)
+    Shader::uniform_vector4f   (const char* name, const vec4& value)
     {
         glUniform4f(uniform_location(name), value.x, value.y, value.z, value.w);
     }
     void
-    shader::uniform_matrix4    (const char* name, const mat4& value)
+    Shader::uniform_matrix4    (const char* name, const mat4& value)
     {
         glUniformMatrix4fv(uniform_location(name), 1, GL_FALSE, glm::value_ptr(value));
     }

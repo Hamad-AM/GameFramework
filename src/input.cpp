@@ -134,7 +134,7 @@ namespace atl
     }
 
     void
-    input::set_mouse_position_impl(s32 x, s32 y)
+    input::set_mouse_position_impl(f64 x, f64 y)
     {
         mouse_.x = x;
         mouse_.y = y;

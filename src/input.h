@@ -110,7 +110,7 @@ namespace atl
         set_left_mouse(input_state state) { s_instance->set_left_mouse_impl(state); }
 
         inline static void
-        set_mouse_position(s32 x, s32 y) { s_instance->set_mouse_position_impl(x, y); }
+        set_mouse_position(f64 x, f64 y) { s_instance->set_mouse_position_impl(x, y); }
 
         inline static vec2
         mouse_position() { return s_instance->mouse_position_impl(); }
@@ -149,7 +149,7 @@ namespace atl
 
         void set_right_mouse_impl(input_state state);
         void set_left_mouse_impl(input_state state);
-        void set_mouse_position_impl(s32 x, s32 y);
+        void set_mouse_position_impl(f64 x, f64 y);
 
         vec2 mouse_position_impl();
 

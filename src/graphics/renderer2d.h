@@ -66,8 +66,8 @@ namespace atl
         ref<font> fonts[font_type::NUMBER_OF_FONTS];
 
         // shaders
-        shader _sprite_shader;
-        shader _text_shader;
+        Shader _sprite_shader;
+        Shader _text_shader;
 
         // vertex_array handles;
         u32 quad_va_;

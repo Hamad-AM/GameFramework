@@ -13,7 +13,7 @@ namespace atl
         virtual void initialize() = 0;
 
         virtual void compile_shaders(const char* file) = 0;
-        virtual void use_shader(ref<shader> shader) = 0;
+        virtual void use_shader(ref<Shader> shader) = 0;
         
         virtual void add_vertex_array() = 0;
         virtual void use_vertex_array() = 0;

@@ -8,10 +8,10 @@ namespace atl
 {
     std::string read_file_to_string(const char* path);
 
-    class shader
+    class Shader
     {
     public:
-        shader();
+        Shader();
         void delete_shader();
 
         void bind();
