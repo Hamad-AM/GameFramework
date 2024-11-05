@@ -53,6 +53,7 @@ namespace atl
         glfwWindowHint(GLFW_CONTEXT_VERSION_MINOR, 6);
         glfwWindowHint(GLFW_OPENGL_PROFILE, GLFW_OPENGL_CORE_PROFILE);
         glfwWindowHint(GLFW_DEPTH_BITS, 24);
+        glfwWindowHint(GLFW_SAMPLES, 4);
 
         window = glfwCreateWindow(width, height, title, NULL, NULL);
 
@@ -80,10 +81,6 @@ namespace atl
         // During init, enable debug output
         glEnable              ( GL_DEBUG_OUTPUT );
         glDebugMessageCallback( MessageCallback, 0 );
-
-        glEnable(GL_BLEND);
-        glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
-
     }
 
     b32 glfw_window::handle_input()
@@ -139,6 +136,38 @@ namespace atl
         } else
         {
             input::set_key_state(key::SPACE, input_state::up);
+        }
+        if (glfwGetKey(window, GLFW_KEY_UP) == GLFW_PRESS)
+        {
+            input::set_key_state(key::UP, input_state::down);
+        }
+        else
+        {
+            input::set_key_state(key::UP, input_state::up);
+        }
+        if (glfwGetKey(window, GLFW_KEY_DOWN) == GLFW_PRESS)
+        {
+            input::set_key_state(key::DOWN, input_state::down);
+        }
+        else
+        {
+            input::set_key_state(key::DOWN, input_state::up);
+        }
+        if (glfwGetKey(window, GLFW_KEY_LEFT) == GLFW_PRESS)
+        {
+            input::set_key_state(key::LEFT, input_state::down);
+        }
+        else
+        {
+            input::set_key_state(key::LEFT, input_state::up);
+        }
+        if (glfwGetKey(window, GLFW_KEY_RIGHT) == GLFW_PRESS)
+        {
+            input::set_key_state(key::RIGHT, input_state::down);
+        }
+        else
+        {
+            input::set_key_state(key::RIGHT, input_state::up);
         }
         return false;
     }

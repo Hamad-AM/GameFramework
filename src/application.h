@@ -59,6 +59,7 @@ struct Mesh
     s32 metallicRoughness;
     s32 normalMap;
     s32 ao;
+    std::string name;
 };
 struct Model
 {
@@ -78,6 +79,7 @@ struct RenderData
     GLuint VAO;
     GLuint EBO;
     GLuint albedoID;
+    GLuint normalMapID;
 };
 
 class application
@@ -93,6 +95,9 @@ public:
     Model load_model(std::string path);
     void BatchModel(Model& model);
     void UploadDataToGL(RenderData& data);
+
+    void renderQuad();
+    float ourLerp(float a, float b, float f);
 
 private:
 
@@ -111,13 +116,24 @@ private:
     Camera3d camera;
 
     Model sponza;
+    glm::vec3 lightPosition;
     std::unordered_map<s32, u32> gpu_textures;
     std::unordered_map<s32, std::shared_ptr<Image>> images;
     std::vector<RenderData> meshRenderData;
     Shader shader;
+    Shader depthShader;
+    Shader depthNormalShader;
+    Shader SSAOShader;
+    Shader SSAOBlurShader;
     f32 current_position;
     glm::vec2 lastMousePos;
     f32 pitch = 0;
     f32 yaw = 0;
+
+    GLuint depthMapFBO;
+    GLuint depthMap;
+    glm::mat4 lightSpaceMatrix;
+
+    GLuint quadVAO = 0;
 };
 }
