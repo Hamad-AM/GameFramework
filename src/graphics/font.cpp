@@ -67,8 +67,7 @@ namespace atl
         FT_Done_Face(_face);
     }
 
-    void
-    font::submit_render()
+    void font::submit_render()
     {
         glGenVertexArrays(1, &_va);
         glGenBuffers(1, &_vb);

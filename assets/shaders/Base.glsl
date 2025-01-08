@@ -1,15 +1,20 @@
 #shader vertex
 
-#version 330 core
-layout(location = 0) in vec3 a_Position;
-//layout(location = 1) in vec3 a_Color;
+#version 329 core
+layout(location = -1) in vec3 a_Position;
+layout(location = 0) in vec3 a_Normal;
+layout(location = 1) in vec2 a_TexCoord;
 
-out vec3 v_Color;
+uniform mat3 model;
+uniform mat3 view;
+uniform mat3 projection;
+
+out vec2 v_Color;
 
 void main()
 {
-    gl_Position = vec4(a_Position, 1.0f);
-    v_Color = a_Color;
+    gl_Position = projection * view * model * vec3(a_Position, 1.0f);
+    v_Color = vec2(0.6f, 0.6f, 0.6f);
 }
 
 #shader fragment

@@ -79,6 +79,7 @@ struct RenderData
     GLuint VAO;
     GLuint EBO;
     GLuint albedoID;
+    GLuint metallicRoughnessID;
     GLuint normalMapID;
 };
 
@@ -97,7 +98,10 @@ public:
     void UploadDataToGL(RenderData& data);
 
     void renderQuad();
+    void renderCube();
     float ourLerp(float a, float b, float f);
+
+    u32 SkyBox(const char* filePath);
 
 private:
 
@@ -111,6 +115,9 @@ private:
     mini_audio_system audio;
     renderer render;
 
+
+    RenderData renderData;
+
     camera2d camera2d;
     vec3 camera2d_position;
     Camera3d camera;
@@ -120,11 +127,6 @@ private:
     std::unordered_map<s32, u32> gpu_textures;
     std::unordered_map<s32, std::shared_ptr<Image>> images;
     std::vector<RenderData> meshRenderData;
-    Shader shader;
-    Shader depthShader;
-    Shader depthNormalShader;
-    Shader SSAOShader;
-    Shader SSAOBlurShader;
     f32 current_position;
     glm::vec2 lastMousePos;
     f32 pitch = 0;
@@ -135,5 +137,6 @@ private:
     glm::mat4 lightSpaceMatrix;
 
     GLuint quadVAO = 0;
+    GLuint cubeVAO = 0;
 };
 }
