@@ -106,7 +106,7 @@ int main()
     // fmod test end
 
     {
-        atl::application app;
+        application app;
         app.initialize(1280, 720);
         app.run();
         app.close();

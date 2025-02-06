@@ -4,8 +4,6 @@
 
 #include "miniaudio.h"
 
-namespace atl
-{
     void mini_error(ma_result& r);
 
     struct mini_sound : public sound
@@ -73,4 +71,3 @@ namespace atl
         ma_engine engine;
         ma_engine_config config;
     };
-}

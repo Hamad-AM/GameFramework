@@ -4,8 +4,6 @@
 
 #include <glad/glad.h>
 
-namespace atl
-{
     enum texture_type
     {
         DIFFUSE,
@@ -143,5 +141,3 @@ namespace atl
             }
         }
     };
-
-}

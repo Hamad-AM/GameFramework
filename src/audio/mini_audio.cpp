@@ -1,7 +1,5 @@
 #include "mini_audio.h"
 
-namespace atl
-{
     void mini_audio_system::init()
     {
         result = ma_engine_init(NULL, &engine);
@@ -125,4 +123,3 @@ namespace atl
     {
         ma_sound_set_fade_in_milliseconds(&internal_sound, volume_start, volume_end, milliseconds);
     }
-}

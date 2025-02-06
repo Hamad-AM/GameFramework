@@ -6,8 +6,6 @@
 
 #include <map>
 
-namespace atl
-{
     struct sub_texture
     {
         ivec2 position;
@@ -24,4 +22,3 @@ namespace atl
 
         void create_sub_texture(std::string& name, ivec2& position);    
     };
-}

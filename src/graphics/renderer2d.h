@@ -14,8 +14,6 @@
 #include "texture_atlas.h"
 #include "font.h"
 
-namespace atl
-{
     typedef vec3 color;
     class game_state;
 
@@ -75,5 +73,3 @@ namespace atl
         u32 text_vb_;
 
     };
-
-}

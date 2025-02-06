@@ -4,8 +4,6 @@
 #include <iostream>
 #include <stb_image.h>
 
-namespace atl
-{
     texture2d::texture2d()
     {}
 
@@ -67,4 +65,3 @@ namespace atl
     {
         glBindTexture(GL_TEXTURE_2D, 0);
     }
-}

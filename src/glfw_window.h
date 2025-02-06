@@ -7,8 +7,6 @@
 #define GLFW_INCLUDE_NONE
 #include <GLFW/glfw3.h>
 
-namespace atl
-{
     class glfw_window : public platform_window
     {
     public:
@@ -23,4 +21,3 @@ namespace atl
         GLFWwindow* window;
         f64 previous_time;
     };
-}

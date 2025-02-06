@@ -1,7 +1,5 @@
 #include "texture_atlas.h"
 
-namespace atl
-{
     void
     texture_atlas::create_sub_texture(std::string& name, ivec2& position)
     {
@@ -56,4 +54,3 @@ namespace atl
 
         sub_textures[name] = sub;
     }
-}

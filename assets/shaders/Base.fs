@@ -4,12 +4,16 @@ out vec4 FragColor;
 
 uniform vec3 lightPosition;
 uniform vec3 cameraPosition;
+
 uniform sampler2D shadowMap;
 uniform sampler2D ssao;
 uniform sampler2D albedo;
 uniform sampler2D normalMap;
 uniform sampler2D metallicRoughness;
 
+uniform samplerCube irradianceMap;
+uniform samplerCube prefilterMap;
+uniform sampler2D   brdfLUT;
 
 in vec4 v_Normal;
 in vec4 v_WorldPos;
@@ -84,6 +88,11 @@ vec3 fresnelSchlick(float cosTheta, vec3 F0)
     return F0 + (1.0 - F0) * pow(clamp(1.0 - cosTheta, 0.0, 1.0), 5.0);
 }
 
+vec3 fresnelSchlickRoughness(float cosTheta, vec3 F0, float roughness)
+{
+    return F0 + (max(vec3(1.0 - roughness), F0) - F0) * pow(clamp(1.0 - cosTheta, 0.0, 1.0), 5.0);
+}
+
 float shadow_calculation(vec4 fragPosLightSpace, vec3 normal, vec3 lightDir)
 {
     // Perspective Divide, returns lgith space position in [-1, 1]
@@ -91,8 +100,8 @@ float shadow_calculation(vec4 fragPosLightSpace, vec3 normal, vec3 lightDir)
     // Change range to [0, 1] to sample depthMap
     projCoords = projCoords * 0.5 + 0.5;
     float currentDepth = projCoords.z;
-    // float bias = 0.005;
-    float bias = 0.005; //max(0.05 * (1.0 - dot(normal, lightDir)), 0.005);
+    float bias = 0.005;
+    // float bias = max(0.05 * (1.0 - dot(normal, lightDir)), 0.005);
     float shadow = 0.0f;
     if (projCoords.z <= 1.0)
     {
@@ -141,50 +150,67 @@ void main()
     vec3 N = normalize(v_Normal.xyz);
     vec3 V = normalize(cameraPosition - v_WorldPos.xyz);
     vec3 PN = perturb_normal(N, V, v_TexCoords);
+    vec3 R = reflect(-V, N);
 
     vec3 F0 = vec3(0.04);
     F0 = mix(F0, albedoColor.xyz, metallic);
 
+    vec3 ShadowCastDirection = normalize(lightPosition - v_WorldPos.xyz);
+
     // reflectance equation
     vec3 Lo = vec3(0.0);
     // for(int i = 0; i < 4; ++i)
-    // {
-    // calculate per-light radiance
-    vec3 L = normalize(lightPosition - v_WorldPos.xyz);
-    vec3 H = normalize(V + L);
-    // Calculate Attentuation for directional light no attenuation
-    // float distance    = length(lightPosition - v_WorldPos.xyz);
-    // float attenuation = 1.0 / (distance * distance);
-    // vec3 radiance     = vec3(1.0f) * attenuation; // LightColor * attentuation lightColors[i] * attenuation;
-    vec3 radiance = vec3(10.0f);
+    {
+        // calculate per-light radiance
+        vec3 L = normalize(lightPosition - v_WorldPos.xyz);
+        vec3 H = normalize(V + L);
+        // Calculate Attentuation for directional light no attenuation
+        // float distance    = length(lightPosition - v_WorldPos.xyz);
+        // float attenuation = 1.0 / (distance * distance);
+        // vec3 radiance     = vec3(1.0f) * attenuation; // LightColor * attentuation lightColors[i] * attenuation;
+        vec3 radiance = vec3(10.0f);
 
-    // cook-torrance brdf
-    float NDF = DistributionGGX(PN, H, roughness);
-    float G   = GeometrySmith(PN, V, L, roughness);
-    vec3 F    = fresnelSchlick(max(dot(H, V), 0.0), F0);
+        // cook-torrance brdf
+        float NDF = DistributionGGX(PN, H, roughness);
+        float G   = GeometrySmith(PN, V, L, roughness);
+        vec3 F    = fresnelSchlick(max(dot(H, V), 0.0), F0);
 
+        vec3 kS = F;
+        vec3 kD = vec3(1.0) - kS;
+        kD *= 1.0 - metallic;
+
+        vec3 numerator    = NDF * G * F;
+        float denominator = 4.0 * max(dot(PN, V), 0.0) * max(dot(PN, L), 0.0) + 0.0001;
+        vec3 specular     = numerator / denominator;
+
+        // add to outgoing radiance Lo
+        float NdotL = max(dot(PN, L), 0.0);
+        Lo += (kD * albedoColor.xyz / PI + specular) * radiance * NdotL;
+    }
+
+    vec3 F = fresnelSchlickRoughness(max(dot(PN, V), 0.0), F0, roughness);
     vec3 kS = F;
-    vec3 kD = vec3(1.0) - kS;
+    vec3 kD = 1.0 - kS;
     kD *= 1.0 - metallic;
+    vec3 irradiance = texture(irradianceMap, PN).rgb;
+    vec3 diffuse    = irradiance * albedoColor.xyz;
 
-    vec3 numerator    = NDF * G * F;
-    float denominator = 4.0 * max(dot(PN, V), 0.0) * max(dot(PN, L), 0.0) + 0.0001;
-    vec3 specular     = numerator / denominator;
+    const float MAX_REFLECTION_LOD = 4.0;
+    vec3 prefilteredColor = textureLod(prefilterMap, R,  roughness * MAX_REFLECTION_LOD).rgb;    
+    vec2 brdf  = texture(brdfLUT, vec2(max(dot(PN, V), 0.0), roughness)).rg;
+    vec3 specular = prefilteredColor * (F * brdf.x + brdf.y);
 
-    // add to outgoing radiance Lo
-    float NdotL = max(dot(PN, L), 0.0);
-    Lo += (kD * albedoColor.xyz / PI + specular) * radiance * NdotL;
-    // }
+    vec3 ambient = (kD * diffuse + specular) * 0.25;
 
-    vec3 ambient = vec3(0.25) * albedoColor.xyz * ao;
-    float shadow = shadow_calculation(v_FragPosLightSpace, N, L);
-    vec3 color = ambient + (1.0 - shadow) * Lo;
+    float shadow = shadow_calculation(v_FragPosLightSpace, PN, ShadowCastDirection);
+    vec3 color = (ambient + (1 - shadow) * Lo);
 
     // HDR Calculations
     color = color / (color + vec3(1.0));
-    color = ACESFilm(color);
-    color = pow(color, vec3(0.4545f));
-
+    // color = ACESFilm(color);
+    // color = pow(color, vec3(0.4545f));
+    color = pow(color, vec3(1.0f/2.2f));
+    color = color;
 
     // vec3 lightDirNorm = normalize(lightDir);
     // float diff = max(dot(PN, lightDirNorm), 0.0);

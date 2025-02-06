@@ -3,8 +3,6 @@
 #include "common.h"
 #include "gmath.h"
 
-namespace atl
-{
     struct sound
     {
         virtual ~sound() {}
@@ -65,4 +63,3 @@ namespace atl
     protected:
         std::vector<ref<sound>> sounds;
     };
-}

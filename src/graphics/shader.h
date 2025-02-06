@@ -3,9 +3,6 @@
 #include "../common.h"
 
 #include "../gmath.h"
-
-namespace atl
-{
     std::string read_file_to_string(const char* path);
 
     class Shader
@@ -38,4 +35,4 @@ namespace atl
 
         const char* shader_name_;
     };  
-}
+

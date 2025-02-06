@@ -11,8 +11,6 @@
 
 #include <vector>
 
-namespace atl
-{
     Shader::Shader()
     {}
 
@@ -221,4 +219,3 @@ namespace atl
         s_stream.close();
         return s;
     }
-}

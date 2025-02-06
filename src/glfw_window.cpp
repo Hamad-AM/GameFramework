@@ -1,6 +1,6 @@
 #include "glfw_window.h"
 
-#include <stb_image.h>
+#include "stb_image.h"
 #include <stdio.h>
 #include <assert.h>
 
@@ -8,8 +8,6 @@
 
 #include <iostream>
 
-namespace atl
-{
     void GLAPIENTRY
     MessageCallback( GLenum source,
                     GLenum type,
@@ -22,6 +20,7 @@ namespace atl
         fprintf( stderr, "GL CALLBACK: %s type = 0x%x, severity = 0x%x, message = %s\n",
             ( type == GL_DEBUG_TYPE_ERROR ? "** GL ERROR **" : "" ),
                 type, severity, message );
+        // assert(type != GL_DEBUG_TYPE_ERROR);
     }
 
     static void error_callback(s32 error, const char *description)
@@ -130,6 +129,27 @@ namespace atl
         {
             input::set_key_state(key::p, input_state::up);
         }
+        if (glfwGetKey(window, GLFW_KEY_R) == GLFW_PRESS)
+        {
+            input::set_key_state(key::r, input_state::down);
+        } else
+        {
+            input::set_key_state(key::r, input_state::up);
+        }
+        if (glfwGetKey(window, GLFW_KEY_LEFT_CONTROL) == GLFW_PRESS)
+        {
+            input::set_key_state(key::LCTRL, input_state::down);
+        } else
+        {
+            input::set_key_state(key::LCTRL, input_state::up);
+        }
+        if (glfwGetKey(window, GLFW_KEY_LEFT_SHIFT) == GLFW_PRESS)
+        {
+            input::set_key_state(key::LSHIFT, input_state::down);
+        } else
+        {
+            input::set_key_state(key::LSHIFT, input_state::up);
+        }
         if (glfwGetKey(window, GLFW_KEY_SPACE) == GLFW_PRESS)
         {
             input::set_key_state(key::SPACE, input_state::down);
@@ -216,6 +236,3 @@ namespace atl
         glfwDestroyWindow(window);
         glfwTerminate();
     }
-
-
-}

@@ -3,8 +3,6 @@
 #include "common.h"
 #include "gmath.h"
 
-namespace atl
-{
     class camera2d
     {
     public:
@@ -82,5 +80,3 @@ namespace atl
         vec3 position;
         vec3 rotation;
     };
-
-}

@@ -3,8 +3,6 @@
 #include "common.h"
 #include "input.h"
 
-namespace atl
-{
     class platform_window
     {
     public:
@@ -45,4 +43,3 @@ namespace atl
         u32 height_;
         u32 width_;
     };
-}

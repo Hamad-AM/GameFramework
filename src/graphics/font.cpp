@@ -3,8 +3,6 @@
 #include <iostream>
 #include <filesystem>
 
-namespace atl
-{
     //static font::font_library = nullptr;
     FT_Library font::font_library = nullptr;
 
@@ -64,7 +62,7 @@ namespace atl
     void
     font::delete_font_face()
     {
-        FT_Done_Face(_face);
+        //FT_Done_Face(_face);
     }
 
     void font::submit_render()
@@ -144,4 +142,3 @@ namespace atl
         glBindVertexArray(0);
         glBindTexture(GL_TEXTURE_2D, 0);
     }
-}

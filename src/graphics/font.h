@@ -10,8 +10,6 @@
 
 #include "texture.h"
 
-namespace atl
-{
     class game_state;
 
     class font
@@ -50,4 +48,3 @@ namespace atl
         static FT_Library font_library;
         FT_Face _face;
     };
-}
