@@ -16,9 +16,6 @@
 [submodule "libraries/glm"]
 	path = libraries/glm
 	url = https://github.com/Hamad-AM/glm.git
-[submodule "libraries/cgltf"]
-	path = libraries/cgltf
-	url = https://github.com/jkuhlmann/cgltf.git
 [submodule "libraries/basis_universal"]
 	path = libraries/basis_universal
 	url = https://github.com/BinomialLLC/basis_universal.git
