@@ -1,13 +1,16 @@
 #pragma once
 
+//#define STB_IMAGE_IMPLEMENTATION
+//#define STB_IMAGE_WRITE_IMPLEMENTATION
+//#include <stb_image.h>
+
 #include "common.h"
+#include "asset_system.h"
 #include "graphics/renderer2d.h"
-#include "graphics/texture.h"
 #include "camera.h"
 #include "input.h"
 #include "entity.h"
 #include "glfw_window.h"
-#include "audio.h"
 
 
 #include <glm/glm.hpp>
@@ -21,7 +24,8 @@
 
 struct GameState
 {
-    Image* images;
+    MemoryArena assetArena;
+    AssetSystem assets;
 };
 
 class application
@@ -46,9 +50,8 @@ private:
     platform_window* window;
 
     mini_audio_system audio;
+
     renderer render;
-
-
     RenderData renderData;
 
     camera2d camera2d;
@@ -57,7 +60,6 @@ private:
 
     glm::vec3 lightPosition;
     std::unordered_map<s32, u32> gpu_textures;
-    std::unordered_map<s32, Image*> images;
     std::vector<MeshRenderData> batchMeshRenderData;
     f32 current_position;
     glm::vec2 lastMousePos;

@@ -1,6 +1,5 @@
 #include "glfw_window.h"
 
-#include "stb_image.h"
 #include <stdio.h>
 #include <assert.h>
 

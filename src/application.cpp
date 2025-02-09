@@ -28,11 +28,11 @@ application::~application()
 
 void application::initialize(u32 screen_width, u32 screen_height)
 {
-    size_t perm_size = 2 * 1024 * 1024 * 1024;
-    size_t trans_size = 256 * 1024 * 1024;
+    size_t perm_size = (size_t)2 * 1024 * 1024 * 1024;
+    size_t trans_size = (size_t)256 * 1024 * 1024;
 
     permanent_storage.size = perm_size;
-    permament_storage.used = 0;
+    permanent_storage.used = 0;
     permanent_storage.base = (u8*)VirtualAlloc(nullptr, perm_size, MEM_RESERVE | MEM_COMMIT, PAGE_READWRITE);
     transient_storage.size = trans_size;
     transient_storage.used = 0;
@@ -50,11 +50,6 @@ void application::initialize(u32 screen_width, u32 screen_height)
     // sponza = load_model("assets/Sponza/sponza.glb");
     // sponza = load_model("assets/models/sphere.glb");
     
-    LoadScene("assets/models/sphere.glb", batchMeshRenderData, images, gpu_textures);
-
-    lightPosition = glm::vec3(5, 5 * 1.25, 5);
-
-    renderData.gpu_textures = gpu_textures;
 
     CompileShaders(&renderData);
 
@@ -72,6 +67,16 @@ void application::run()
 {
     previous_time = window->get_time();
 
+    GameState* state = PushStruct(&permanent_storage, GameState);
+
+    state->assetArena = InitArena(PushSize(&permanent_storage, 256 * 1024 * 1024), 256 * 1024 * 1024);
+    InitAssetSystem(state->assets);
+
+    LoadScene(state->assets, "assets/models/bristro_interior.glb", batchMeshRenderData, gpu_textures);
+
+    lightPosition = glm::vec3(5, 5 * 1.25, 5);
+
+    renderData.gpu_textures = gpu_textures;
 
     RenderSetupParameters(&renderData, screen_width_, screen_height_);
 
@@ -80,7 +85,6 @@ void application::run()
     camera.target = glm::vec3(0.0f, 0.0f, 0.0f);
     camera.projection = glm::perspective(glm::radians(90.0f), (f32)screen_width_ / screen_height_, 0.01f, 1000.0f);
     camera.orientation = glm::quat(glm::vec3(0.f, 0.f, 0.f));
-
 
     camera.front = glm::vec3(0.0, 0.0, -1.0);
     camera.up = glm::vec3(0.0f, 1.0f, 0.0f);

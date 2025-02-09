@@ -171,7 +171,7 @@ void SetupSSAOPass(RenderData* renderData)
 
 void SetupEnvironmentCubeMap(RenderData* renderData)
 {
-    u32 hdrTexture = LoadSkyBoxTexture("assets/hdr/photo_studio_loft_hall_2k.hdr");
+    u32 hdrTexture = LoadSkyBoxTexture("assets/hdr/san_giuseppe_bridge_4k.hdr");
 
     EnvironmentMapPass& pass = renderData->environmentMapPass;
 
@@ -680,4 +680,5 @@ void RenderQuad(RenderData* renderData)
     }
     glBindVertexArray(renderData->quadVAO);
     glDrawArrays(GL_TRIANGLE_STRIP, 0, 4);
-    glBindVertexArray(0);}
+    glBindVertexArray(0);
+}

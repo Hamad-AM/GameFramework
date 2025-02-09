@@ -16,70 +16,70 @@
     typedef glm::ivec2 ivec2;
     typedef glm::ivec3 ivec3;
 
-    inline mat4 frustum(f32 left, f32 right, f32 bottom, f32 top, f32 near, f32 far)
-    {
-        return glm::frustum(left, right, bottom, top, near, far);
-    }
+    //inline mat4 frustum(f32 left, f32 right, f32 bottom, f32 top, f32 near, f32 far)
+    //{
+    //    return glm::frustum(left, right, bottom, top, near, far);
+    //}
 
-    inline mat4 look_at(vec3& eye, vec3& center, vec3& up)
-    {
-        return glm::lookAt(eye, center, up);
-    }
+    //inline mat4 look_at(vec3& eye, vec3& center, vec3& up)
+    //{
+    //    return glm::lookAt(eye, center, up);
+    //}
 
-    inline mat4 ortho(f32 left, f32 right, f32 bottom, f32 top, f32 z_near, f32 z_far)
-    {
-        return glm::ortho(left, right, bottom, top, z_near, z_far);
-    }
+    //inline mat4 ortho(f32 left, f32 right, f32 bottom, f32 top, f32 z_near, f32 z_far)
+    //{
+    //    return glm::ortho(left, right, bottom, top, z_near, z_far);
+    //}
 
-    inline mat4 perspective(f32 fov_y, f32 aspect, f32 near, f32 far)
-    {
-        return glm::perspective(fov_y, aspect, near, far);
-    }
+    //inline mat4 perspective(f32 fov_y, f32 aspect, f32 near, f32 far)
+    //{
+    //    return glm::perspective(fov_y, aspect, near, far);
+    //}
 
-    inline mat4 scale(mat4& m, vec3& v)
-    {
-        return glm::scale(m, v);
-    }
+    //inline mat4 scale(mat4& m, vec3& v)
+    //{
+    //    return glm::scale(m, v);
+    //}
 
-    inline mat4 rotate(mat4& m, f32 angle, vec3& axis)
-    {
-        return glm::rotate(m, angle, axis);
-    }
+    //inline mat4 rotate(mat4& m, f32 angle, vec3& axis)
+    //{
+    //    return glm::rotate(m, angle, axis);
+    //}
 
-    inline mat4 translate(mat4& m, vec3& v)
-    {
-        return glm::translate(m, v);
-    }
+    //inline mat4 translate(mat4& m, vec3& v)
+    //{
+    //    return glm::translate(m, v);
+    //}
 
-    inline vec3 project(vec3& obj, mat4& model, mat4& proj, vec4& view_port)
-    {
-        return glm::project(obj, model, proj, view_port);
-    }
+    //inline vec3 project(vec3& obj, mat4& model, mat4& proj, vec4& view_port)
+    //{
+    //    return glm::project(obj, model, proj, view_port);
+    //}
 
-    inline mat4 inverse(mat4& m)
-    {
-        return glm::inverse(m);
-    }
+    //inline mat4 inverse(mat4& m)
+    //{
+    //    return glm::inverse(m);
+    //}
 
-    inline f32 determinant(mat4& m)
-    {
-        return glm::determinant(m);
-    }
+    //inline f32 determinant(mat4& m)
+    //{
+    //    return glm::determinant(m);
+    //}
 
-    inline mat4 transpose(mat4& m)
-    {
-        return glm::transpose(m);
-    }
+    //inline mat4 transpose(mat4& m)
+    //{
+    //    return glm::transpose(m);
+    //}
 
-    inline f32 deg2rad(f32 degrees)
-    {
-        return glm::radians(degrees);
-    }
+    //inline f32 deg2rad(f32 degrees)
+    //{
+    //    return glm::radians(degrees);
+    //}
 
-    inline f32 rad2deg(f32 radians)
-    {
-        return glm::degrees(radians);
-    }
+    //inline f32 rad2deg(f32 radians)
+    //{
+    //    return glm::degrees(radians);
+    //}
 // class v2
 // {
 

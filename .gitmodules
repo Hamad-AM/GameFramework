@@ -19,3 +19,9 @@
 [submodule "libraries/basis_universal"]
 	path = libraries/basis_universal
 	url = https://github.com/BinomialLLC/basis_universal.git
+[submodule "libraries/miniaudio"]
+	path = libraries/miniaudio
+	url = https://github.com/mackron/miniaudio.git
+[submodule "libraries/tinygltf"]
+	path = libraries/tinygltf
+	url = https://github.com/syoyo/tinygltf.git

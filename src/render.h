@@ -32,13 +32,6 @@ struct Material
     u32 normalID;
     u32 aoID;
 };
-struct Image
-{
-    u32 width;
-    u32 height;
-    texture_format format;
-    u8* data;
-};
 
 struct Mesh
 {
