@@ -4,9 +4,10 @@
 
 #include <glad/glad.h>
 
-    enum texture_type
+    enum TextureType
     {
-        DIFFUSE,
+        DEFAULT,
+        ALBEDO,
         METTALIC_ROUGHNESS,
         NORMAL,
         AO,
@@ -41,7 +42,7 @@
     {
         texture_wrap wrap;
         texture_filter filter;
-        texture_type type;
+        TextureType type;
         s32 slot;
         texture_format internal_format;
         texture_format file_format;
@@ -86,7 +87,7 @@
         texture_format file_format_;
         texture_wrap wrap_;
         texture_filter filter_;
-        texture_type type_;
+        TextureType type_;
 
         u32 handle_;
         s32 slot_;

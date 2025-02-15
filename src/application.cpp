@@ -28,7 +28,7 @@ application::~application()
 
 void application::initialize(u32 screen_width, u32 screen_height)
 {
-    size_t perm_size = (size_t)2 * 1024 * 1024 * 1024;
+    size_t perm_size = (size_t)4 * 1024 * 1024 * 1024;
     size_t trans_size = (size_t)256 * 1024 * 1024;
 
     permanent_storage.size = perm_size;
@@ -69,12 +69,13 @@ void application::run()
 
     GameState* state = PushStruct(&permanent_storage, GameState);
 
-    state->assetArena = InitArena(PushSize(&permanent_storage, 256 * 1024 * 1024), 256 * 1024 * 1024);
-    InitAssetSystem(state->assets);
+    size_t asset_size = 1024 * 1024 * 1024 * (u64)2;
+    MemoryArena assetArena = InitArena(PushSize(&permanent_storage, asset_size), asset_size);
+    InitAssetSystem(assets, assetArena);
 
-    LoadScene(state->assets, "assets/models/bristro_interior.glb", batchMeshRenderData, gpu_textures);
+    LoadScene(assets, "assets/models/bristro/bristro_interior.gltf", batchMeshRenderData, gpu_textures);
 
-    lightPosition = glm::vec3(5, 5 * 1.25, 5);
+    lightPosition = glm::vec3(-46, 10.0, 5);
 
     renderData.gpu_textures = gpu_textures;
 
@@ -89,7 +90,7 @@ void application::run()
     camera.front = glm::vec3(0.0, 0.0, -1.0);
     camera.up = glm::vec3(0.0f, 1.0f, 0.0f);
     camera.right = glm::normalize(glm::cross(camera.up, camera.front));
-    camera.speed = 10.0f;
+    camera.speed = 5.0f;
     camera.view = glm::lookAt(camera.position, camera.position + camera.front, camera.up);
 
     lastMousePos = glm::vec2(0.0f);
@@ -101,6 +102,8 @@ void application::run()
     SetupShadowMapPass(&renderData, shadow_width, shadow_height);
 
     SetupSSAOPass(&renderData);
+
+    SetupGBuffers(&renderData);
     
     // SetupBRDFLUT(&renderData);
 
@@ -109,6 +112,8 @@ void application::run()
     {
         window->handle_input();
         // state.audio.update();
+
+        std::cout << lightPosition.x << " " << lightPosition.y << std::endl;
 
         f64 current_time = window->get_time();
         f64 dt = current_time - previous_time;
@@ -119,7 +124,7 @@ void application::run()
 
 
         glm::mat4 model = glm::mat4(1.0f);
-        model = glm::scale(model, glm::vec3(1.0f));
+        model = glm::scale(model, glm::vec3(0.01f));
 
         camera.view = glm::lookAt(camera.position, camera.position + camera.front, camera.up);
 
@@ -132,7 +137,8 @@ void application::run()
         RenderSSAOPass(&renderData, camera);
         //
         // //RenderEnvironmentMap(&renderData, camera);
-        RenderScene(&renderData, batchMeshRenderData, model, camera, lightPosition);
+        // RenderScene(&renderData, batchMeshRenderData, model, camera, lightPosition);
+        RenderDeferredScene(&renderData, batchMeshRenderData, model, camera, lightPosition);
 
         window->swap_buffers();
     }
@@ -157,9 +163,9 @@ void application::update(f32 dt)
     else if (input::is_key_down(key::DOWN))
         lightPosition.x -= 1.0f;
     else if (input::is_key_down(key::RIGHT))
-        lightPosition.y += 1.0f;
+        lightPosition.z += 1.0f;
     else if (input::is_key_down(key::LEFT))
-        lightPosition.y -= 1.0f;
+        lightPosition.z -= 1.0f;
     else if (input::is_key_down(key::p))
         return;
     else if (input::is_key_down(key::r))

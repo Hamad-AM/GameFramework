@@ -49,6 +49,7 @@
 
             // Use the infoLog as you see fit.
             std::cout << "Vertex shader compilation failure!" << std::endl;
+            std::cout << vs << std::endl;
             std::cout << (const char*)infoLog.data() << std::endl;
 
             // In this simple program, we'll just leave
@@ -83,6 +84,7 @@
 
             // Use the infoLog as you see fit.
             std::cout << "Fragment shader compilation failure!" << std::endl;
+            std::cout << fs << std::endl;
             std::cout << (const char*)infoLog.data() << std::endl;
 
             // In this simple program, we'll just leave

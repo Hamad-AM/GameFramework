@@ -25,3 +25,15 @@
 [submodule "libraries/tinygltf"]
 	path = libraries/tinygltf
 	url = https://github.com/syoyo/tinygltf.git
+[submodule "libraries/DirectXTex"]
+	path = libraries/DirectXTex
+	url = https://github.com/microsoft/DirectXTex.git
+[submodule "libraries/KTX-Software"]
+	path = libraries/KTX-Software
+	url = https://github.com/KhronosGroup/KTX-Software.git
+[submodule "libraries/gli"]
+	path = libraries/gli
+	url = https://github.com/g-truc/gli.git
+[submodule "libraries/fpng"]
+	path = libraries/fpng
+	url = https://github.com/richgel999/fpng.git

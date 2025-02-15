@@ -2,53 +2,57 @@
 
 out vec4 FragColor;
 
-uniform vec3 lightPosition;
-uniform vec3 cameraPosition;
+in vec2 TexCoords;
+
+in vec4 FragPosLightSpace;
+
+uniform sampler2D gAlbedo;
+uniform sampler2D gNormal;
+uniform sampler2D gPosition;
+uniform sampler2D gMetallicRoughness;
 
 uniform sampler2D shadowMap;
 uniform sampler2D ssao;
-uniform sampler2D albedo;
-uniform sampler2D normalMap;
-uniform sampler2D metallicRoughness;
 
 uniform samplerCube irradianceMap;
 uniform samplerCube prefilterMap;
 uniform sampler2D   brdfLUT;
 
-in vec4 v_Normal;
-in vec4 v_WorldPos;
-in vec4 v_ViewVec;
-in vec2 v_TexCoords;
-in vec4 v_FragPosLightSpace;
-in vec4 v_FragPosScreenSpace;
+uniform vec3 viewPos;
+
+//
+// enum LightType
+// {
+//     None,
+//     Directional,
+//     Point,
+//     Spotlight,
+//     Area
+// };
+//
+// struct Light
+// {
+//     LightType type;
+//     
+//     vec3 position;
+//     vec3 direction;
+//
+//     vec3 color;
+//     f32 luminance ;
+//
+//     f32 constant;
+//     f32 linear;
+//     f32 quadratic;
+//
+//     float cutOff;
+// };
+
+
+
+uniform vec3 lightPosition;
+uniform mat4 lightSpaceMatrix;
 
 const float PI = 3.14159265359;
-
-
-mat3 cotangent_frame( vec3 N, vec3 p, vec2 uv ) { // get edge vectors of the pixel triangle
-    vec3 dp1 = dFdx( p );
-    vec3 dp2 = dFdy( p );
-    vec2 duv1 = dFdx( uv );
-    vec2 duv2 = dFdy( uv );
-    // solve the linear system 
-    vec3 dp2perp = cross( dp2, N );
-    vec3 dp1perp = cross( N, dp1 );
-    vec3 T = dp2perp * duv1.x + dp1perp * duv2.x;
-    vec3 B = dp2perp * duv1.y + dp1perp * duv2.y;
-    // construct a scale-invariant frame
-    float invmax = inversesqrt( max( dot(T,T), dot(B,B) ) );
-    return mat3( T * invmax, B * invmax, N );
-}
-
-vec3 perturb_normal( vec3 N, vec3 V, vec2 texcoord )
-{
-    // assume N, the interpolated vertex normal and 
-    // V, the view vector (vertex to eye)
-    vec3 map = texture(normalMap, texcoord ).xyz;
-    map = map * 255./127. - 128./127.;
-    mat3 TBN = cotangent_frame(N, -V, texcoord);
-    return normalize(TBN * map);
-}
 
 float DistributionGGX(vec3 N, vec3 H, float roughness)
 {
@@ -101,21 +105,23 @@ float shadow_calculation(vec4 fragPosLightSpace, vec3 normal, vec3 lightDir)
     // Change range to [0, 1] to sample depthMap
     projCoords = projCoords * 0.5 + 0.5;
     float currentDepth = projCoords.z;
-    float bias = 0.005;
+    // float bias = 0.005;
     // float bias = max(0.05 * (1.0 - dot(normal, lightDir)), 0.005);
+    float slope = length(vec2(dFdx(currentDepth), dFdy(currentDepth)));
+    float bias = 0.005 * slope;
     float shadow = 0.0f;
     if (projCoords.z <= 1.0)
     {
         vec2 texelSize = 1.0 / textureSize(shadowMap, 0);
-        for (int x = -1; x <= 1; ++x)
+        for (int x = -2; x <= 2; ++x)
         {
-            for (int y = -1; y <= 1; ++y)
+            for (int y = -2; y <= 2; ++y)
             {
                 float pcfDepth = texture(shadowMap, projCoords.xy + vec2(x, y) * texelSize).r;
                 shadow += currentDepth - bias > pcfDepth ? 1.0 : 0.0;
             }
         }
-        shadow /= 9.0f;
+        shadow /= 25.0f;
     }
     return shadow;
 }
@@ -137,36 +143,37 @@ vec3 Reinhard(vec3 color)
 
 void main()
 {
-    float alpha = texture(albedo, v_TexCoords).a;
-    //TODO(): FIx this 
-    vec3 albedoColor = pow(texture(albedo, v_TexCoords).rgb, vec3(2.2));
-    // if (alpha < 0.1) discard;
-    vec4 metallicRoughnessValues = texture(metallicRoughness, v_TexCoords);
-    float metallic = metallicRoughnessValues.b;
-    float roughness = metallicRoughnessValues.g;
-    // float metallic = clamp((metallicRoughnessValues.g - 0.04) / (1.0-0.04), 0.0, 1.0);
-    // float roughness = 1.0 - metallicRoughnessValues.b;
+    float alpha = texture(gAlbedo, TexCoords).a;
+    vec3 albedoColor = pow(texture(gAlbedo, TexCoords).rgb, vec3(2.2));
+    if (alpha < 0.1) discard;
+    vec4 metallicRoughnessValues = texture(gMetallicRoughness, TexCoords);
+    // float metallic = metallicRoughnessValues.b;
+    // float roughness = metallicRoughnessValues.g;
+    float metallic = clamp((metallicRoughnessValues.g - 0.04) / (1.0-0.04), 0.0, 1.0);
+    float roughness = 1.0 - metallicRoughnessValues.b;
 
-    vec3 ndcPos = v_FragPosScreenSpace.xyz / v_FragPosScreenSpace.w;
-    vec2 screenSpaceCoords = ndcPos.xy * 0.5 + 0.5;  // Map to range [0, 1]
-    float ao = texture(ssao, screenSpaceCoords).r;
+    vec3 FragPos = texture(gPosition, TexCoords).rgb;
 
-    vec3 N = normalize(v_Normal.xyz);
-    vec3 V = normalize(cameraPosition - v_WorldPos.xyz);
-    vec3 PN = perturb_normal(N, V, v_TexCoords);
+    // vec3 ndcPos = v_FragPosScreenSpace.xyz / v_FragPosScreenSpace.w;
+    // vec2 screenSpaceCoords = ndcPos.xy * 0.5 + 0.5;  // Map to range [0, 1]
+    // float ao = texture(ssao, screenSpaceCoords).r;
+    float ao = texture(ssao, TexCoords).r;
+
+    vec3 V = normalize(viewPos - FragPos.xyz);
+    vec3 N = texture(gNormal, TexCoords).xyz;
     vec3 R = reflect(-V, N);
 
     vec3 F0 = vec3(0.04);
     F0 = mix(F0, albedoColor.xyz, metallic);
 
-    vec3 ShadowCastDirection = normalize(lightPosition - v_WorldPos.xyz);
+    vec3 ShadowCastDirection = normalize(lightPosition - FragPos.xyz);
 
     // reflectance equation
     vec3 Lo = vec3(0.0);
     // for(int i = 0; i < 4; ++i)
     {
         // calculate per-light radiance
-        vec3 L = normalize(lightPosition - v_WorldPos.xyz);
+        vec3 L = normalize(lightPosition - FragPos.xyz);
         vec3 H = normalize(V + L);
         // Calculate Attentuation for directional light no attenuation
         // float distance    = length(lightPosition - v_WorldPos.xyz);
@@ -175,8 +182,8 @@ void main()
         vec3 radiance = vec3(10.0f);
 
         // cook-torrance brdf
-        float NDF = DistributionGGX(PN, H, roughness);
-        float G   = GeometrySmith(PN, V, L, roughness);
+        float NDF = DistributionGGX(N, H, roughness);
+        float G   = GeometrySmith(N, V, L, roughness);
         vec3 F    = fresnelSchlick(max(dot(H, V), 0.0), F0);
 
         vec3 kS = F;
@@ -184,36 +191,37 @@ void main()
         kD *= 1.0 - metallic;
 
         vec3 numerator    = NDF * G * F;
-        float denominator = 4.0 * max(dot(PN, V), 0.0) * max(dot(PN, L), 0.0) + 0.0001;
+        float denominator = 4.0 * max(dot(N, V), 0.0) * max(dot(N, L), 0.0) + 0.0001;
         vec3 specular     = numerator / denominator;
 
         // add to outgoing radiance Lo
-        float NdotL = max(dot(PN, L), 0.0);
+        float NdotL = max(dot(N, L), 0.0);
         Lo += (kD * albedoColor.xyz / PI + specular) * radiance * NdotL;
     }
 
-    vec3 F = fresnelSchlickRoughness(max(dot(PN, V), 0.0), F0, roughness);
+    vec3 F = fresnelSchlickRoughness(max(dot(N, V), 0.0), F0, roughness);
     vec3 kS = F;
     vec3 kD = 1.0 - kS;
     kD *= 1.0 - metallic;
-    vec3 irradiance = texture(irradianceMap, PN).rgb;
+    vec3 irradiance = texture(irradianceMap, N).rgb;
     vec3 diffuse    = irradiance * albedoColor.xyz;
 
     const float MAX_REFLECTION_LOD = 4.0;
     vec3 prefilteredColor = textureLod(prefilterMap, R,  roughness * MAX_REFLECTION_LOD).rgb;    
-    vec2 brdf  = texture(brdfLUT, vec2(max(dot(PN, V), 0.0), roughness)).rg;
+    vec2 brdf  = texture(brdfLUT, vec2(max(dot(N, V), 0.0), roughness)).rg;
     vec3 specular = prefilteredColor * (F * brdf.x + brdf.y);
 
     vec3 ambient = (kD * diffuse + specular) * 0.25;
 
-    float shadow = shadow_calculation(v_FragPosLightSpace, PN, ShadowCastDirection);
+    vec4 fragPosLightSpace = lightSpaceMatrix * vec4(FragPos, 1.0f);
+    float shadow = shadow_calculation(fragPosLightSpace, N, ShadowCastDirection);
     vec3 color = (ambient + (1 - shadow) * Lo * ao);
     // color = color * 0.00000000000001;
     // color += vec3(0.0, 0.0, 0.0); //albedoColor.xyz;
 
     // // HDR Calculations
     // color = color / (color + vec3(1.0));
-    // // color = ACESFilm(color);
+    color = ACESFilm(color);
     // // color = pow(color, vec3(0.4545f));
     color = pow(color, vec3(1.0f/2.2f));
 

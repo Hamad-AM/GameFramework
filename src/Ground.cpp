@@ -7,7 +7,7 @@ namespace atl
     {
         set_position({640, 50});
 
-        texture_param ground_param{ texture_wrap::REPEAT, texture_filter::NEAREST_NEIGHBOR, texture_type::DIFFUSE, 0, texture_format::RGBA, texture_format::RGBA };
+        texture_param ground_param{ texture_wrap::REPEAT, texture_filter::NEAREST_NEIGHBOR, TextureType::ALBEDO, 0, texture_format::RGBA, texture_format::RGBA };
 
         sprite s;
         s.texture.create("../assets/textures/container2.png", ground_param);

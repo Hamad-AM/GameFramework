@@ -41,7 +41,7 @@
             }
 
             texture2d texture;
-            texture_param param = { texture_wrap::CLAMP_TO_EDGE, texture_filter::BILINEAR, texture_type::DIFFUSE, 0, texture_format::RED, texture_format::RED };
+            texture_param param = { texture_wrap::CLAMP_TO_EDGE, texture_filter::BILINEAR, TextureType::ALBEDO, 0, texture_format::RED, texture_format::RED };
             texture.submit_render(param, _face->glyph->bitmap.buffer, _face->glyph->bitmap.width, _face->glyph->bitmap.rows);
 
             chars.size = ivec2(_face->glyph->bitmap.width, _face->glyph->bitmap.rows);

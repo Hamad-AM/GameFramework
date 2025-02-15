@@ -24,8 +24,7 @@
 
 struct GameState
 {
-    MemoryArena assetArena;
-    AssetSystem assets;
+    
 };
 
 class application
@@ -59,11 +58,12 @@ private:
     Camera3D camera;
 
     glm::vec3 lightPosition;
-    std::unordered_map<s32, u32> gpu_textures;
+    std::unordered_map<std::string, u32> gpu_textures;
     std::vector<MeshRenderData> batchMeshRenderData;
     f32 current_position;
     glm::vec2 lastMousePos;
     f32 pitch = 0;
     f32 yaw = 0;
 
+    AssetSystem assets;
 };

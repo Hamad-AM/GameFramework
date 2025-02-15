@@ -38,11 +38,12 @@ struct Mesh
     std::vector<glm::vec3> positions;
     std::vector<glm::vec3> normals;
     std::vector<glm::vec2> uvs;
+    std::vector<glm::vec3> tangents;
     std::vector<u32> indices;
-    s32 albedo;
-    s32 metallicRoughness;
-    s32 normalMap;
-    s32 ao;
+    std::string albedo;
+    std::string metallicRoughness;
+    std::string normalMap;
+    std::string ao;
     std::string name;
 };
 struct Model
@@ -104,14 +105,32 @@ struct EnvironmentMapPass
     Shader backgroundShader;
 };
 
-struct RenderData
+struct DeferredPass
+{
+    GLuint gBuffer;
+    GLuint gAlbedo;
+    GLuint gMetallicRoughness;
+    GLuint gNormal;
+    GLuint gPosition;
+    GLuint rboDepth;
+
+    Shader gBufferShader;
+    Shader lightingPass;
+};
+
+struct ForwardPass
 {
     Shader pbrShader;
+};
+
+struct RenderData
+{
 
     Shader depthNormalShader;
     Shader textureToScreen;
+    Shader UnlitShader;
 
-    std::unordered_map<s32, u32> gpu_textures;
+    std::unordered_map<std::string, u32> gpu_textures;
     u32 render_width;
     u32 render_height;
 
@@ -121,8 +140,38 @@ struct RenderData
     AmbientOcclusionPass SSAOPass;
     EnvironmentMapPass environmentMapPass;
 
+    DeferredPass deferredPass;
+    ForwardPass forwardPass;
+
     GLuint quadVAO = 0;
     GLuint cubeVAO = 0;
+};
+
+
+enum LightType
+{
+    None,
+    Directional,
+    Point,
+    Spotlight,
+    Area
+};
+
+struct Light
+{
+    LightType type;
+    
+    vec3 position;
+    vec3 direction;
+
+    vec3 color;
+    f32 luminance ;
+
+    f32 constant;
+    f32 linear;
+    f32 quadratic;
+
+    float cutOff;
 };
 
 
@@ -144,6 +193,9 @@ void RenderSSAOPass(RenderData* renderData, Camera3D& camera);
 void RenderShadowMapPass(RenderData* renderData, std::vector<MeshRenderData>& meshRenderData, glm::mat4 model, glm::vec3 lightPosition);
 void RenderScene(RenderData* renderData, std::vector<MeshRenderData>& meshRenderData, glm::mat4 model, Camera3D& camera, glm::vec3 lightPosition);
 void RenderEnvironmentMap(RenderData* renderData, Camera3D& camera);
+
+void SetupGBuffers(RenderData* renderData);
+void RenderDeferredScene(RenderData* renderData, std::vector<MeshRenderData>& meshRenderData, glm::mat4 model, Camera3D& camera, glm::vec3& lightPosition);
 
 u32 LoadSkyBoxTexture(const char* filePath);
 

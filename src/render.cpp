@@ -7,7 +7,7 @@
 #include <glad/glad.h>
 
 void CompileShaders(RenderData* renderData) {
-    renderData->pbrShader.compile("assets/shaders/Base.vs", "assets/shaders/Base.fs");
+    renderData->forwardPass.pbrShader.compile("assets/shaders/Base.vs", "assets/shaders/Base.fs");
     
     renderData->textureToScreen.compile("assets/shaders/textureToScreen.vs", "assets/shaders/textureToScreen.fs");
 
@@ -22,7 +22,13 @@ void CompileShaders(RenderData* renderData) {
     renderData->environmentMapPass.irradianceShader.compile("assets/shaders/IrradianceConvolution.vs", "assets/shaders/IrradianceConvolution.fs");
     renderData->environmentMapPass.prefilterShader.compile("assets/shaders/IrradianceConvolution.vs", "assets/shaders/Prefilter.fs");
     renderData->environmentMapPass.brdfShader.compile("assets/shaders/BrdfShader.vs", "assets/shaders/BrdfShader.fs");
-    
+
+
+    renderData->deferredPass.gBufferShader.compile("assets/shaders/GBuffer.vs", "assets/shaders/GBuffer.fs");
+    renderData->deferredPass.lightingPass.compile("assets/shaders/LightingPass.vs", "assets/shaders/LightingPass.fs");
+
+
+    renderData->UnlitShader.compile("assets/shaders/UnlitShader.vs", "assets/shaders/UnlitShader.fs");
 }
 
 void RenderSetupParameters(RenderData* renderData, u32 render_width, u32 render_height)
@@ -43,6 +49,143 @@ void RenderSetupParameters(RenderData* renderData, u32 render_width, u32 render_
     renderData->render_height = render_height;
 }
 
+void SetupGBuffers(RenderData* renderData)
+{
+    DeferredPass& pass = renderData->deferredPass;
+    glGenFramebuffers(1, &pass.gBuffer);
+    glBindFramebuffer(GL_FRAMEBUFFER, pass.gBuffer);
+
+    // - position color buffer
+    glGenTextures(1, &pass.gPosition);
+    glBindTexture(GL_TEXTURE_2D, pass.gPosition);
+    glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA16F, renderData->render_width, renderData->render_height, 0, GL_RGBA, GL_FLOAT, NULL);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
+    glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D, pass.gPosition, 0);
+
+    // - normal color buffer
+    glGenTextures(1, &pass.gNormal);
+    glBindTexture(GL_TEXTURE_2D, pass.gNormal);
+    glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA16F, renderData->render_width, renderData->render_height, 0, GL_RGBA, GL_FLOAT, NULL);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
+    glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT1, GL_TEXTURE_2D, pass.gNormal, 0);
+
+    // - color buffer
+    glGenTextures(1, &pass.gAlbedo);
+    glBindTexture(GL_TEXTURE_2D, pass.gAlbedo);
+    glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, renderData->render_width, renderData->render_height, 0, GL_RGBA, GL_UNSIGNED_BYTE, NULL);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
+    glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT2, GL_TEXTURE_2D, pass.gAlbedo, 0);
+
+    glGenTextures(1, &pass.gMetallicRoughness);
+    glBindTexture(GL_TEXTURE_2D, pass.gMetallicRoughness);
+    glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, renderData->render_width, renderData->render_height, 0, GL_RGBA, GL_UNSIGNED_BYTE, NULL);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
+    glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT3, GL_TEXTURE_2D, pass.gMetallicRoughness, 0);
+
+    // - tell OpenGL which color attachments we'll use (of this framebuffer) for rendering 
+    unsigned int attachments[4] = { GL_COLOR_ATTACHMENT0, GL_COLOR_ATTACHMENT1, GL_COLOR_ATTACHMENT2, GL_COLOR_ATTACHMENT3};
+    glDrawBuffers(4, attachments);
+
+    glGenRenderbuffers(1, &pass.rboDepth);
+    glBindRenderbuffer(GL_RENDERBUFFER, pass.rboDepth);
+    glRenderbufferStorage(GL_RENDERBUFFER, GL_DEPTH_COMPONENT, renderData->render_width, renderData->render_height);
+    glFramebufferRenderbuffer(GL_FRAMEBUFFER, GL_DEPTH_ATTACHMENT, GL_RENDERBUFFER, pass.rboDepth);
+    // finally check if framebuffer is complete
+    if (glCheckFramebufferStatus(GL_FRAMEBUFFER) != GL_FRAMEBUFFER_COMPLETE)
+        std::cout << "Framebuffer not complete!" << std::endl;
+    glBindFramebuffer(GL_FRAMEBUFFER, 0);
+}
+
+void RenderDeferredScene(RenderData* renderData, std::vector<MeshRenderData>& meshRenderData, glm::mat4 model, Camera3D& camera, glm::vec3& lightPosition)
+{
+    DeferredPass& pass = renderData->deferredPass;
+    glClearColor(0.0f, 0.0f, 0.0f, 1.0);
+    glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
+
+    glBindFramebuffer(GL_FRAMEBUFFER, pass.gBuffer);
+    glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
+    pass.gBufferShader.bind();
+    pass.gBufferShader.uniform_matrix4("projection", camera.projection);
+    pass.gBufferShader.uniform_matrix4("view", camera.view);
+    pass.gBufferShader.uniform_matrix4("model", model);
+    for (u32 i = 0; i < meshRenderData.size(); ++i)
+    {
+        glActiveTexture(GL_TEXTURE0);
+        glBindTexture(GL_TEXTURE_2D, meshRenderData[i].albedoID);
+        pass.gBufferShader.uniform_int("albedo", 0);
+        glActiveTexture(GL_TEXTURE1);
+        glBindTexture(GL_TEXTURE_2D, meshRenderData[i].normalMapID);
+        pass.gBufferShader.uniform_int("normalMap", 1);
+        glActiveTexture(GL_TEXTURE2);
+        glBindTexture(GL_TEXTURE_2D, meshRenderData[i].metallicRoughnessID);
+        pass.gBufferShader.uniform_int("metallicRoughness", 2);
+
+        glBindVertexArray(meshRenderData[i].VAO);
+        glDrawElements(GL_TRIANGLES, meshRenderData[i].numberOfIndices, GL_UNSIGNED_INT, (void*)(0 * sizeof(u32)));
+    }
+    glBindFramebuffer(GL_FRAMEBUFFER, 0);
+
+    glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
+    pass.lightingPass.bind();
+    glActiveTexture(GL_TEXTURE0);
+    glBindTexture(GL_TEXTURE_2D, pass.gPosition);
+    pass.lightingPass.uniform_int("gPosition", 0);
+    glActiveTexture(GL_TEXTURE1);
+    glBindTexture(GL_TEXTURE_2D, pass.gNormal);
+    pass.lightingPass.uniform_int("gNormal", 1);
+    glActiveTexture(GL_TEXTURE2);
+    glBindTexture(GL_TEXTURE_2D, pass.gAlbedo);
+    pass.lightingPass.uniform_int("gAlbedo", 2);
+    glActiveTexture(GL_TEXTURE3);
+    glBindTexture(GL_TEXTURE_2D, pass.gMetallicRoughness);
+    pass.lightingPass.uniform_int("gMetallicRoughness", 3);
+
+    glActiveTexture(GL_TEXTURE4);
+    glBindTexture(GL_TEXTURE_2D, renderData->shadowPass.depthMap);
+    pass.lightingPass.uniform_int("shadowMap", 4);
+    glActiveTexture(GL_TEXTURE5);
+    glBindTexture(GL_TEXTURE_2D, renderData->SSAOPass.ssaoColorBufferBlur);
+    pass.lightingPass.uniform_int("ssao", 5);
+    glActiveTexture(GL_TEXTURE6);
+    glBindTexture(GL_TEXTURE_CUBE_MAP, renderData->environmentMapPass.irradianceMap);
+    pass.lightingPass.uniform_int("irradianceMap", 6);
+    glActiveTexture(GL_TEXTURE7);
+    glBindTexture(GL_TEXTURE_CUBE_MAP, renderData->environmentMapPass.prefilterMap);
+    pass.lightingPass.uniform_int("prefilterMap", 7);
+    glActiveTexture(GL_TEXTURE8);
+    glBindTexture(GL_TEXTURE_2D, renderData->environmentMapPass.brdfLUTTexture);
+    pass.lightingPass.uniform_int("brdfLUT", 8);
+    pass.lightingPass.uniform_vector3f("lightPosition", lightPosition);
+    pass.lightingPass.uniform_matrix4("lightSpaceMatrix", renderData->shadowPass.lightSpaceMatrix);
+    pass.lightingPass.uniform_vector3f("viewPos", camera.position);
+
+    RenderQuad(renderData);
+
+    glBindFramebuffer(GL_READ_FRAMEBUFFER, pass.gBuffer);
+    glBindFramebuffer(GL_DRAW_FRAMEBUFFER, 0); // write to default framebuffer
+    // blit to default framebuffer. Note that this may or may not work as the internal formats of both the FBO and default framebuffer have to match.
+    // the internal formats are implementation defined. This works on all of my systems, but if it doesn't on yours you'll likely have to write to the 		
+    // depth buffer in another shader stage (or somehow see to match the default framebuffer's internal format with the FBO's internal format).
+    glBlitFramebuffer(0, 0, renderData->render_width, renderData->render_height, 0, 0, renderData->render_width, renderData->render_height, GL_DEPTH_BUFFER_BIT, GL_NEAREST);
+    glBindFramebuffer(GL_FRAMEBUFFER, 0);
+
+    renderData->UnlitShader.bind();
+    renderData->UnlitShader.uniform_matrix4("projection", camera.projection);
+    renderData->UnlitShader.uniform_matrix4("view", camera.view);
+    glm::mat4 lightModel(1.0f);
+    lightModel = glm::scale(lightModel, glm::vec3(0.5f));
+    lightModel = glm::translate(lightModel, lightPosition);
+    glm::vec3 lightColor = glm::vec3(0.9f, 0.78f, 0.47f);
+    renderData->UnlitShader.uniform_matrix4("model", lightModel);
+    renderData->UnlitShader.uniform_vector3f("lightColor", lightColor);
+    RenderCube(renderData);
+
+    RenderEnvironmentMap(renderData, camera);
+}
 
 void SetupShadowMapPass(RenderData* renderData, u32 shadow_width, u32 shadow_height)
 {
@@ -171,7 +314,7 @@ void SetupSSAOPass(RenderData* renderData)
 
 void SetupEnvironmentCubeMap(RenderData* renderData)
 {
-    u32 hdrTexture = LoadSkyBoxTexture("assets/hdr/san_giuseppe_bridge_4k.hdr");
+    u32 hdrTexture = LoadSkyBoxTexture("assets/hdr/clarens_midday_4k.hdr");
 
     EnvironmentMapPass& pass = renderData->environmentMapPass;
 
@@ -485,12 +628,12 @@ void RenderShadowMapPass(RenderData* renderData, std::vector<MeshRenderData>& me
     //glCullFace(GL_FRONT);
     
     glViewport(0, 0, pass.width, pass.height);
-    //glCullFace(GL_FRONT);
+    glCullFace(GL_FRONT);
     glBindFramebuffer(GL_FRAMEBUFFER, pass.depthMapFBO);
     glClear(GL_DEPTH_BUFFER_BIT);
     pass.depthShader.bind();
     float near_plane = 0.1f, far_plane = 500.0f;
-    glm::mat4 lightProjection = glm::ortho(-50.0f, 50.0f, -50.0f, 50.0f, near_plane, far_plane);
+    glm::mat4 lightProjection = glm::ortho(-10.0f, 10.0f, -10.0f, 10.0f, near_plane, far_plane);
     glm::mat4 lightView = glm::lookAt(lightPosition,
         glm::vec3(0.0f, 0.0f, 0.0f),
         glm::vec3(0.0f, 1.0f, 0.0f));
@@ -513,34 +656,34 @@ void RenderScene(RenderData* renderData, std::vector<MeshRenderData>& meshRender
 
     glViewport(0, 0, renderData->render_width, renderData->render_height);
 
-    glClearColor(0.2f, 0.3f, 0.3f, 1.0f);
+    glClearColor(0.0f, 0.0f, 0.0f, 1.0f);
     glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
 
     RenderEnvironmentMap(renderData, camera);
 
-    renderData->pbrShader.bind();
+    renderData->forwardPass.pbrShader.bind();
     glActiveTexture(GL_TEXTURE0);
     glBindTexture(GL_TEXTURE_2D, renderData->shadowPass.depthMap);
-    renderData->pbrShader.uniform_int("shadowMap", 0);
+    renderData->forwardPass.pbrShader.uniform_int("shadowMap", 0);
     glActiveTexture(GL_TEXTURE1);
     glBindTexture(GL_TEXTURE_2D, renderData->SSAOPass.ssaoColorBufferBlur);
-    renderData->pbrShader.uniform_int("ssao", 1);
+    renderData->forwardPass.pbrShader.uniform_int("ssao", 1);
     glActiveTexture(GL_TEXTURE2);
     glBindTexture(GL_TEXTURE_CUBE_MAP, renderData->environmentMapPass.irradianceMap);
-    renderData->pbrShader.uniform_int("irradianceMap", 2);
+    renderData->forwardPass.pbrShader.uniform_int("irradianceMap", 2);
     glActiveTexture(GL_TEXTURE3);
     glBindTexture(GL_TEXTURE_CUBE_MAP, renderData->environmentMapPass.prefilterMap);
-    renderData->pbrShader.uniform_int("prefilterMap", 3);
+    renderData->forwardPass.pbrShader.uniform_int("prefilterMap", 3);
     glActiveTexture(GL_TEXTURE4);
     glBindTexture(GL_TEXTURE_2D, renderData->environmentMapPass.brdfLUTTexture);
-    renderData->pbrShader.uniform_int("brdfLUT", 4);
-    renderData->pbrShader.uniform_matrix4("lightSpaceMatrix", renderData->shadowPass.lightSpaceMatrix);
+    renderData->forwardPass.pbrShader.uniform_int("brdfLUT", 4);
+    renderData->forwardPass.pbrShader.uniform_matrix4("lightSpaceMatrix", renderData->shadowPass.lightSpaceMatrix);
+    renderData->forwardPass.pbrShader.uniform_vector3f("lightPosition", lightPosition);
+    renderData->forwardPass.pbrShader.uniform_vector3f("cameraPosition", camera.position);
 
-    renderData->pbrShader.uniform_matrix4("model", model);
-    renderData->pbrShader.uniform_matrix4("view", camera.view);
-    renderData->pbrShader.uniform_matrix4("projection", camera.projection);
-    renderData->pbrShader.uniform_vector3f("lightPosition", lightPosition);
-    renderData->pbrShader.uniform_vector3f("cameraPosition", camera.position);
+    renderData->forwardPass.pbrShader.uniform_matrix4("model", model);
+    renderData->forwardPass.pbrShader.uniform_matrix4("view", camera.view);
+    renderData->forwardPass.pbrShader.uniform_matrix4("projection", camera.projection);
 
     for (u32 i = 0; i < meshRenderData.size(); ++i)
     {
@@ -550,13 +693,13 @@ void RenderScene(RenderData* renderData, std::vector<MeshRenderData>& meshRender
         //}
         glActiveTexture(GL_TEXTURE5);
         glBindTexture(GL_TEXTURE_2D, meshRenderData[i].albedoID);
-        renderData->pbrShader.uniform_int("albedo", 5);
+        renderData->forwardPass.pbrShader.uniform_int("albedo", 5);
         glActiveTexture(GL_TEXTURE6);
         glBindTexture(GL_TEXTURE_2D, meshRenderData[i].normalMapID);
-        renderData->pbrShader.uniform_int("normalMap", 6);
+        renderData->forwardPass.pbrShader.uniform_int("normalMap", 6);
         glActiveTexture(GL_TEXTURE7);
         glBindTexture(GL_TEXTURE_2D, meshRenderData[i].metallicRoughnessID);
-        renderData->pbrShader.uniform_int("metallicRoughness", 7);
+        renderData->forwardPass.pbrShader.uniform_int("metallicRoughness", 7);
 
         glBindVertexArray(meshRenderData[i].VAO);
         glDrawElements(GL_TRIANGLES, meshRenderData[i].numberOfIndices, GL_UNSIGNED_INT, (void*)(0 * sizeof(u32)));
@@ -573,7 +716,7 @@ void RenderEnvironmentMap(RenderData* renderData, Camera3D& camera)
     pass.backgroundShader.uniform_matrix4("view", camera.view);
     pass.backgroundShader.uniform_matrix4("projection", camera.projection);
     glActiveTexture(GL_TEXTURE0);
-    glBindTexture(GL_TEXTURE_CUBE_MAP, pass.envCubemap);
+    glBindTexture(GL_TEXTURE_CUBE_MAP, pass.irradianceMap);
     RenderCube(renderData);
     // glEnable(GL_DEPTH_TEST);
     glCullFace(GL_BACK);
