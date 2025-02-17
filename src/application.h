@@ -24,7 +24,9 @@
 
 struct GameState
 {
-    
+#define MAX_LIGHTS 10
+    Light lights[MAX_LIGHTS];
+    u32 numberOfLights{ 0 };
 };
 
 class application

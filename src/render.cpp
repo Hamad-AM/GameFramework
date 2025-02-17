@@ -100,7 +100,7 @@ void SetupGBuffers(RenderData* renderData)
     glBindFramebuffer(GL_FRAMEBUFFER, 0);
 }
 
-void RenderDeferredScene(RenderData* renderData, std::vector<MeshRenderData>& meshRenderData, glm::mat4 model, Camera3D& camera, glm::vec3& lightPosition)
+void RenderDeferredScene(RenderData* renderData, std::vector<MeshRenderData>& meshRenderData, glm::mat4 model, Camera3D& camera)
 {
     DeferredPass& pass = renderData->deferredPass;
     glClearColor(0.0f, 0.0f, 0.0f, 1.0);
@@ -108,6 +108,9 @@ void RenderDeferredScene(RenderData* renderData, std::vector<MeshRenderData>& me
 
     glBindFramebuffer(GL_FRAMEBUFFER, pass.gBuffer);
     glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
+
+    glBindBufferBase(GL_SHADER_STORAGE_BUFFER, 0, renderData->lightShaderStorageObject);
+
     pass.gBufferShader.bind();
     pass.gBufferShader.uniform_matrix4("projection", camera.projection);
     pass.gBufferShader.uniform_matrix4("view", camera.view);
@@ -159,7 +162,6 @@ void RenderDeferredScene(RenderData* renderData, std::vector<MeshRenderData>& me
     glActiveTexture(GL_TEXTURE8);
     glBindTexture(GL_TEXTURE_2D, renderData->environmentMapPass.brdfLUTTexture);
     pass.lightingPass.uniform_int("brdfLUT", 8);
-    pass.lightingPass.uniform_vector3f("lightPosition", lightPosition);
     pass.lightingPass.uniform_matrix4("lightSpaceMatrix", renderData->shadowPass.lightSpaceMatrix);
     pass.lightingPass.uniform_vector3f("viewPos", camera.position);
 
@@ -176,18 +178,22 @@ void RenderDeferredScene(RenderData* renderData, std::vector<MeshRenderData>& me
     renderData->UnlitShader.bind();
     renderData->UnlitShader.uniform_matrix4("projection", camera.projection);
     renderData->UnlitShader.uniform_matrix4("view", camera.view);
-    glm::mat4 lightModel(1.0f);
-    lightModel = glm::scale(lightModel, glm::vec3(0.5f));
-    lightModel = glm::translate(lightModel, lightPosition);
-    glm::vec3 lightColor = glm::vec3(0.9f, 0.78f, 0.47f);
-    renderData->UnlitShader.uniform_matrix4("model", lightModel);
-    renderData->UnlitShader.uniform_vector3f("lightColor", lightColor);
-    RenderCube(renderData);
+    for (s32 i = 0; i < renderData->numLights; ++i)
+    {
+        glm::mat4 lightModel(1.0f);
+        lightModel = glm::scale(lightModel, glm::vec3(0.1f));
+        lightModel = glm::translate(lightModel, renderData->lights[i].position);
+        glm::vec3 lightColor = glm::vec3(0.9f, 0.78f, 0.47f);
+        renderData->UnlitShader.uniform_matrix4("model", lightModel);
+        renderData->UnlitShader.uniform_vector3f("lightColor", renderData->lights[i].color);
+        RenderCube(renderData);
+    }
 
     RenderEnvironmentMap(renderData, camera);
+    glBindBuffer(GL_SHADER_STORAGE_BUFFER, 0);
 }
 
-void SetupShadowMapPass(RenderData* renderData, u32 shadow_width, u32 shadow_height)
+void SetupShadowMapPass(RenderData* renderData, Light* lights, u32 numLights, u32 shadow_width, u32 shadow_height)
 {
     ShadowPass& pass = renderData->shadowPass;
     pass.width = shadow_width;
@@ -461,6 +467,17 @@ void SetupEnvironmentCubeMap(RenderData* renderData)
 
 }
 
+void SetupLightsBuffer(RenderData* renderData, Light* lights, u32 numLights)
+{
+    glGenBuffers(1, &renderData->lightShaderStorageObject);
+    glBindBuffer(GL_SHADER_STORAGE_BUFFER, renderData->lightShaderStorageObject);
+    glBufferData(GL_SHADER_STORAGE_BUFFER, numLights * sizeof(Light), lights, GL_STATIC_DRAW);
+    glBindBufferBase(GL_SHADER_STORAGE_BUFFER, 0, renderData->lightShaderStorageObject); // Bind to binding point 0
+    glBindBuffer(GL_SHADER_STORAGE_BUFFER, 0); // Unbind
+    renderData->lights = lights;
+    renderData->numLights = numLights;
+}
+
 void SetupBRDFLUT(RenderData* renderData, EnvironmentMapPass& pass)
 {
     // pbr: generate a 2D LUT from the BRDF equations used.
@@ -619,7 +636,7 @@ void RenderSSAOPass(RenderData* renderData, Camera3D& camera)
 }
 
 
-void RenderShadowMapPass(RenderData* renderData, std::vector<MeshRenderData>& meshRenderData, glm::mat4 model, glm::vec3 lightPosition)
+void RenderShadowMapPass(RenderData* renderData, std::vector<MeshRenderData>& meshRenderData, glm::mat4 model)
 {
     ShadowPass& pass = renderData->shadowPass;
     
@@ -628,15 +645,16 @@ void RenderShadowMapPass(RenderData* renderData, std::vector<MeshRenderData>& me
     //glCullFace(GL_FRONT);
     
     glViewport(0, 0, pass.width, pass.height);
-    glCullFace(GL_FRONT);
+    // glCullFace(GL_FRONT);
     glBindFramebuffer(GL_FRAMEBUFFER, pass.depthMapFBO);
     glClear(GL_DEPTH_BUFFER_BIT);
     pass.depthShader.bind();
     float near_plane = 0.1f, far_plane = 500.0f;
     glm::mat4 lightProjection = glm::ortho(-10.0f, 10.0f, -10.0f, 10.0f, near_plane, far_plane);
-    glm::mat4 lightView = glm::lookAt(lightPosition,
+    glm::mat4 lightView = glm::lookAt(renderData->lights[0].position,
         glm::vec3(0.0f, 0.0f, 0.0f),
         glm::vec3(0.0f, 1.0f, 0.0f));
+    
     pass.lightSpaceMatrix = lightProjection * lightView;
     pass.depthShader.uniform_matrix4("lightSpaceMatrix", pass.lightSpaceMatrix);
 

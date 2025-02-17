@@ -69,13 +69,30 @@ void application::run()
 
     GameState* state = PushStruct(&permanent_storage, GameState);
 
+    state->lights[0] = {
+            .type = Directional,
+            .position = {-46, 10.0, 5},
+            .direction = {-0.438, 0, 0.899},
+            .color = { 1.0, 0.7, 0.39 },
+            .luminance = 100000,
+            .isShadowCasting = true,
+    };
+    state->lights[1] = {
+            .type = Point,
+            .position = {40.0, 34.0, -50.0},
+            .color = {1.0, 0.773, 0.561},
+            .constant = 1.0, .linear=0.09, .quadratic=0.032,
+            .isShadowCasting = false,
+    };
+    state->numberOfLights = 2;
+
     size_t asset_size = 1024 * 1024 * 1024 * (u64)2;
     MemoryArena assetArena = InitArena(PushSize(&permanent_storage, asset_size), asset_size);
     InitAssetSystem(assets, assetArena);
 
     LoadScene(assets, "assets/models/bristro/bristro_interior.gltf", batchMeshRenderData, gpu_textures);
 
-    lightPosition = glm::vec3(-46, 10.0, 5);
+    lightPosition = glm::vec3();
 
     renderData.gpu_textures = gpu_textures;
 
@@ -97,9 +114,10 @@ void application::run()
 
     SetupEnvironmentCubeMap(&renderData);
 
+    SetupLightsBuffer(&renderData, state->lights, state->numberOfLights);
     u32 shadow_width = 2048;
     u32 shadow_height = 2048;
-    SetupShadowMapPass(&renderData, shadow_width, shadow_height);
+    SetupShadowMapPass(&renderData, state->lights, state->numberOfLights, shadow_width, shadow_height);
 
     SetupSSAOPass(&renderData);
 
@@ -113,7 +131,7 @@ void application::run()
         window->handle_input();
         // state.audio.update();
 
-        std::cout << lightPosition.x << " " << lightPosition.y << std::endl;
+        //std::cout << lightPosition.x << " " << lightPosition.y << std::endl;
 
         f64 current_time = window->get_time();
         f64 dt = current_time - previous_time;
@@ -132,13 +150,13 @@ void application::run()
 
         // RenderBRDFLUT(&renderData);
 
-        RenderShadowMapPass(&renderData, batchMeshRenderData, model, lightPosition);
+        RenderShadowMapPass(&renderData, batchMeshRenderData, model);
         RenderDepthNormalPass(&renderData, batchMeshRenderData, model, camera);
         RenderSSAOPass(&renderData, camera);
         //
         // //RenderEnvironmentMap(&renderData, camera);
         // RenderScene(&renderData, batchMeshRenderData, model, camera, lightPosition);
-        RenderDeferredScene(&renderData, batchMeshRenderData, model, camera, lightPosition);
+        RenderDeferredScene(&renderData, batchMeshRenderData, model, camera);
 
         window->swap_buffers();
     }

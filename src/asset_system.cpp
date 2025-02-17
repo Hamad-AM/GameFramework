@@ -8,6 +8,8 @@
 #define USE_KTX
 //#define USE_GPU_COMPRESSION
 
+#include <cstdlib>
+
 #ifdef USE_KTX
     #include <ktx.h>
 #else
@@ -31,17 +33,33 @@ b32 LoadGLTFModel(std::string path, tinygltf::Model& model)
     std::string filenameWithoutExt = filePath.stem().string();
     filenameWithoutExt += "_no_images";
     std::filesystem::path noImageFilePath = filePath.parent_path() / (filenameWithoutExt + ".glb");
-    std::filesystem::file_time_type noImageFileWriteTime = std::filesystem::last_write_time(noImageFilePath);
-    std::filesystem::file_time_type withImageFileWriteTime = std::filesystem::last_write_time(path);
+    b32 rewrite_file = false;
+    if (!std::filesystem::exists(noImageFilePath))
+    {
+        rewrite_file = true;
+    }
+    else
+    {
+        std::filesystem::file_time_type noImageFileWriteTime = std::filesystem::last_write_time(noImageFilePath);
+        std::filesystem::file_time_type withImageFileWriteTime = std::filesystem::last_write_time(path);
 
-    // If image embeded Model is newer than the mesh only model
-    auto timeSinceChange = std::chrono::duration_cast<std::chrono::seconds>(withImageFileWriteTime - noImageFileWriteTime);
-    if (noImageFileWriteTime < withImageFileWriteTime)
+        // If image embeded Model is newer than the mesh only model
+        auto timeSinceChange = std::chrono::duration_cast<std::chrono::seconds>(withImageFileWriteTime - noImageFileWriteTime);
+        if (noImageFileWriteTime < withImageFileWriteTime)
+        {
+            rewrite_file = true;
+        }
+    }
+
+    if (rewrite_file)
     {
         std::cout << filenameWithoutExt << " has been modified." << std::endl;
         tinygltf::Model tempModel;
         std::cout << "    Loading Model with Images..." << std::endl;
         ret = loader.LoadASCIIFromFile(&tempModel, &err, &warn, path);
+        std::filesystem::path textureFilePath = filePath.parent_path() / "textures";
+        std::string commandCall = "nvcompress -color -alpha -bc7 -fast " + textureFilePath.string() + " " + textureFilePath.string();
+        s32 result = system(commandCall.c_str());
         for (tinygltf::Image& image : tempModel.images)
         {
             image.image.clear();
