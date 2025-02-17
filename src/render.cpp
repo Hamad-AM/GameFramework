@@ -181,9 +181,8 @@ void RenderDeferredScene(RenderData* renderData, std::vector<MeshRenderData>& me
     for (s32 i = 0; i < renderData->numLights; ++i)
     {
         glm::mat4 lightModel(1.0f);
-        lightModel = glm::scale(lightModel, glm::vec3(0.1f));
         lightModel = glm::translate(lightModel, renderData->lights[i].position);
-        glm::vec3 lightColor = glm::vec3(0.9f, 0.78f, 0.47f);
+        lightModel = glm::scale(lightModel, glm::vec3(0.1f));
         renderData->UnlitShader.uniform_matrix4("model", lightModel);
         renderData->UnlitShader.uniform_vector3f("lightColor", renderData->lights[i].color);
         RenderCube(renderData);
@@ -643,6 +642,7 @@ void RenderShadowMapPass(RenderData* renderData, std::vector<MeshRenderData>& me
     glEnable(GL_DEPTH_TEST);
     
     //glCullFace(GL_FRONT);
+    glDisable(GL_CULL_FACE);
     
     glViewport(0, 0, pass.width, pass.height);
     // glCullFace(GL_FRONT);
@@ -651,7 +651,8 @@ void RenderShadowMapPass(RenderData* renderData, std::vector<MeshRenderData>& me
     pass.depthShader.bind();
     float near_plane = 0.1f, far_plane = 500.0f;
     glm::mat4 lightProjection = glm::ortho(-10.0f, 10.0f, -10.0f, 10.0f, near_plane, far_plane);
-    glm::mat4 lightView = glm::lookAt(renderData->lights[0].position,
+    vec3 position = renderData->lights[0].position;
+    glm::mat4 lightView = glm::lookAt(position,
         glm::vec3(0.0f, 0.0f, 0.0f),
         glm::vec3(0.0f, 1.0f, 0.0f));
     
@@ -663,6 +664,7 @@ void RenderShadowMapPass(RenderData* renderData, std::vector<MeshRenderData>& me
     DrawScene(renderData, meshRenderData);
 
     glBindFramebuffer(GL_FRAMEBUFFER, 0);
+    glEnable(GL_CULL_FACE);
     glCullFace(GL_BACK);
 }
 

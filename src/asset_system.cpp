@@ -1,24 +1,72 @@
 #include "asset_system.h"
 
 #include <tiny_gltf.h>
-#include <encoder/basisu_comp.h>
-#include <transcoder/basisu_transcoder.h>
+//#include <encoder/basisu_comp.h>
+//#include <transcoder/basisu_transcoder.h>
 #include <stb_image.h>
 
-#define USE_KTX
+//#define USE_KTX
 //#define USE_GPU_COMPRESSION
 
 #include <cstdlib>
 
 #ifdef USE_KTX
-    #include <ktx.h>
+    //#include <ktx.h>
 #else
-    #include <DirectXTex.h>
+    //#include <DirectXTex.h>
 #endif
 
 #include <iostream>
 #include <fstream>
 #include <chrono>
+
+#include <windows.h>
+
+struct DDS_PIXELFORMAT {
+    DWORD dwSize;
+    DWORD dwFlags;
+    DWORD dwFourCC;
+    DWORD dwRGBBitCount;
+    DWORD dwRBitMask;
+    DWORD dwGBitMask;
+    DWORD dwBBitMask;
+    DWORD dwABitMask;
+};
+
+typedef struct {
+    DWORD           dwSize;
+    DWORD           dwFlags;
+    DWORD           dwHeight;
+    DWORD           dwWidth;
+    DWORD           dwPitchOrLinearSize;
+    DWORD           dwDepth;
+    DWORD           dwMipMapCount;
+    DWORD           dwReserved1[11];
+    DDS_PIXELFORMAT ddspf;
+    DWORD           dwCaps;
+    DWORD           dwCaps2;
+    DWORD           dwCaps3;
+    DWORD           dwCaps4;
+    DWORD           dwReserved2;
+} DDS_HEADER;
+
+#include <dxgiformat.h>
+#include <d3d10.h>
+typedef struct {
+    DXGI_FORMAT              dxgiFormat;
+    D3D10_RESOURCE_DIMENSION resourceDimension;
+    UINT                     miscFlag;
+    UINT                     arraySize;
+    UINT                     miscFlags2;
+} DDS_HEADER_DXT10;
+
+struct DDSFile {
+    DWORD dwmagic;
+    DDS_HEADER header;
+    DDS_HEADER_DXT10 header10;
+    BYTE* bdata;
+    BYTE* bdata2;
+};
 
 b32 LoadGLTFModel(std::string path, tinygltf::Model& model)
 {
@@ -112,31 +160,9 @@ void LoadImageFromFile(AssetSystem& assets, const tinygltf::Image& image, std::f
     std::filesystem::path texture_file = textures_path / filename;
     if (!std::filesystem::exists(texture_file))
     {
-        //EncodeImageToKTX2(texture_file, imageData, image.width, image.height);
-        //TranscodeKTX2ToCompressedTexture(texture_file);
-#ifdef USE_KTX
-        ktxTexture* texture = nullptr;
-        ////KTX_error_code result = ktxTexture_CreateFromMemory(imageData, image.image.size() * sizeof(u8), KTX_TEXTURE_CREATE_LOAD_IMAGE_DATA_BIT, &texture);//ktxTexture_Create(1, KTX_TEXUTRE_TYPE_2D, KTX_FORMAT_RGBA8, image.width, image.height, 1, 0, 1, 0, &texture);
-        //KTX_error_code result = ktxTexture2_Create(KTX_GL_RG)
-        //ktxTexture_WriteToNamedFile(texture, texture_file.string().c_str());
-        //EncodeImageToKTX2(texture_file, imageData, image.width, image.height);
-#else
-        //DirectX::TexMetadata metadata{.width = (u64)image.width, .height = (u64)image.height, .depth = 1, .arraySize = 1, .mipLevels = 1, .miscFlags = 0, .miscFlags2 = 0, .format = DXGI_FORMAT_R8G8B8A8_UNORM, .dimension = DirectX::TEX_DIMENSION_TEXTURE2D};
-        //DirectX::ScratchImage scratchImage;
-        //// TODO(): Handle failure to initiailize
-        //HRESULT hr = scratchImage.Initialize2D(metadata.format, metadata.width, metadata.height, 1, 1);
-        //const DirectX::Image* img = scratchImage.GetImage(0, 0, 0);
-        //memcpy(img->pixels, image.image.data(), image.image.size());
-        //DirectX::ScratchImage compressedImage;
-        //hr = DirectX::Compress(img, 1, metadata, DXGI_FORMAT_BC7_UNORM, DirectX::TEX_COMPRESS_DEFAULT, 0.5f, compressedImage);
-        //const wchar_t* filePath = texture_file.c_str();
-        //hr = DirectX::SaveToDDSFile(compressedImage.GetImages(), compressedImage.GetImageCount(), compressedImage.GetMetadata(), DirectX::DDS_FLAGS_NONE, filePath);
-        EncodeImageToKTX2(texture_file, imageData, image.width, image.height);
-        TranscodeKTX2ToCompressedTexture(texture_file);
-#endif
+        std::cerr << "No compressed texture" << std::endl;
     }
-
-#ifdef USE_KTX
+#if 0
     u8* buffer = nullptr;
     size_t size;
     std::vector<u8> outImageData;
@@ -147,49 +173,37 @@ void LoadImageFromFile(AssetSystem& assets, const tinygltf::Image& image, std::f
     memcpy(buffer, imageDatastb, width * height * 4 * sizeof(u8));
     size = width * height * 4 * sizeof(u8);
     stbi_image_free(imageDatastb);
-    //else
-    //{
-    //    std::ifstream file(texture_file, std::ios::binary | std::ios::ate);
-    //    if (!file)
-    //    {
-    //        return;
-    //    }
-    //    size = file.tellg();
-    //    file.seekg(0, std::ios::beg);
-    //    
-    //    buffer = PushSize(&assets.arena, size);
-    //    
-    //    file.read(reinterpret_cast<char*>(buffer), size);
-    //    file.close();
-    //}
-
-#else
-    //DirectX::ScratchImage scratchImage;
-    //DirectX::TexMetadata metadata;
-    //HRESULT hr = DirectX::LoadFromDDSFile(texture_file.c_str(), DirectX::DDS_FLAGS_NONE, &metadata, scratchImage);
-    //if (FAILED(hr)) {
-    //    assert(false);
-    //}
-    //const DirectX::Image* texture = scratchImage.GetImage(0, 0, 0);
-    //std::ifstream file(texture_file, std::ios::binary | std::ios::ate);
-    //if (!file)
-    //{
-    //    return;
-    //}
-    //size_t size = file.tellg();
-    //file.seekg(0, std::ios::beg);
-
-    //u8* buffer = PushSize(&assets.arena, size);
-
-    //file.read(reinterpret_cast<char*>(buffer), size);
-    //file.close();
-    gli::texture texture = gli::load_dds(texture_file.string());
-    void* data = texture.data();
-    size_t size = texture.size();
-    gli::texture::extent_type extents = texture.extent();
-    u32 width = extents.x;
-    u32 height = extents.y;
 #endif
+
+    FILE* file = fopen(texture_file.string().c_str(), "rb");
+    if (!file)
+    {
+        std::cerr << "Could not read file : " << filename << std::endl;
+    }
+
+    fseek(file, 0, SEEK_END);
+    u64 fileSize = ftell(file);
+    fseek(file, 0, SEEK_SET);
+
+    u8* buffer = PushSize(&assets.arena, fileSize);
+    size_t bytesRead = fread(buffer, 1, fileSize, file);
+    fclose(file);
+
+    DDSFile* ddsImage = (DDSFile*)buffer;
+
+    u32 width = (u32)ddsImage->header.dwWidth;
+    u32 height = (u32)ddsImage->header.dwHeight;
+    u64 size = (u64)ddsImage->header.dwPitchOrLinearSize;
+
+    u32 numBlocksWide = std::max<size_t>(1, (width + 3) / 4);
+    u32 numBlocksHigh = std::max<size_t>(1, (height + 3) / 4);
+    u32 rowBytes = numBlocksWide * 16;
+    u32 numRows = numBlocksHigh;
+    u32 numBytes = rowBytes * numRows;
+
+    u64 offset = sizeof(DWORD) + sizeof(DDS_HEADER) + sizeof(DDS_HEADER_DXT10);
+    u8* compressedImageData = buffer + offset;
+    u64 imageSize = numBytes;
 
     assets.images[image.name] = Image{};
     Image& i = assets.images[image.name];
@@ -201,8 +215,8 @@ void LoadImageFromFile(AssetSystem& assets, const tinygltf::Image& image, std::f
 #else
     i.width = width;
     i.height = height;
-    i.data = buffer;
-    i.size = size;
+    i.data = compressedImageData;
+    i.size = imageSize;
 #endif
     i.format = texture_format::RGBA;
 }
@@ -412,49 +426,49 @@ Model GltfToModel(AssetSystem& assets, tinygltf::Model& model, std::string& path
 }
 
 void EncodeImageToKTX2(std::filesystem::path& filePath, const u8* imageData, u32 width, u32 height){
-    size_t fileSize = 0;
-    basisu::basisu_encoder_init(false, false);
-    void* data = basisu::basis_compress(basist::basis_tex_format::cUASTC4x4,
-                                    imageData,
-                                    width,
-                                    height,
-                                    0,
-                                    basisu::cFlagThreaded | basisu::cFlagPrintStats | basisu::cFlagDebug | basisu::cFlagPrintStatus,
-                                    0.5,
-                                    &fileSize,
-                                    nullptr);
-    filePath.replace_extension(".ktx2");
-    if (!basisu::write_data_to_file(filePath.string().c_str(), data, fileSize))
-    {
-        std::cout << "Failed to write file : " << filePath << std::endl;
-    }
-    basisu::basis_free_data(data);
+    //size_t fileSize = 0;
+    //basisu::basisu_encoder_init(false, false);
+    //void* data = basisu::basis_compress(basist::basis_tex_format::cUASTC4x4,
+    //                                imageData,
+    //                                width,
+    //                                height,
+    //                                0,
+    //                                basisu::cFlagThreaded | basisu::cFlagPrintStats | basisu::cFlagDebug | basisu::cFlagPrintStatus,
+    //                                0.5,
+    //                                &fileSize,
+    //                                nullptr);
+    //filePath.replace_extension(".ktx2");
+    //if (!basisu::write_data_to_file(filePath.string().c_str(), data, fileSize))
+    //{
+    //    std::cout << "Failed to write file : " << filePath << std::endl;
+    //}
+    //basisu::basis_free_data(data);
 }
 
 void TranscodeKTX2ToCompressedTexture(std::filesystem::path& filePath)
 {
-    basist::basisu_transcoder_init();
-    basisu::uint8_vec ktx2_file_data;
-    filePath.replace_extension(".ktx2");
-    if (!basisu::read_file_to_vec(filePath.string().c_str(), ktx2_file_data))
-        return;
-    basist::ktx2_transcoder transcoder;
-    if (!transcoder.init(ktx2_file_data.data(), ktx2_file_data.size_u32()))
-    {
-        assert(false);
-    }
-    u32 width = transcoder.get_width();
-    u32 height = transcoder.get_height();
-    
-    transcoder.start_transcoding();
-    basisu::gpu_image tex(basisu::texture_format::cBC7, width, height);
-    
-    b32 status = transcoder.transcode_image_level(0, 0, 0, tex.get_ptr(), tex.get_total_blocks(), basist::transcoder_texture_format::cTFBC7_RGBA);
-    assert(status);
-    basisu::gpu_image_vec tex_vec;
-    tex_vec.push_back(tex);
-    filePath.replace_extension(".dds");
-    write_compressed_texture_file(filePath.string().c_str(), tex_vec, true);
+    //basist::basisu_transcoder_init();
+    //basisu::uint8_vec ktx2_file_data;
+    //filePath.replace_extension(".ktx2");
+    //if (!basisu::read_file_to_vec(filePath.string().c_str(), ktx2_file_data))
+    //    return;
+    //basist::ktx2_transcoder transcoder;
+    //if (!transcoder.init(ktx2_file_data.data(), ktx2_file_data.size_u32()))
+    //{
+    //    assert(false);
+    //}
+    //u32 width = transcoder.get_width();
+    //u32 height = transcoder.get_height();
+    //
+    //transcoder.start_transcoding();
+    //basisu::gpu_image tex(basisu::texture_format::cBC7, width, height);
+    //
+    //b32 status = transcoder.transcode_image_level(0, 0, 0, tex.get_ptr(), tex.get_total_blocks(), basist::transcoder_texture_format::cTFBC7_RGBA);
+    //assert(status);
+    //basisu::gpu_image_vec tex_vec;
+    //tex_vec.push_back(tex);
+    //filePath.replace_extension(".dds");
+    //write_compressed_texture_file(filePath.string().c_str(), tex_vec, true);
 }
 
 void BatchModel(AssetSystem& assets, Model& model,
@@ -613,8 +627,8 @@ u32 CreateTexture(Image& image)
     //std::cerr << " " << getGLErrorString(glError) << std::endl;
 #else
     glPixelStorei(GL_UNPACK_ALIGNMENT, 1);
-    glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, image.width, image.height, 0,
-        GL_RGBA, GL_UNSIGNED_BYTE, image.data);
+    glCompressedTexImage2D(GL_TEXTURE_2D, 0, GL_COMPRESSED_RGBA_BPTC_UNORM, image.width, image.height, 0,
+        image.size, image.data);
 #endif
 
     glTexParameterf(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR_MIPMAP_LINEAR);

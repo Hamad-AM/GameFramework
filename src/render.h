@@ -25,7 +25,7 @@ struct Camera3D
     f32 speed;
 };
 
-enum LightType
+enum LightType : s32
 {
     None,
     Directional,
@@ -36,20 +36,20 @@ enum LightType
 
 struct Light
 {
-    LightType type;
+    LightType type{ LightType::None };
 
-    vec3 position;
-    vec3 direction;
+    vec3 position{ 0 };
+    vec3 direction{ 0 };
 
-    vec3 color;
-    f32 luminance;
+    vec3 color{ 0 };
+    f32 luminance{ 0 };
 
-    f32 constant;
-    f32 linear;
-    f32 quadratic;
+    f32 constant{ 0 };
+    f32 linear{ 0 };
+    f32 quadratic{ 0 };
 
-    float cutOff;
-    b32 isShadowCasting;
+    float cutOff{ 0 };
+    s32 isShadowCasting{ 0 };
 };
 
 

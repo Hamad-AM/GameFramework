@@ -69,28 +69,39 @@ void application::run()
 
     GameState* state = PushStruct(&permanent_storage, GameState);
 
+    vec3 sunPosition = { -46, 10.0, 20.0f };
+    // state->lights[0] = {
+    //         .type = Directional,
+    //         .position = sunPosition,
+    //         .direction = sunPosition - vec3(0),
+    //         .color = { 1.0, 0.7, 0.39 },
+    //         .luminance = 100000,
+    //         .isShadowCasting = true,
+    // };
     state->lights[0] = {
-            .type = Directional,
-            .position = {-46, 10.0, 5},
-            .direction = {-0.438, 0, 0.899},
+            .type = LightType::Directional,
+            .position = sunPosition,
+            .direction = sunPosition - vec3(0),
             .color = { 1.0, 0.7, 0.39 },
-            .luminance = 100000,
-            .isShadowCasting = true,
+            .luminance = 200,
+            .isShadowCasting = 1,
     };
     state->lights[1] = {
-            .type = Point,
-            .position = {40.0, 34.0, -50.0},
+            .type = LightType::Point,
+            .position = {3.6, 2.5, -2.9},
             .color = {1.0, 0.773, 0.561},
+            .luminance = 100,
             .constant = 1.0, .linear=0.09, .quadratic=0.032,
-            .isShadowCasting = false,
+            .isShadowCasting = 0,
     };
+
     state->numberOfLights = 2;
 
     size_t asset_size = 1024 * 1024 * 1024 * (u64)2;
     MemoryArena assetArena = InitArena(PushSize(&permanent_storage, asset_size), asset_size);
     InitAssetSystem(assets, assetArena);
 
-    LoadScene(assets, "assets/models/bristro/bristro_interior.gltf", batchMeshRenderData, gpu_textures);
+    LoadScene(assets, "assets/models/bristro_exterior/bristro_exterior.gltf", batchMeshRenderData, gpu_textures);
 
     lightPosition = glm::vec3();
 
@@ -142,7 +153,7 @@ void application::run()
 
 
         glm::mat4 model = glm::mat4(1.0f);
-        model = glm::scale(model, glm::vec3(0.01f));
+        model = glm::scale(model, glm::vec3(1.0f));
 
         camera.view = glm::lookAt(camera.position, camera.position + camera.front, camera.up);
 
@@ -177,7 +188,7 @@ void application::update(f32 dt)
     else if (input::is_key_down(key::LSHIFT))
         camera.position -= camera.speed * camera.up * dt;
     else if (input::is_key_down(key::UP))
-        lightPosition.x += 1.0f;
+        lightPosition += 1.0f;
     else if (input::is_key_down(key::DOWN))
         lightPosition.x -= 1.0f;
     else if (input::is_key_down(key::RIGHT))

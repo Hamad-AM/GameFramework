@@ -1,4 +1,4 @@
-#version 330 core
+#version 430 core
 
 out vec4 FragColor;
 
@@ -20,36 +20,41 @@ uniform sampler2D   brdfLUT;
 
 uniform vec3 viewPos;
 
-//
-// enum LightType
-// {
-//     None,
-//     Directional,
-//     Point,
-//     Spotlight,
-//     Area
-// };
-//
-// struct Light
-// {
-//     LightType type;
-//     
-//     vec3 position;
-//     vec3 direction;
-//
-//     vec3 color;
-//     f32 luminance ;
-//
-//     f32 constant;
-//     f32 linear;
-//     f32 quadratic;
-//
-//     float cutOff;
-// };
 
+#define Directional 1
+#define Point 2
+#define Spotlight 3
+#define Area 4
 
+struct Light
+{
+    int type;
+    
+    float positionX;
+    float positionY;
+    float positionZ;
+    float directionX;
+    float directionY;
+    float directionZ;
 
-uniform vec3 lightPosition;
+    float colorX;
+    float colorY;
+    float colorZ;
+    float luminance;
+
+    float constant;
+    float linear;
+    float quadratic;
+
+    float cutOff;
+    int isShadowCasting;
+};
+
+layout(std430, binding=0) buffer Lights {
+    Light lights[];
+};
+
+// uniform vec3 lightPosition;
 uniform mat4 lightSpaceMatrix;
 
 const float PI = 3.14159265359;
@@ -113,15 +118,15 @@ float shadow_calculation(vec4 fragPosLightSpace, vec3 normal, vec3 lightDir)
     if (projCoords.z <= 1.0)
     {
         vec2 texelSize = 1.0 / textureSize(shadowMap, 0);
-        for (int x = -2; x <= 2; ++x)
+        for (int x = -4; x <= 4; ++x)
         {
-            for (int y = -2; y <= 2; ++y)
+            for (int y = -4; y <= 4; ++y)
             {
                 float pcfDepth = texture(shadowMap, projCoords.xy + vec2(x, y) * texelSize).r;
                 shadow += currentDepth - bias > pcfDepth ? 1.0 : 0.0;
             }
         }
-        shadow /= 25.0f;
+        shadow /= 81.0f;
     }
     return shadow;
 }
@@ -166,20 +171,35 @@ void main()
     vec3 F0 = vec3(0.04);
     F0 = mix(F0, albedoColor.xyz, metallic);
 
-    vec3 ShadowCastDirection = normalize(lightPosition - FragPos.xyz);
+    // vec3 lPos = vec3(lights[0].positionX, lights[0].positionY, lights[0].positionZ);
+    // vec3 ShadowCastDirection = normalize(lPos - FragPos.xyz);
 
     // reflectance equation
     vec3 Lo = vec3(0.0);
-    // for(int i = 0; i < 4; ++i)
+    vec3 radiance2;
+    for(int i = 0; i < lights.length(); i++)
     {
+        Light light = lights[i];
+        vec3 lightPosition = vec3(light.positionX, light.positionY, light.positionZ);
+        vec3 lightDirection = vec3(light.directionX, light.directionY,light.directionZ);
+        vec3 lightColor = vec3(light.colorX, light.colorY, light.colorZ);
         // calculate per-light radiance
-        vec3 L = normalize(lightPosition - FragPos.xyz);
-        vec3 H = normalize(V + L);
-        // Calculate Attentuation for directional light no attenuation
-        // float distance    = length(lightPosition - v_WorldPos.xyz);
-        // float attenuation = 1.0 / (distance * distance);
-        // vec3 radiance     = vec3(1.0f) * attenuation; // LightColor * attentuation lightColors[i] * attenuation;
-        vec3 radiance = vec3(10.0f);
+        vec3 radiance, L, H;
+        if (light.type == Directional)
+        {
+            L = normalize(lightDirection);
+            H = normalize(V + L);
+            radiance = lightColor * light.luminance;
+        }
+        else if (light.type == Point) 
+        {
+            L = normalize(lightPosition - FragPos.xyz);
+            H = normalize(V + L);
+            // Calculate Attentuation for directional light no attenuation
+            float distance    = length(lightPosition - FragPos.xyz);
+            float attenuation = 1.0 / (distance * distance);
+            radiance          = lightColor * light.luminance * attenuation; // LightColor * attentuation lightColors[i] * attenuation;
+        }
 
         // cook-torrance brdf
         float NDF = DistributionGGX(N, H, roughness);
@@ -196,7 +216,13 @@ void main()
 
         // add to outgoing radiance Lo
         float NdotL = max(dot(N, L), 0.0);
-        Lo += (kD * albedoColor.xyz / PI + specular) * radiance * NdotL;
+        float shadow = 0;
+        if (light.isShadowCasting == 1)
+        {
+            vec4 fragPosLightSpace = lightSpaceMatrix * vec4(FragPos, 1.0f);
+            shadow = shadow_calculation(fragPosLightSpace, N, L);
+        }
+        Lo += (1-shadow) * (kD * albedoColor.xyz / PI + specular) * radiance * NdotL;
     }
 
     vec3 F = fresnelSchlickRoughness(max(dot(N, V), 0.0), F0, roughness);
@@ -211,11 +237,9 @@ void main()
     vec2 brdf  = texture(brdfLUT, vec2(max(dot(N, V), 0.0), roughness)).rg;
     vec3 specular = prefilteredColor * (F * brdf.x + brdf.y);
 
-    vec3 ambient = (kD * diffuse + specular) * 0.25;
+    vec3 ambient = (kD * diffuse + specular) * ao;
 
-    vec4 fragPosLightSpace = lightSpaceMatrix * vec4(FragPos, 1.0f);
-    float shadow = shadow_calculation(fragPosLightSpace, N, ShadowCastDirection);
-    vec3 color = (ambient + (1 - shadow) * Lo * ao);
+    vec3 color = (ambient + Lo);
     // color = color * 0.00000000000001;
     // color += vec3(0.0, 0.0, 0.0); //albedoColor.xyz;
 
@@ -224,6 +248,11 @@ void main()
     color = ACESFilm(color);
     // // color = pow(color, vec3(0.4545f));
     color = pow(color, vec3(1.0f/2.2f));
+
+    // if (lights[0].type == Directional)
+    // {
+    //     color = vec3(ambient + Lo);
+    // }
 
     // vec3 lightDirNorm = normalize(lightDir);
     // float diff = max(dot(PN, lightDirNorm), 0.0);
@@ -240,5 +269,5 @@ void main()
     // float shadow = shadow_calculation(v_FragPosLightSpace, N, lightDirNorm);
     // vec3 result = ambient + (1.0 - shadow) * diffuse;
 
-    FragColor = vec4(color, 1.0);
+    FragColor = vec4(color, alpha);
 }
