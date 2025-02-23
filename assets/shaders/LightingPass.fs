@@ -48,11 +48,15 @@ struct Light
 
     float cutOff;
     int isShadowCasting;
+    int shadowIndex;
 };
 
 layout(std430, binding=0) buffer Lights {
     Light lights[];
 };
+
+uniform samplerCube depthCubemaps[4];
+uniform float pointShadowFarPlane;
 
 // uniform vec3 lightPosition;
 uniform mat4 lightSpaceMatrix;
@@ -131,6 +135,51 @@ float shadow_calculation(vec4 fragPosLightSpace, vec3 normal, vec3 lightDir)
     return shadow;
 }
 
+float PointShadowCalculation(vec3 fragPos, vec3 lightPos, int shadowMapIndex)
+{
+    // get vector between fragment position and light position
+    vec3 fragToLight = fragPos - lightPos;
+    // use the light to fragment vector to sample from the depth map    
+    float closestDepth = texture(depthCubemaps[0], fragToLight).r;
+    // it is currently in linear range between [0,1]. Re-transform back to original value
+    closestDepth *= pointShadowFarPlane;
+    // now get current linear depth as the length between the fragment and light position
+    float currentDepth = length(fragToLight);
+    // now test for shadows
+    float bias = 0.05; 
+    float shadow = currentDepth - bias > closestDepth ? 1.0 : 0.0;
+
+    return shadow;
+    //
+    // vec3 fragToLight = fragPos - lightPos;
+    // float currentDepth = length(fragToLight);
+    //
+    // float bias = 0.05;
+    // int sampleCount = 20;  // Number of samples for PCF
+    // float shadow = 0.0;
+    //
+    // float diskRadius = 0.05;  // Control softness
+    //
+    // for(int i = 0; i < sampleCount; i++)
+    // {
+    //     // Generate a small random offset (a simple Poisson Disk pattern)
+    //     vec3 offset = diskRadius * vec3(
+    //         cos(6.2831853 * float(i) / float(sampleCount)),
+    //         sin(6.2831853 * float(i) / float(sampleCount)),
+    //         0.0
+    //     );
+    //     
+    //     float closestDepth = texture(depthCubemaps[0], fragToLight + offset).r;
+    //     closestDepth *= pointShadowFarPlane; // Convert from [0,1] depth range
+    //
+    //     if (currentDepth - bias > closestDepth)
+    //         shadow += 1.0;
+    // }
+    //
+    // shadow /= float(sampleCount); // Average result
+    // return shadow;
+}
+
 vec3 ACESFilm(vec3 color)
 {
     float a = 2.51f;
@@ -176,7 +225,6 @@ void main()
 
     // reflectance equation
     vec3 Lo = vec3(0.0);
-    vec3 radiance2;
     for(int i = 0; i < lights.length(); i++)
     {
         Light light = lights[i];
@@ -190,6 +238,7 @@ void main()
             L = normalize(lightDirection);
             H = normalize(V + L);
             radiance = lightColor * light.luminance;
+            continue;
         }
         else if (light.type == Point) 
         {
@@ -220,7 +269,14 @@ void main()
         if (light.isShadowCasting == 1)
         {
             vec4 fragPosLightSpace = lightSpaceMatrix * vec4(FragPos, 1.0f);
-            shadow = shadow_calculation(fragPosLightSpace, N, L);
+            if (light.type == Directional)
+            {
+                shadow = shadow_calculation(fragPosLightSpace, N, L);
+            }
+            else if (light.type == Point)
+            {
+                shadow = PointShadowCalculation(FragPos, lightPosition, light.shadowIndex);
+            }
         }
         Lo += (1-shadow) * (kD * albedoColor.xyz / PI + specular) * radiance * NdotL;
     }
@@ -251,9 +307,9 @@ void main()
 
     // if (lights[0].type == Directional)
     // {
-    //     color = vec3(ambient + Lo);
+    //     color = vec3(shadow);
     // }
-
+    //
     // vec3 lightDirNorm = normalize(lightDir);
     // float diff = max(dot(PN, lightDirNorm), 0.0);
     // // vec3 color = vec3(texture(albedo, v_TexCoords));

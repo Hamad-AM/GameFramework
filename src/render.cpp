@@ -12,6 +12,7 @@ void CompileShaders(RenderData* renderData) {
     renderData->textureToScreen.compile("assets/shaders/textureToScreen.vs", "assets/shaders/textureToScreen.fs");
 
     renderData->shadowPass.depthShader.compile("assets/shaders/DepthShader.vs", "assets/shaders/DepthShader.fs");
+    renderData->shadowPass.pointDepthShader.compile("assets/shaders/PointDepthShader.vs", "assets/shaders/PointDepthShader.fs", "assets/shaders/PointDepthShader.gs");
     renderData->depthNormalShader.compile("assets/shaders/DepthNormalPass.vs", "assets/shaders/DepthNormalPass.fs");
 
     renderData->SSAOPass.SSAOShader.compile("assets/shaders/SSAOPass.vs", "assets/shaders/SSAOPass.fs");
@@ -162,6 +163,14 @@ void RenderDeferredScene(RenderData* renderData, std::vector<MeshRenderData>& me
     glActiveTexture(GL_TEXTURE8);
     glBindTexture(GL_TEXTURE_2D, renderData->environmentMapPass.brdfLUTTexture);
     pass.lightingPass.uniform_int("brdfLUT", 8);
+    for (int i = 0; i < renderData->shadowPass.pointCount; ++i)
+    {
+        glActiveTexture(GL_TEXTURE9+i);
+        glBindTexture(GL_TEXTURE_CUBE_MAP, renderData->shadowPass.pointShadows[i].depthCubemap);
+        std::string name = "depthCubemaps[" + std::to_string(i) + "]";
+        pass.lightingPass.uniform_int(name.c_str(), 9+i);
+    }
+    pass.lightingPass.uniform_float("pointShadowFarPlane", renderData->shadowPass.farPlane);
     pass.lightingPass.uniform_matrix4("lightSpaceMatrix", renderData->shadowPass.lightSpaceMatrix);
     pass.lightingPass.uniform_vector3f("viewPos", camera.position);
 
@@ -215,6 +224,87 @@ void SetupShadowMapPass(RenderData* renderData, Light* lights, u32 numLights, u3
     glFramebufferTexture2D(GL_FRAMEBUFFER, GL_DEPTH_ATTACHMENT, GL_TEXTURE_2D, pass.depthMap, 0);
     glDrawBuffer(GL_NONE);
     glReadBuffer(GL_NONE);
+    glBindFramebuffer(GL_FRAMEBUFFER, 0);
+}
+
+void SetupPointShadowMapPass(RenderData* renderData, Light* lights, u32 numLights, u32 shadow_width, u32 shadow_height)
+{
+    ShadowPass& pass = renderData->shadowPass;
+
+    glGenFramebuffers(1, &pass.depthCubemapFBO);
+
+    for (u32 i = 0; i < numLights; ++i)
+    {
+        if (pass.pointCount < 4 && lights[i].type == LightType::Point)
+        {
+            // TODO(HAMAD): have different shadow resolutions for different lights
+            pass.pointShadows[pass.pointCount].pointWidth = shadow_width;
+            pass.pointShadows[pass.pointCount].pointHeight = shadow_height;
+            glGenTextures(1, &pass.pointShadows[pass.pointCount].depthCubemap);
+            glBindTexture(GL_TEXTURE_CUBE_MAP, pass.pointShadows[pass.pointCount].depthCubemap);
+            for (u32 j = 0; j < 6; ++j)
+            {
+                glTexImage2D(GL_TEXTURE_CUBE_MAP_POSITIVE_X + j, 0, GL_DEPTH_COMPONENT,
+                    pass.pointShadows[pass.pointCount].pointWidth, pass.pointShadows[pass.pointCount].pointHeight, 0, GL_DEPTH_COMPONENT, GL_FLOAT, NULL);
+            }
+            glTexParameteri(GL_TEXTURE_CUBE_MAP, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
+            glTexParameteri(GL_TEXTURE_CUBE_MAP, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
+            glTexParameteri(GL_TEXTURE_CUBE_MAP, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
+            glTexParameteri(GL_TEXTURE_CUBE_MAP, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
+            glTexParameteri(GL_TEXTURE_CUBE_MAP, GL_TEXTURE_WRAP_R, GL_CLAMP_TO_EDGE);
+            glBindFramebuffer(GL_FRAMEBUFFER, pass.depthCubemapFBO);
+            glFramebufferTexture(GL_FRAMEBUFFER, GL_DEPTH_ATTACHMENT, pass.pointShadows[pass.pointCount].depthCubemap, 0);
+            glDrawBuffer(GL_NONE);
+            glReadBuffer(GL_NONE);
+            glBindFramebuffer(GL_FRAMEBUFFER, 0);
+            lights[i].pointShadowMapIndex = pass.pointCount;
+            pass.pointCount += 1;
+        }
+    }
+
+    glBindFramebuffer(GL_FRAMEBUFFER, 0);
+}
+
+void RenderOmidirectionalShadowMap(RenderData* renderData,std::vector<MeshRenderData>& meshRenderData, mat4& model, Light* lights, u32 numLights)
+{
+    ShadowPass& pass = renderData->shadowPass;
+    f32 nearPlane = 1.0f;
+    f32 farPlane = 15.0f;
+    pass.farPlane = farPlane;
+    std::vector<glm::mat4> shadowTransforms;
+    vec3 lightPos;
+    for (u32 i = 0; i < numLights; ++i)
+    {
+        if (lights[i].type == LightType::Point)
+        {
+            Light* light = &lights[i];
+            PointLightShadow& point = pass.pointShadows[light->pointShadowMapIndex];
+            mat4 shadowProjection = glm::perspective(glm::radians(90.0f), (f32)point.pointWidth/(f32)point.pointHeight, nearPlane, farPlane);
+            point.farPlane = farPlane;
+            //shadowProjection[1][1] *= -1;
+            lightPos = light->position;
+            shadowTransforms.push_back(shadowProjection * glm::lookAt(lightPos, lightPos + glm::vec3(1.0f, 0.0f, 0.0f), glm::vec3(0.0f, -1.0f, 0.0f)));
+            shadowTransforms.push_back(shadowProjection * glm::lookAt(lightPos, lightPos + glm::vec3(-1.0f, 0.0f, 0.0f), glm::vec3(0.0f, -1.0f, 0.0f)));
+            shadowTransforms.push_back(shadowProjection * glm::lookAt(lightPos, lightPos + glm::vec3(0.0f, 1.0f, 0.0f), glm::vec3(0.0f, 0.0f, 1.0f)));
+            shadowTransforms.push_back(shadowProjection * glm::lookAt(lightPos, lightPos + glm::vec3(0.0f, -1.0f, 0.0f), glm::vec3(0.0f, 0.0f, -1.0f)));
+            shadowTransforms.push_back(shadowProjection * glm::lookAt(lightPos, lightPos + glm::vec3(0.0f, 0.0f, 1.0f), glm::vec3(0.0f, -1.0f, 0.0f)));
+            shadowTransforms.push_back(shadowProjection * glm::lookAt(lightPos, lightPos + glm::vec3(0.0f, 0.0f, -1.0f), glm::vec3(0.0f, -1.0f, 0.0f)));
+
+            glViewport(0, 0,point.pointWidth,point.pointHeight);
+            glBindFramebuffer(GL_FRAMEBUFFER, pass.depthCubemapFBO);
+            glClear(GL_DEPTH_BUFFER_BIT);
+            pass.pointDepthShader.bind();
+            pass.pointDepthShader.uniform_float("far_plane", point.farPlane);
+            pass.pointDepthShader.uniform_vector3f("lightPos", lightPos);
+            for (unsigned int j = 0; j < 6; ++j)
+            {
+                std::string uniform = "shadowMatrices[" + std::to_string(j) + "]";
+                pass.pointDepthShader.uniform_matrix4(uniform.c_str(), shadowTransforms[j]);
+            }
+            pass.pointDepthShader.uniform_matrix4("model", model);
+            DrawScene(renderData, meshRenderData);
+        }
+    }
     glBindFramebuffer(GL_FRAMEBUFFER, 0);
 }
 

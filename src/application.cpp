@@ -90,24 +90,24 @@ void application::run()
             .type = LightType::Point,
             .position = {3.6, 2.5, -2.9},
             .color = {1.0, 0.773, 0.561},
-            .luminance = 100,
+            .luminance = 50,
             .constant = 1.0, .linear=0.09, .quadratic=0.032,
-            .isShadowCasting = 0,
+            .isShadowCasting = 1,
     };
 
     state->numberOfLights = 2;
-
-    size_t asset_size = 1024 * 1024 * 1024 * (u64)2;
-    MemoryArena assetArena = InitArena(PushSize(&permanent_storage, asset_size), asset_size);
-    InitAssetSystem(assets, assetArena);
-
-    LoadScene(assets, "assets/models/bristro_exterior/bristro_exterior.gltf", batchMeshRenderData, gpu_textures);
 
     lightPosition = glm::vec3();
 
     renderData.gpu_textures = gpu_textures;
 
     RenderSetupParameters(&renderData, screen_width_, screen_height_);
+
+    size_t asset_size = 1024 * 1024 * 1024 * (u64)2;
+    MemoryArena assetArena = InitArena(PushSize(&permanent_storage, asset_size), asset_size);
+    InitAssetSystem(assets, assetArena);
+
+    LoadScene(assets, "assets/models/bristro/bristro_interior.gltf", batchMeshRenderData, gpu_textures);
 
     camera = {};
     camera.position = glm::vec3(0.1f, 0.1f, 0.1f);
@@ -129,10 +129,12 @@ void application::run()
     u32 shadow_width = 2048;
     u32 shadow_height = 2048;
     SetupShadowMapPass(&renderData, state->lights, state->numberOfLights, shadow_width, shadow_height);
+    SetupPointShadowMapPass(&renderData, state->lights, state->numberOfLights, shadow_width, shadow_height);
 
     SetupSSAOPass(&renderData);
 
     SetupGBuffers(&renderData);
+
     
     // SetupBRDFLUT(&renderData);
 
@@ -162,6 +164,7 @@ void application::run()
         // RenderBRDFLUT(&renderData);
 
         RenderShadowMapPass(&renderData, batchMeshRenderData, model);
+        RenderOmidirectionalShadowMap(&renderData, batchMeshRenderData, model, state->lights, state->numberOfLights);
         RenderDepthNormalPass(&renderData, batchMeshRenderData, model, camera);
         RenderSSAOPass(&renderData, camera);
         //

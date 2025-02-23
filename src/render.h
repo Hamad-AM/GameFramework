@@ -50,6 +50,7 @@ struct Light
 
     float cutOff{ 0 };
     s32 isShadowCasting{ 0 };
+    s32 pointShadowMapIndex;
 };
 
 
@@ -61,12 +62,22 @@ struct Material
     u32 aoID;
 };
 
+#pragma pack(push, 1)
+struct Vertex
+{
+    f32 position[3];
+    f32 normal[3];
+    f32 uv[2];
+    f32 tangents[3];
+};
+#pragma pack(pop)
+
 struct Mesh
 {
-    std::vector<glm::vec3> positions;
-    std::vector<glm::vec3> normals;
-    std::vector<glm::vec2> uvs;
-    std::vector<glm::vec3> tangents;
+    u64 vertexCount;
+    std::vector<f32> vertices;
+    
+    u64 indexCount;
     std::vector<u32> indices;
     std::string albedo;
     std::string metallicRoughness;
@@ -96,13 +107,27 @@ struct MeshRenderData
     GLuint normalMapID;
 };
 
+struct PointLightShadow
+{
+    GLuint depthCubemap;
+    f32 farPlane;
+    u32 pointWidth, pointHeight;
+    Light* light;
+};
+
 struct ShadowPass
 {
     GLuint depthMapFBO;
     GLuint depthMap;
     glm::mat4 lightSpaceMatrix;
 
+    u32 pointCount{ 0 };
+    PointLightShadow pointShadows[4];
+    GLuint depthCubemapFBO;
+    f32 farPlane;
+
     Shader depthShader;
+    Shader pointDepthShader;
 
     u32 width, height;
 };
@@ -186,6 +211,7 @@ void RenderSetupParameters(RenderData* renderData, u32 render_width, u32 render_
 void SetupLightsBuffer(RenderData* renderData, Light* lights, u32 numLights);
 
 void SetupShadowMapPass(RenderData* renderData, Light* lights, u32 numLights, u32 shadow_width, u32 shadow_height);
+void SetupPointShadowMapPass(RenderData* renderData, Light* lights, u32 numLights, u32 shadow_width, u32 shadow_height);
 
 void SetupSSAOPass(RenderData* renderData);
 
@@ -193,9 +219,12 @@ void SetupEnvironmentCubeMap(RenderData* renderData);
 void StartDepthNormalPass(RenderData* renderData);
 void UseDepthNormalShader(RenderData* renderData, glm::mat4 model, Camera3D& camera);
 void DrawScene(RenderData* renderData, std::vector<MeshRenderData>& meshRenderData);
+
 void RenderDepthNormalPass(RenderData* renderData, std::vector<MeshRenderData>& meshRenderData, glm::mat4 model, Camera3D& camera);
 void RenderSSAOPass(RenderData* renderData, Camera3D& camera);
 void RenderShadowMapPass(RenderData* renderData, std::vector<MeshRenderData>& meshRenderData, glm::mat4 model);
+void RenderOmidirectionalShadowMap(RenderData* renderData, std::vector<MeshRenderData>& meshRenderData, mat4& model, Light* lights, u32 numLights);
+
 void RenderScene(RenderData* renderData, std::vector<MeshRenderData>& meshRenderData, glm::mat4 model, Camera3D& camera, glm::vec3 lightPosition);
 void RenderEnvironmentMap(RenderData* renderData, Camera3D& camera);
 

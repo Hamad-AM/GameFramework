@@ -19,7 +19,7 @@
 
         void set_program(u32 program) { program_ = program; }
 
-        void compile(const char* vs, const char* fs);
+        void compile(const char* vs, const char* fs, const char* gs = nullptr);
 
         void uniform_float      (const char* name, const f32 value);
         void uniform_int        (const char* name, const s32 value);

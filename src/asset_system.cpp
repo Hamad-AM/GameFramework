@@ -22,6 +22,9 @@
 
 #include <windows.h>
 
+#define TimeNow() std::chrono::high_resolution_clock::now()
+#define Timelapse(diff) std::chrono::duration_cast<std::chrono::microseconds>(end - start)
+
 struct DDS_PIXELFORMAT {
     DWORD dwSize;
     DWORD dwFlags;
@@ -106,7 +109,7 @@ b32 LoadGLTFModel(std::string path, tinygltf::Model& model)
         std::cout << "    Loading Model with Images..." << std::endl;
         ret = loader.LoadASCIIFromFile(&tempModel, &err, &warn, path);
         std::filesystem::path textureFilePath = filePath.parent_path() / "textures";
-        std::string commandCall = "nvcompress -color -alpha -bc7 -fast " + textureFilePath.string() + " " + textureFilePath.string();
+        std::string commandCall = "nvcompress -color -alpha -bc7 -fast -m " + textureFilePath.string() + " " + textureFilePath.string();
         s32 result = system(commandCall.c_str());
         for (tinygltf::Image& image : tempModel.images)
         {
@@ -141,6 +144,109 @@ bool containsSubstring(const std::string& mainStr, const std::string& subStr) {
 
     // Check if the lowercase main string contains the lowercase substring
     return lowerMainStr.find(lowerSubStr) != std::string::npos;
+}
+
+
+void LoadImageFromFileAsync(AssetSystem& assets, Image& image)
+{
+    LoadImageJob job = {.path = image.filePath, .arena = &assets.arena, .name = image.name };
+
+    std::lock_guard<std::mutex> lock(assets.queueMutex);
+
+    assets.jobs.push(std::move(job));
+    assets.condition.notify_one();
+}
+
+void AddImage(AssetSystem& assets, const tinygltf::Image& image, std::filesystem::path& filePath)
+{
+    const u8* imageData = image.image.data();
+    std::string filename = image.name;
+    if (assets.images.find(image.name) != assets.images.end()) return;
+#ifdef USE_KTX
+    filename += ".ktx2";
+#else
+    filename += ".dds";
+#endif
+    std::filesystem::path texture_file = filePath / filename;
+    assets.images[image.name] = { .filePath = texture_file.string(), .name = image.name };
+}
+
+b32 DoLoadImageJob(AssetSystem* assets, LoadImageJob& job)
+{
+    std::unique_lock<std::mutex> lock(assets->queueMutex);
+    assets->condition.wait(lock, [assets] { return !assets->jobs.empty() || assets->stopLoading; });
+    if (assets->stopLoading && assets->jobs.empty()) return false;
+    job = std::move(assets->jobs.front());
+    assets->jobs.pop();
+    return true;
+}
+
+
+u8* AllocateAsset(AssetSystem* assets, u64& size)
+{
+    std::lock_guard<std::mutex> lock(assets->arenaMutex);
+    u8* buffer = PushSize(&assets->arena, size);
+    return buffer;
+}
+
+void LoadImageFromFile(AssetSystem* assets, std::string& path, std::string& name)
+{
+    FILE* file = fopen(path.c_str(), "rb");
+    if (!file)
+    {
+        std::cerr << "Could not read file : " << path << std::endl;
+    }
+
+    fseek(file, 0, SEEK_END);
+    u64 fileSize = ftell(file);
+    fseek(file, 0, SEEK_SET);
+
+    u8* buffer = AllocateAsset(assets, fileSize);
+    size_t bytesRead = fread(buffer, 1, fileSize, file);
+    fclose(file);
+    //std::cout << "Read file from : " << std::this_thread::get_id() << std::endl;
+
+    DDSFile* ddsImage = (DDSFile*)buffer;
+
+    u32 width = (u32)ddsImage->header.dwWidth;
+    u32 height = (u32)ddsImage->header.dwHeight;
+    u64 size = (u64)ddsImage->header.dwPitchOrLinearSize;
+    u32 mipMapCount = (u32)ddsImage->header.dwMipMapCount;
+
+
+    Image& im = assets->images[name];;
+    im.width = width;
+    im.height = height;
+    im.format = texture_format::RGBA;
+    u64 offset = sizeof(DWORD) + sizeof(DDS_HEADER) + sizeof(DDS_HEADER_DXT10);
+    u8* start = buffer+offset;
+    for (s32 i = 0; i < mipMapCount; ++i)
+    {
+        u32 numBlocksWide = std::max<size_t>(1, (width + 3) / 4);
+        u32 numBlocksHigh = std::max<size_t>(1, (height + 3) / 4);
+        u32 rowBytes = numBlocksWide * 16;
+        u32 numRows = numBlocksHigh;
+        u32 numBytes = rowBytes * numRows;
+
+        u8* compressedImageData = buffer + offset;
+        u64 imageSize = numBytes;
+        im.imageData[i].width = width;
+        im.imageData[i].height = height;
+        im.imageData[i].data = start;
+        im.imageData[i].bytes = numBytes;
+        im.imageData[i].available = true;
+
+        start = start + numBytes;
+        width /= 2;
+        height /= 2;
+    }
+}
+
+void ShutDownLoading(AssetSystem& assets)
+{
+    std::lock_guard<std::mutex> lock(assets.queueMutex);
+    assets.stopLoading = true;
+    assets.condition.notify_all();
 }
 
 void LoadImageFromFile(AssetSystem& assets, const tinygltf::Image& image, std::filesystem::path& textures_path)
@@ -195,6 +301,12 @@ void LoadImageFromFile(AssetSystem& assets, const tinygltf::Image& image, std::f
     u32 height = (u32)ddsImage->header.dwHeight;
     u64 size = (u64)ddsImage->header.dwPitchOrLinearSize;
 
+    assets.images[image.name] = Image{};
+    Image& i = assets.images[image.name];
+    i.width = width;
+    i.height = height;
+    i.format = texture_format::RGBA;
+
     u32 numBlocksWide = std::max<size_t>(1, (width + 3) / 4);
     u32 numBlocksHigh = std::max<size_t>(1, (height + 3) / 4);
     u32 rowBytes = numBlocksWide * 16;
@@ -205,20 +317,6 @@ void LoadImageFromFile(AssetSystem& assets, const tinygltf::Image& image, std::f
     u8* compressedImageData = buffer + offset;
     u64 imageSize = numBytes;
 
-    assets.images[image.name] = Image{};
-    Image& i = assets.images[image.name];
-#ifdef USE_TEX
-    i.width = (u32)texture->baseWidth;
-    i.height = (u32)texture->baseHeight;
-    i.ktxTexture = texture;
-    i.data = buffer;
-#else
-    i.width = width;
-    i.height = height;
-    i.data = compressedImageData;
-    i.size = imageSize;
-#endif
-    i.format = texture_format::RGBA;
 }
 
 Model GltfToModel(AssetSystem& assets, tinygltf::Model& model, std::string& path, std::unordered_map<std::string, u32> gpu_textures)
@@ -234,56 +332,50 @@ Model GltfToModel(AssetSystem& assets, tinygltf::Model& model, std::string& path
                 continue;
             }
 
+            if (primitive.attributes.find("NORMAL") == primitive.attributes.end()) {
+                assert(("Mesh has no Normals", false));
+            }
+
+            if (primitive.attributes.find("TEXCOORD_0") == primitive.attributes.end()) {
+                assert(("Mesh has no TexCoords", false));
+            }
+
+            if (primitive.attributes.find("TANGENT") == primitive.attributes.end()) {
+                std::cout << "No Tangents found for : " << mesh.name << std::endl;
+            }
+         
             // Get vertex data
             const tinygltf::Accessor& positionAccessor = model.accessors[primitive.attributes.at("POSITION")];
             const tinygltf::BufferView& positionBufferView = model.bufferViews[positionAccessor.bufferView];
             const float* positions = reinterpret_cast<const float*>(&model.buffers[positionBufferView.buffer].data[positionBufferView.byteOffset + positionAccessor.byteOffset]);
 
+            const auto& normalAccessor = model.accessors[primitive.attributes.at("NORMAL")];
+            const auto& normalBufferView = model.bufferViews[normalAccessor.bufferView];
+            const float* normals = reinterpret_cast<const float*>(&model.buffers[normalBufferView.buffer].data[normalBufferView.byteOffset + normalAccessor.byteOffset]);
+
+            const auto& texCoordAccessor = model.accessors[primitive.attributes.at("TEXCOORD_0")];
+            const auto& texCoordBufferView = model.bufferViews[texCoordAccessor.bufferView];
+            const float* texCoordData = reinterpret_cast<const float*>(&model.buffers[texCoordBufferView.buffer].data[texCoordBufferView.byteOffset + texCoordAccessor.byteOffset]);
+
+            const tinygltf::Accessor tangentAccessor = model.accessors[primitive.attributes.at("TANGENT")];
+            const tinygltf::BufferView tangentBV = model.bufferViews[tangentAccessor.bufferView];
+            const float* tangents = reinterpret_cast<const float*>(&model.buffers[tangentBV.buffer].data[tangentBV.byteOffset + tangentAccessor.byteOffset]);
+
+            //if (positionAccessor.count == normalAccessor.count == texCoordAccessor.count == tangentAccessor.count))
+            //{
+            //    std::cout << "ERROR :: not equal count of vertex attributes " << mesh.name << std::endl;
+            //}
+    
+            mesh.vertices.reserve(positionAccessor.count + normalAccessor.count + texCoordAccessor.count + tangentAccessor.count);
             for (size_t i = 0; i < positionAccessor.count; ++i)
             {
-                mesh.positions.emplace_back(glm::vec3(positions[i * 3 + 0], positions[i * 3 + 1], positions[i * 3 + 2]));
-            }
-
-            // Get normal data if available
-            if (primitive.attributes.find("NORMAL") != primitive.attributes.end()) {
-                const auto& normalAccessor = model.accessors[primitive.attributes.at("NORMAL")];
-                const auto& normalBufferView = model.bufferViews[normalAccessor.bufferView];
-                const float* normals = reinterpret_cast<const float*>(&model.buffers[normalBufferView.buffer].data[normalBufferView.byteOffset + normalAccessor.byteOffset]);
-                for (size_t i = 0; i < normalAccessor.count; ++i)
-                {
-                    mesh.normals.emplace_back(glm::vec3(normals[i * 3 + 0], normals[i * 3 + 1], normals[i * 3 + 2]));
-                }
-            }
-            else {
-                assert(("Mesh has no Normals", false));
-            }
-
-            if (primitive.attributes.count("TEXCOORD_0")) {
-                const auto& texCoordAccessor = model.accessors[primitive.attributes.at("TEXCOORD_0")];
-                const auto& texCoordBufferView = model.bufferViews[texCoordAccessor.bufferView];
-                const float* texCoordData = reinterpret_cast<const float*>(&model.buffers[texCoordBufferView.buffer].data[texCoordBufferView.byteOffset + texCoordAccessor.byteOffset]);
-                for (size_t i = 0; i < texCoordAccessor.count; ++i)
-                {
-                    mesh.uvs.emplace_back(glm::vec2(texCoordData[i * 2 + 0], texCoordData[i * 2 + 1]));
-                }
-            }
-            else {
-                assert(("Mesh has no TexCoords", false));
-            }
-
-            if (primitive.attributes.find("TANGENT") != primitive.attributes.end()) {
-                const tinygltf::Accessor tangentAccessor = model.accessors[primitive.attributes.at("TANGENT")];
-                const tinygltf::BufferView tangentBV = model.bufferViews[tangentAccessor.bufferView];
-                const float* tangents = reinterpret_cast<const float*>(&model.buffers[tangentBV.buffer].data[tangentBV.byteOffset + tangentAccessor.byteOffset]);
-                for (size_t i = 0; i < tangentAccessor.count; ++i)
-                {
-                    mesh.tangents.emplace_back(glm::vec3(tangents[i * 3 + 0], tangents[i * 3 + 1], tangents[i * 3 + 2]));
-                }
-            }
-            else {
-                // calculate tangents as they are not available
-                // calculateTangents = true;
-                std::cout << "No Tangents found for : " << mesh.name << std::endl;
+                mesh.vertices.insert(mesh.vertices.end(),
+                        { positions[i * 3 + 0], positions[i * 3 + 1], positions[i * 3 + 2],
+                          normals[i * 3 + 0], normals[i * 3 + 1], normals[i * 3 + 2],
+                          texCoordData[i * 2 + 0], texCoordData[i * 2 + 1],
+                          tangents[i * 3 + 0], tangents[i * 3 + 1], tangents[i * 3 + 2]
+                        }
+                );
             }
 
             // Get index data
@@ -346,7 +438,7 @@ Model GltfToModel(AssetSystem& assets, tinygltf::Model& model, std::string& path
                         const tinygltf::Image& image = model.images[texture.source];
                         //std::shared_ptr<Image> myImage = std::make_shared<Image>(Image{ (u32)image.width, (u32)image.height, texture_format::RGBA, nullptr });
                         //images.emplace(textureIndex, myImage);
-                        LoadImageFromFile(assets, image, textures_path);
+                        AddImage(assets, image, textures_path);
                         mesh.albedo = image.name;
                     }
                 }
@@ -367,7 +459,7 @@ Model GltfToModel(AssetSystem& assets, tinygltf::Model& model, std::string& path
                         //std::shared_ptr<Image> myImage = std::make_shared<Image>(Image{ (u32)image.width, (u32)image.height, texture_format::RGBA, nullptr });
                         //myImage->image = (u8*)memcpy(sizeof(u32) * image.width * image.height);
                         //images.emplace(textureIndex, myImage);
-                        LoadImageFromFile(assets, image, textures_path);
+                        AddImage(assets, image, textures_path);
                         mesh.metallicRoughness = image.name;
                     }
                 }
@@ -387,7 +479,7 @@ Model GltfToModel(AssetSystem& assets, tinygltf::Model& model, std::string& path
                         const auto& image = model.images[texture.source];
                         //std::shared_ptr<Image> myImage = std::make_shared<Image>(Image{ (u32)image.width, (u32)image.height, texture_format::RGBA, image.image });
                         //images.emplace(textureIndex, myImage);
-                        LoadImageFromFile(assets, image, textures_path);
+                        AddImage(assets, image, textures_path);
                         mesh.normalMap = image.name;
                     }
                 }
@@ -409,7 +501,7 @@ Model GltfToModel(AssetSystem& assets, tinygltf::Model& model, std::string& path
                 });
                 if (it != model.images.end())
                 {
-                    LoadImageFromFile(assets, *it, textures_path);
+                    AddImage(assets, *it, textures_path);
                     mesh.metallicRoughness = it->name;
                 }
                 else
@@ -477,37 +569,30 @@ void BatchModel(AssetSystem& assets, Model& model,
 {
     auto& images = assets.images;
 
+    std::chrono::microseconds totalMeshUploadTime = std::chrono::microseconds(0);
+    std::chrono::microseconds totalTextureUploadTime = std::chrono::microseconds(0);;
+
     u32 vertexOffset = 0;
     u32 lastVertexCount = 0;
     u32 lastIndexCount = 0;
+    auto start = TimeNow();
+    for (auto image : assets.images)
+    {
+        GLuint textureID = CreateTexture(image.second);
+        gpu_textures[image.first] = textureID;
+    }
+    auto end = TimeNow();
+    auto duration = Timelapse(end - start);
+    totalTextureUploadTime += duration;
+
+    start = TimeNow();
     for (const Mesh& mesh : model.meshes)
     {
         batchMeshRenderData.push_back(MeshRenderData{});
         std::vector<MeshOffset> meshOffsets;
-        std::vector<f32> vertices;
-        std::vector<u32> indices;
         MeshRenderData& meshRenderData = batchMeshRenderData.back();
-        for (size_t i = 0; i < mesh.positions.size(); ++i)
-        {
-            vertices.push_back(mesh.positions[i].x);
-            vertices.push_back(mesh.positions[i].y);
-            vertices.push_back(mesh.positions[i].z);
-            vertices.push_back(mesh.normals[i].x);
-            vertices.push_back(mesh.normals[i].y);
-            vertices.push_back(mesh.normals[i].z);
-            vertices.push_back(mesh.uvs[i].x);
-            vertices.push_back(mesh.uvs[i].y);
-            vertices.push_back(mesh.tangents[i].x);
-            vertices.push_back(mesh.tangents[i].y);
-            vertices.push_back(mesh.tangents[i].z);
-        }
 
-        // Add indices with offset
-        for (const u32& index : mesh.indices) {
-            indices.push_back(index + vertexOffset / 8);
-        }
-
-        meshRenderData.numberOfIndices = indices.size();
+        meshRenderData.numberOfIndices = mesh.indices.size();
         glGenBuffers(1, &meshRenderData.VBO);
         glGenBuffers(1, &meshRenderData.EBO);
         glGenVertexArrays(1, &meshRenderData.VAO);
@@ -517,11 +602,11 @@ void BatchModel(AssetSystem& assets, Model& model,
 
         // Upload vertex data
         glBindBuffer(GL_ARRAY_BUFFER, meshRenderData.VBO);
-        glBufferData(GL_ARRAY_BUFFER, vertices.size() * sizeof(f32), &vertices[0], GL_STATIC_DRAW);
+        glBufferData(GL_ARRAY_BUFFER, mesh.vertices.size() * sizeof(f32), &mesh.vertices[0], GL_STATIC_DRAW);
 
         // Upload index data
         glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, meshRenderData.EBO);
-        glBufferData(GL_ELEMENT_ARRAY_BUFFER, indices.size() * sizeof(unsigned int), &indices[0], GL_STATIC_DRAW);
+        glBufferData(GL_ELEMENT_ARRAY_BUFFER, mesh.indices.size() * sizeof(unsigned int), &mesh.indices[0], GL_STATIC_DRAW);
 
         // Define vertex attribute pointers (assuming layout: position, normal, UV)
         glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, 11 * sizeof(float), (void*)0);       // Position
@@ -537,14 +622,9 @@ void BatchModel(AssetSystem& assets, Model& model,
         glBindVertexArray(0);
 
 
-
         if (gpu_textures.find(mesh.albedo) == gpu_textures.end())
         {
-            Image image = images[mesh.albedo];
-            GLuint textureID = CreateTexture(image);
-
-            gpu_textures[mesh.albedo] = textureID;
-            meshRenderData.albedoID = textureID;
+            std::cerr << "ERROR: can't find texture. Not uploaded to gpu" << std::endl;
         }
         else {
             meshRenderData.albedoID = gpu_textures[mesh.albedo];
@@ -552,12 +632,7 @@ void BatchModel(AssetSystem& assets, Model& model,
 
         if (gpu_textures.find(mesh.normalMap) == gpu_textures.end())
         {
-            Image image = images[mesh.normalMap];
-
-            GLuint textureID = CreateTexture(image);
-
-            gpu_textures[mesh.normalMap] = textureID;
-            meshRenderData.normalMapID = textureID;
+            std::cerr << "ERROR: can't find texture. Not uploaded to gpu" << std::endl;
         }
         else {
             meshRenderData.normalMapID = gpu_textures[mesh.normalMap];
@@ -565,21 +640,22 @@ void BatchModel(AssetSystem& assets, Model& model,
 
         if (gpu_textures.find(mesh.metallicRoughness) == gpu_textures.end())
         {
-            Image& image = images[mesh.metallicRoughness];
-            GLuint textureID = CreateTexture(image);
-
-            gpu_textures[mesh.metallicRoughness] = textureID;
-            meshRenderData.metallicRoughnessID = textureID;
+            std::cerr << "ERROR: can't find texture. Not uploaded to gpu" << std::endl;
         }
         else {
             meshRenderData.metallicRoughnessID = gpu_textures[mesh.metallicRoughness];
         }
-
         // Record mesh offset
         //vertexOffset += lastrenderData.vertices.size();
         //lastVertexCount += renderData.vertices.size();
         //lastIndexCount += renderData.indices.size();
     }
+    end = TimeNow();
+    duration = Timelapse(end - start);
+    totalMeshUploadTime += duration;
+
+    std::cout << "  Time to Upload Mesh Data: " << totalMeshUploadTime.count() / 1000 << std::endl;
+    std::cout << "  Time to Upload Texture Data: " << totalTextureUploadTime.count() / 1000 << std::endl;
 }
 
 const char* getGLErrorString(GLenum errorCode) {
@@ -604,48 +680,31 @@ u32 CreateTexture(Image& image)
     glGenTextures(1, &textureID);
     glBindTexture(GL_TEXTURE_2D, textureID);
 
-#ifdef USE_GPU_COMPRESSION
-    ktxTexture* texture = nullptr;
-    KTX_error_code result = ktxTexture_CreateFromMemory(image.data, image.size, KTX_TEXTURE_CREATE_ALLOC_STORAGE, &texture);
-    GLenum glError;
-    GLenum pTarget;
-    result = ktxTexture_GLUpload(texture, NULL, &pTarget, &glError);
-    //switch (image.type)
-    //{
-    //    case TextureType::NORMAL:
-    //        glPixelStorei(GL_UNPACK_ALIGNMENT, 1);
-    //        glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, image.width, image.height, 0,
-    //            GL_RGBA, GL_UNSIGNED_BYTE, image.data);
-    //        break;
-    //    default:
-    //        KTX_error_code result = ktxTexture_CreateFromMemory(image.data, image.size, KTX_TEXTURE_CREATE_ALLOC_STORAGE, &texture);
-    //        GLenum glError;
-    //        GLenum pTarget;
-    //        result = ktxTexture_GLUpload(texture, NULL, &pTarget, &glError);
-    //        break;
-    //}
-    //std::cerr << " " << getGLErrorString(glError) << std::endl;
-#else
     glPixelStorei(GL_UNPACK_ALIGNMENT, 1);
-    glCompressedTexImage2D(GL_TEXTURE_2D, 0, GL_COMPRESSED_RGBA_BPTC_UNORM, image.width, image.height, 0,
-        image.size, image.data);
-#endif
+    for (s32 i = 0; i < MAX_MIPMAP; ++i)
+    {
+        ImageData& data = image.imageData[i];
+        glCompressedTexImage2D(GL_TEXTURE_2D, i, GL_COMPRESSED_RGBA_BPTC_UNORM, data.width, data.height, 0, data.bytes, data.data);
+    }
 
     glTexParameterf(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR_MIPMAP_LINEAR);
     glTexParameterf(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_REPEAT);
     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_REPEAT);
 
-    glGenerateMipmap(GL_TEXTURE_2D);
-
     glBindTexture(GL_TEXTURE_2D, 0);
 
-#ifdef USE_GPU_COMPRESSION
-    if (image.type != TextureType::NORMAL)
-        ktxTexture_Destroy(texture);
-#endif
-
     return textureID;
+}
+
+void LookForWork(int threadId, AssetSystem* assets)
+{
+    while (true)
+    {
+        LoadImageJob job;
+        if (!DoLoadImageJob(assets, job)) break;
+        LoadImageFromFile(assets, job.path, job.name);
+    }
 }
 
 void LoadScene(AssetSystem& assets, std::string path,
@@ -654,14 +713,49 @@ void LoadScene(AssetSystem& assets, std::string path,
 {
     Model model;
     tinygltf::Model glModel;
+    auto start = TimeNow();
     b32 succesful = LoadGLTFModel(path, glModel);
+    auto end = TimeNow();
+    auto duration = Timelapse(end - start);
+    std::cout << "Loading GLTF File with TinyGLTF " << duration.count() / 1000 << std::endl;
+
+    start = TimeNow();
     if (succesful)
     {
         model = GltfToModel(assets, glModel, path, gpu_textures);
     }
-    BatchModel(assets, model, batchMeshRenderData, gpu_textures);
-}
+    end = TimeNow();
+    duration = Timelapse(end - start);
+    std::cout << "Convert GLTF to Internal Model " << duration.count() / 1000 << std::endl;
 
+    start = TimeNow();
+    for(std::pair<const std::string, Image>& pair : assets.images)
+    {
+        LoadImageFromFileAsync(assets, pair.second); 
+    }
+
+    std::vector<std::thread> threads;
+    for (s32 i = 0; i < 1; ++i)
+    {
+        threads.emplace_back(std::thread(LookForWork, i, &assets));
+    }
+
+    ShutDownLoading(assets);
+    for (auto& worker : threads)
+    {
+        worker.join();
+    }
+    end = TimeNow();
+    duration = Timelapse(end - start);
+    std::cout << "Loading Image Files " << duration.count() / 1000 << std::endl;
+
+    start = TimeNow();
+    BatchModel(assets, model, batchMeshRenderData, gpu_textures);
+    end = TimeNow();
+    duration = Timelapse(end - start);
+    std::cout << "Upload Mesh & Textures to GPU " << duration.count() / 1000 << std::endl;
+    std::cout << "Finished Loading Scene" << std::endl;
+}
 
 void InitAssetSystem(AssetSystem& assets, MemoryArena arena)
 {
