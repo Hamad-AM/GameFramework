@@ -97,6 +97,8 @@ void application::run()
 
     state->numberOfLights = 2;
 
+    vec3 lightProbePosition = {9, 2, -3};
+
     lightPosition = glm::vec3();
 
     renderData.gpu_textures = gpu_textures;
@@ -112,7 +114,10 @@ void application::run()
     camera = {};
     camera.position = glm::vec3(0.1f, 0.1f, 0.1f);
     camera.target = glm::vec3(0.0f, 0.0f, 0.0f);
-    camera.projection = glm::perspective(glm::radians(90.0f), (f32)screen_width_ / screen_height_, 0.01f, 1000.0f);
+    camera.nearPlane = 0.1f;
+    camera.farPlane = 1000.0f;
+    camera.fov = 90.0f;
+    camera.projection = glm::perspective(glm::radians(camera.fov), (f32)screen_width_ / screen_height_, camera.nearPlane, camera.farPlane);
     camera.orientation = glm::quat(glm::vec3(0.f, 0.f, 0.f));
 
     camera.front = glm::vec3(0.0, 0.0, -1.0);
@@ -128,8 +133,14 @@ void application::run()
     SetupLightsBuffer(&renderData, state->lights, state->numberOfLights);
     u32 shadow_width = 2048;
     u32 shadow_height = 2048;
-    SetupShadowMapPass(&renderData, state->lights, state->numberOfLights, shadow_width, shadow_height);
+    SetupShadowMapPass(&renderData, state->lights, state->numberOfLights, shadow_width, shadow_height, camera);
     SetupPointShadowMapPass(&renderData, state->lights, state->numberOfLights, shadow_width, shadow_height);
+
+    glm::mat4 model = glm::mat4(1.0f);
+    model = glm::scale(model, glm::vec3(1.0f));
+
+    SetupLightProbe(&renderData);
+    RenderLightProbe(&renderData, lightProbePosition, batchMeshRenderData, model, state->lights, state->numberOfLights);
 
     SetupSSAOPass(&renderData);
 
@@ -153,17 +164,13 @@ void application::run()
         if (dt < 0)
             dt = 0.0001;
 
-
-        glm::mat4 model = glm::mat4(1.0f);
-        model = glm::scale(model, glm::vec3(1.0f));
-
         camera.view = glm::lookAt(camera.position, camera.position + camera.front, camera.up);
 
         update(dt);
 
         // RenderBRDFLUT(&renderData);
 
-        RenderShadowMapPass(&renderData, batchMeshRenderData, model);
+        RenderShadowMapPass(&renderData, state->lights[0].direction, batchMeshRenderData, model, camera);
         RenderOmidirectionalShadowMap(&renderData, batchMeshRenderData, model, state->lights, state->numberOfLights);
         RenderDepthNormalPass(&renderData, batchMeshRenderData, model, camera);
         RenderSSAOPass(&renderData, camera);

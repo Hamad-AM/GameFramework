@@ -11,7 +11,7 @@ void CompileShaders(RenderData* renderData) {
     
     renderData->textureToScreen.compile("assets/shaders/textureToScreen.vs", "assets/shaders/textureToScreen.fs");
 
-    renderData->shadowPass.depthShader.compile("assets/shaders/DepthShader.vs", "assets/shaders/DepthShader.fs");
+    renderData->shadowPass.depthShader.compile("assets/shaders/CSMShader.vs", "assets/shaders/CSMShader.fs", "assets/shaders/CSMShader.gs");
     renderData->shadowPass.pointDepthShader.compile("assets/shaders/PointDepthShader.vs", "assets/shaders/PointDepthShader.fs", "assets/shaders/PointDepthShader.gs");
     renderData->depthNormalShader.compile("assets/shaders/DepthNormalPass.vs", "assets/shaders/DepthNormalPass.fs");
 
@@ -28,8 +28,11 @@ void CompileShaders(RenderData* renderData) {
     renderData->deferredPass.gBufferShader.compile("assets/shaders/GBuffer.vs", "assets/shaders/GBuffer.fs");
     renderData->deferredPass.lightingPass.compile("assets/shaders/LightingPass.vs", "assets/shaders/LightingPass.fs");
 
+    renderData->lightProbePass.colorShader.compile("assets/shaders/RenderLightProbe.vs", "assets/shaders/RenderLightProbe.fs");
 
     renderData->UnlitShader.compile("assets/shaders/UnlitShader.vs", "assets/shaders/UnlitShader.fs");
+
+    renderData->sphereCubemap.compile("assets/shaders/SphereCubemap.vs", "assets/shaders/SphereCubemap.fs");
 }
 
 void RenderSetupParameters(RenderData* renderData, u32 render_width, u32 render_height)
@@ -149,8 +152,9 @@ void RenderDeferredScene(RenderData* renderData, std::vector<MeshRenderData>& me
     pass.lightingPass.uniform_int("gMetallicRoughness", 3);
 
     glActiveTexture(GL_TEXTURE4);
-    glBindTexture(GL_TEXTURE_2D, renderData->shadowPass.depthMap);
+    glBindTexture(GL_TEXTURE_2D_ARRAY, renderData->shadowPass.lightDepthmaps);
     pass.lightingPass.uniform_int("shadowMap", 4);
+
     glActiveTexture(GL_TEXTURE5);
     glBindTexture(GL_TEXTURE_2D, renderData->SSAOPass.ssaoColorBufferBlur);
     pass.lightingPass.uniform_int("ssao", 5);
@@ -171,8 +175,13 @@ void RenderDeferredScene(RenderData* renderData, std::vector<MeshRenderData>& me
         pass.lightingPass.uniform_int(name.c_str(), 9+i);
     }
     pass.lightingPass.uniform_float("pointShadowFarPlane", renderData->shadowPass.farPlane);
-    pass.lightingPass.uniform_matrix4("lightSpaceMatrix", renderData->shadowPass.lightSpaceMatrix);
     pass.lightingPass.uniform_vector3f("viewPos", camera.position);
+    pass.lightingPass.uniform_int("cascadeCount", renderData->shadowPass.cascadesCount);
+    for (s32 i = 0; i < renderData->shadowPass.cascadesCount; ++i)
+    {
+        std::string uniformName = "cascadePlaneDistances[" + std::to_string(i) + "]";
+        pass.lightingPass.uniform_float(uniformName.c_str(), renderData->shadowPass.shadowCascadeLevels[i]);
+    }
 
     RenderQuad(renderData);
 
@@ -197,34 +206,52 @@ void RenderDeferredScene(RenderData* renderData, std::vector<MeshRenderData>& me
         RenderCube(renderData);
     }
 
+    renderData->sphereCubemap.bind();
+    renderData->sphereCubemap.uniform_matrix4("projection", camera.projection);
+    renderData->sphereCubemap.uniform_matrix4("view", camera.view);
+    glm::mat4 lightModel(1.0f);
+    lightModel = glm::translate(lightModel, renderData->lightProbePass.position);
+    lightModel = glm::scale(lightModel, glm::vec3(0.1f));
+    renderData->sphereCubemap.uniform_matrix4("model", lightModel);
+    glActiveTexture(GL_TEXTURE0);
+    glBindTexture(GL_TEXTURE_CUBE_MAP, renderData->lightProbePass.irradianceMap);
+    renderData->sphereCubemap.uniform_int("cubemap", 0);
+    RenderSphere(renderData);
+
     RenderEnvironmentMap(renderData, camera);
     glBindBuffer(GL_SHADER_STORAGE_BUFFER, 0);
 }
 
-void SetupShadowMapPass(RenderData* renderData, Light* lights, u32 numLights, u32 shadow_width, u32 shadow_height)
+void SetupShadowMapPass(RenderData* renderData, Light* lights, u32 numLights, u32 shadow_width, u32 shadow_height, Camera3D& camera)
 {
     ShadowPass& pass = renderData->shadowPass;
-    pass.width = shadow_width;
-    pass.height = shadow_height;
+
+    pass.depthMapResolution = 2048;
 
     glGenFramebuffers(1, &pass.depthMapFBO);
 
-    glGenTextures(1, &pass.depthMap);
-    glBindTexture(GL_TEXTURE_2D, pass.depthMap);
-    glTexImage2D(GL_TEXTURE_2D, 0, GL_DEPTH_COMPONENT,
-        pass.width, pass.height, 0, GL_DEPTH_COMPONENT, GL_FLOAT, NULL);
+    glGenTextures(1, &pass.lightDepthmaps);
+    glBindTexture(GL_TEXTURE_2D_ARRAY, pass.lightDepthmaps);
+    glTexImage3D(GL_TEXTURE_2D_ARRAY, 0, GL_DEPTH_COMPONENT32F,
+        pass.depthMapResolution, pass.depthMapResolution, int(pass.cascadesCount) + 1, 0, GL_DEPTH_COMPONENT, GL_FLOAT, nullptr);
     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_BORDER);
     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_BORDER);
     float borderColor[] = { 1.0f, 1.0f, 1.0f, 1.0f };
-    glTexParameterfv(GL_TEXTURE_2D, GL_TEXTURE_BORDER_COLOR, borderColor);
+    glTexParameterfv(GL_TEXTURE_2D_ARRAY, GL_TEXTURE_BORDER_COLOR, borderColor);
 
     glBindFramebuffer(GL_FRAMEBUFFER, pass.depthMapFBO);
-    glFramebufferTexture2D(GL_FRAMEBUFFER, GL_DEPTH_ATTACHMENT, GL_TEXTURE_2D, pass.depthMap, 0);
+    glFramebufferTexture(GL_FRAMEBUFFER, GL_DEPTH_ATTACHMENT, pass.lightDepthmaps, 0);
     glDrawBuffer(GL_NONE);
     glReadBuffer(GL_NONE);
     glBindFramebuffer(GL_FRAMEBUFFER, 0);
+
+    glGenBuffers(1, &pass.lightMatricesUBO);
+    glBindBuffer(GL_UNIFORM_BUFFER, pass.lightMatricesUBO);
+    glBufferData(GL_UNIFORM_BUFFER, sizeof(glm::mat4x4) * 16, nullptr, GL_STATIC_DRAW);
+    glBindBufferBase(GL_UNIFORM_BUFFER, 0, pass.lightMatricesUBO);
+    glBindBuffer(GL_UNIFORM_BUFFER, 0);
 }
 
 void SetupPointShadowMapPass(RenderData* renderData, Light* lights, u32 numLights, u32 shadow_width, u32 shadow_height)
@@ -306,6 +333,128 @@ void RenderOmidirectionalShadowMap(RenderData* renderData,std::vector<MeshRender
         }
     }
     glBindFramebuffer(GL_FRAMEBUFFER, 0);
+}
+
+void SetupLightProbe(RenderData* renderData)
+{
+    LightProbePass& pass = renderData->lightProbePass;
+    glGenFramebuffers(1, &pass.FBO);
+    // glGenRenderbuffers(1, &pass.captureRBO);
+
+    pass.width = 512;
+    pass.height = 512;
+    glBindFramebuffer(GL_FRAMEBUFFER, pass.FBO);
+    glGenTextures(1, &pass.cubemap);
+    glBindTexture(GL_TEXTURE_CUBE_MAP, pass.cubemap);
+    for (u32 j = 0; j < 6; ++j)
+    {
+        glTexImage2D(GL_TEXTURE_CUBE_MAP_POSITIVE_X + j, 0, GL_RGBA16F,
+            pass.width, pass.height, 0, GL_RGBA, GL_FLOAT, NULL);
+    }
+    glTexParameteri(GL_TEXTURE_CUBE_MAP, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
+    glTexParameteri(GL_TEXTURE_CUBE_MAP, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
+    glTexParameteri(GL_TEXTURE_CUBE_MAP, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
+    glTexParameteri(GL_TEXTURE_CUBE_MAP, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
+    glTexParameteri(GL_TEXTURE_CUBE_MAP, GL_TEXTURE_WRAP_R, GL_CLAMP_TO_EDGE);
+    // glBindFramebuffer(GL_FRAMEBUFFER, pass.FBO);
+    // glFramebufferTexture(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, pass.cubemap, 0);
+    // glDrawBuffer(GL_NONE);
+    // glReadBuffer(GL_NONE);
+    glBindFramebuffer(GL_FRAMEBUFFER, 0);
+}
+
+void RenderLightProbe(RenderData* renderData, vec3& lightProbePosition, std::vector<MeshRenderData>& meshRenderData, mat4& model, Light* lights, u32 numOfLights)
+{
+    LightProbePass& pass = renderData->lightProbePass;
+    pass.position = lightProbePosition;
+    f32 nearPlane = 1.0f;
+    f32 farPlane = 15.0f;
+    mat4 proj = glm::perspective(glm::radians(90.0f), (f32)pass.width/(f32)pass.height, nearPlane, farPlane);
+    mat4 probeTransforms[] = {
+        proj * glm::lookAt(lightProbePosition, lightProbePosition + glm::vec3(1.0f, 0.0f, 0.0f), glm::vec3(0.0f, -1.0f, 0.0f)),
+        proj * glm::lookAt(lightProbePosition, lightProbePosition + glm::vec3(-1.0f, 0.0f, 0.0f), glm::vec3(0.0f, -1.0f, 0.0f)),
+        proj * glm::lookAt(lightProbePosition, lightProbePosition + glm::vec3(0.0f, 1.0f, 0.0f), glm::vec3(0.0f, 0.0f, 1.0f)),
+        proj * glm::lookAt(lightProbePosition, lightProbePosition + glm::vec3(0.0f, -1.0f, 0.0f), glm::vec3(0.0f, 0.0f, -1.0f)),
+        proj * glm::lookAt(lightProbePosition, lightProbePosition + glm::vec3(0.0f, 0.0f, 1.0f), glm::vec3(0.0f, -1.0f, 0.0f)),
+        proj * glm::lookAt(lightProbePosition, lightProbePosition + glm::vec3(0.0f, 0.0f, -1.0f), glm::vec3(0.0f, -1.0f, 0.0f))
+    };
+    // TODO: Fix this alternative
+    glm::mat4 inv = glm::inverse(proj);
+
+    glViewport(0, 0, pass.width, pass.height);
+    glBindFramebuffer(GL_FRAMEBUFFER, pass.FBO);
+    glBindBufferBase(GL_SHADER_STORAGE_BUFFER, 0, renderData->lightShaderStorageObject);
+    for (u32 i = 0; i < 6; ++i)
+    {
+        glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0,
+            GL_TEXTURE_CUBE_MAP_POSITIVE_X + i, pass.cubemap, 0);
+        glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
+        
+        // TODO: FIx this hack
+        mat4 view = inv * probeTransforms[i];
+        RenderEnvironmentMap(renderData, view, proj);
+
+        pass.colorShader.bind();
+        pass.colorShader.uniform_matrix4("model", model);
+        pass.colorShader.uniform_matrix4("viewProj", probeTransforms[i]);
+        for (u32 j = 0; j < meshRenderData.size(); ++j)
+        {
+            glActiveTexture(GL_TEXTURE0);
+            glBindTexture(GL_TEXTURE_2D, meshRenderData[j].albedoID);
+            pass.colorShader.uniform_int("albedo", 0);
+
+            glBindVertexArray(meshRenderData[j].VAO);
+            glDrawElements(GL_TRIANGLES, meshRenderData[j].numberOfIndices, GL_UNSIGNED_INT, (void*)(0 * sizeof(u32)));
+        }
+    }
+
+
+    
+    glBindTexture(GL_TEXTURE_CUBE_MAP, pass.cubemap);
+    glGenerateMipmap(GL_TEXTURE_CUBE_MAP);
+
+    glm::mat4 captureProjection = glm::perspective(glm::radians(90.0f), 1.0f, 0.1f, 10.0f);
+    glm::mat4 captureViews[] =
+    {
+       glm::lookAt(glm::vec3(0.0f, 0.0f, 0.0f), glm::vec3(1.0f,  0.0f,  0.0f), glm::vec3(0.0f, -1.0f,  0.0f)),
+       glm::lookAt(glm::vec3(0.0f, 0.0f, 0.0f), glm::vec3(-1.0f,  0.0f,  0.0f), glm::vec3(0.0f, -1.0f,  0.0f)),
+       glm::lookAt(glm::vec3(0.0f, 0.0f, 0.0f), glm::vec3(0.0f,  1.0f,  0.0f), glm::vec3(0.0f,  0.0f,  1.0f)),
+       glm::lookAt(glm::vec3(0.0f, 0.0f, 0.0f), glm::vec3(0.0f, -1.0f,  0.0f), glm::vec3(0.0f,  0.0f, -1.0f)),
+       glm::lookAt(glm::vec3(0.0f, 0.0f, 0.0f), glm::vec3(0.0f,  0.0f,  1.0f), glm::vec3(0.0f, -1.0f,  0.0f)),
+       glm::lookAt(glm::vec3(0.0f, 0.0f, 0.0f), glm::vec3(0.0f,  0.0f, -1.0f), glm::vec3(0.0f, -1.0f,  0.0f))
+    };
+
+
+    glGenTextures(1, &pass.irradianceMap);
+    glBindTexture(GL_TEXTURE_CUBE_MAP, pass.irradianceMap);
+    for (unsigned int i = 0; i < 6; ++i)
+    {
+        glTexImage2D(GL_TEXTURE_CUBE_MAP_POSITIVE_X + i, 0, GL_RGB16F, 32, 32, 0, GL_RGB, GL_FLOAT, nullptr);
+    }
+    glTexParameteri(GL_TEXTURE_CUBE_MAP, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
+    glTexParameteri(GL_TEXTURE_CUBE_MAP, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
+    glTexParameteri(GL_TEXTURE_CUBE_MAP, GL_TEXTURE_WRAP_R, GL_CLAMP_TO_EDGE);
+    glTexParameteri(GL_TEXTURE_CUBE_MAP, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
+    glTexParameteri(GL_TEXTURE_CUBE_MAP, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
+
+    renderData->environmentMapPass.irradianceShader.bind();
+    glActiveTexture(GL_TEXTURE0);
+    glBindTexture(GL_TEXTURE_CUBE_MAP, pass.cubemap);
+    renderData->environmentMapPass.irradianceShader.uniform_int("environmentMap", 0);
+
+    glCullFace(GL_FRONT);
+    glViewport(0, 0, 32, 32); // don't forget to configure the viewport to the capture dimensions.
+    glBindFramebuffer(GL_FRAMEBUFFER, pass.FBO);
+    for (unsigned int i = 0; i < 6; ++i)
+    {
+        renderData->environmentMapPass.irradianceShader.uniform_matrix4("view", captureViews[i]);
+        glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_CUBE_MAP_POSITIVE_X + i, pass.irradianceMap, 0);
+        glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
+
+        RenderCube(renderData);
+    }
+    glBindFramebuffer(GL_FRAMEBUFFER, 0);
+    glCullFace(GL_BACK);
 }
 
 void SetupSSAOPass(RenderData* renderData)
@@ -725,34 +874,37 @@ void RenderSSAOPass(RenderData* renderData, Camera3D& camera)
 }
 
 
-void RenderShadowMapPass(RenderData* renderData, std::vector<MeshRenderData>& meshRenderData, glm::mat4 model)
+void RenderShadowMapPass(RenderData* renderData, vec3& lightDirection, std::vector<MeshRenderData>& meshRenderData, glm::mat4& model, Camera3D& camera)
 {
     ShadowPass& pass = renderData->shadowPass;
-    
+
+    const u32 numberOfCascades = 4;
+    f32 shadowCascadeLevels[numberOfCascades] = { 1/50, 1/25, 1/10, 1/2 };
+    pass.shadowCascadeLevels[0] = camera.farPlane / 50.0f;
+    pass.shadowCascadeLevels[0] = camera.farPlane / 25.0f;
+    pass.shadowCascadeLevels[0] = camera.farPlane / 10.0f;
+    pass.shadowCascadeLevels[0] = camera.farPlane / 2.0f;
+    mat4 lightSpaceMatrices[numberOfCascades];
+    CalculateCascadesLightSpaceMatrices(lightSpaceMatrices, pass.shadowCascadeLevels, numberOfCascades, lightDirection, camera);
+    glBindBuffer(GL_UNIFORM_BUFFER, pass.lightMatricesUBO);
+    for (size_t i = 0; i < numberOfCascades; ++i)
+    {
+        glBufferSubData(GL_UNIFORM_BUFFER, i * sizeof(glm::mat4x4), sizeof(glm::mat4x4), &lightSpaceMatrices[i]);
+    }
+    glBindBuffer(GL_UNIFORM_BUFFER, 0);
+
     glEnable(GL_DEPTH_TEST);
     
     //glCullFace(GL_FRONT);
     glDisable(GL_CULL_FACE);
     
-    glViewport(0, 0, pass.width, pass.height);
+    glViewport(0, 0, pass.depthMapResolution, pass.depthMapResolution);
     // glCullFace(GL_FRONT);
     glBindFramebuffer(GL_FRAMEBUFFER, pass.depthMapFBO);
     glClear(GL_DEPTH_BUFFER_BIT);
     pass.depthShader.bind();
-    float near_plane = 0.1f, far_plane = 500.0f;
-    glm::mat4 lightProjection = glm::ortho(-10.0f, 10.0f, -10.0f, 10.0f, near_plane, far_plane);
-    vec3 position = renderData->lights[0].position;
-    glm::mat4 lightView = glm::lookAt(position,
-        glm::vec3(0.0f, 0.0f, 0.0f),
-        glm::vec3(0.0f, 1.0f, 0.0f));
-    
-    pass.lightSpaceMatrix = lightProjection * lightView;
-    pass.depthShader.uniform_matrix4("lightSpaceMatrix", pass.lightSpaceMatrix);
-
     pass.depthShader.uniform_matrix4("model", model);
-
     DrawScene(renderData, meshRenderData);
-
     glBindFramebuffer(GL_FRAMEBUFFER, 0);
     glEnable(GL_CULL_FACE);
     glCullFace(GL_BACK);
@@ -773,7 +925,7 @@ void RenderScene(RenderData* renderData, std::vector<MeshRenderData>& meshRender
 
     renderData->forwardPass.pbrShader.bind();
     glActiveTexture(GL_TEXTURE0);
-    glBindTexture(GL_TEXTURE_2D, renderData->shadowPass.depthMap);
+    glBindTexture(GL_TEXTURE_2D, renderData->shadowPass.lightDepthmaps);
     renderData->forwardPass.pbrShader.uniform_int("shadowMap", 0);
     glActiveTexture(GL_TEXTURE1);
     glBindTexture(GL_TEXTURE_2D, renderData->SSAOPass.ssaoColorBufferBlur);
@@ -818,18 +970,119 @@ void RenderScene(RenderData* renderData, std::vector<MeshRenderData>& meshRender
 
 void RenderEnvironmentMap(RenderData* renderData, Camera3D& camera)
 {
+    RenderEnvironmentMap(renderData, camera.view, camera.projection);
+}
+
+void RenderEnvironmentMap(RenderData* renderData, mat4& view, mat4& projection)
+{
     // glDisable(GL_DEPTH_TEST);
     glCullFace(GL_FRONT);
     //glDepthFunc(GL_LEQUAL);
     EnvironmentMapPass& pass = renderData->environmentMapPass;
     pass.backgroundShader.bind();
-    pass.backgroundShader.uniform_matrix4("view", camera.view);
-    pass.backgroundShader.uniform_matrix4("projection", camera.projection);
+    mat4 viewProj = projection * mat4(glm::mat3(view));
+    pass.backgroundShader.uniform_matrix4("viewProj", viewProj);
     glActiveTexture(GL_TEXTURE0);
-    glBindTexture(GL_TEXTURE_CUBE_MAP, pass.irradianceMap);
+    glBindTexture(GL_TEXTURE_CUBE_MAP, pass.envCubemap);
+    pass.backgroundShader.uniform_int("environmentMap", 0);
     RenderCube(renderData);
     // glEnable(GL_DEPTH_TEST);
     glCullFace(GL_BACK);
+}
+
+void getFrustumCornersWorldSpace(glm::vec4* frustumCorners, const glm::mat4& proj, const glm::mat4& view)
+{
+    const auto inv = glm::inverse(proj * view);
+
+    u32 index = 0;
+    for (unsigned int x = 0; x < 2; ++x)
+    {
+        for (unsigned int y = 0; y < 2; ++y)
+        {
+            for (unsigned int z = 0; z < 2; ++z)
+            {
+                const glm::vec4 pt =
+                    inv * glm::vec4(
+                        2.0f * x - 1.0f,
+                        2.0f * y - 1.0f,
+                        2.0f * z - 1.0f,
+                        1.0f);
+                frustumCorners[index++] = (pt / pt.w);
+            }
+        }
+    }
+}
+
+mat4 GetLightSpaceMatrix(Camera3D& camera, vec3& lightDirection, f32 nearPlane, f32 farPlane)
+{
+    glm::vec4 corners[8] = {};
+    mat4 projection = glm::perspective(glm::radians(camera.fov), 1.0f, nearPlane, farPlane);
+    getFrustumCornersWorldSpace(corners, camera.projection, camera.view);
+    vec3 center = vec3(0, 0, 0);
+    for (vec3 corner : corners)
+    {
+        center += vec3(corner);
+    }
+    center /= 8;
+
+    const mat4 lightView = glm::lookAt(center + lightDirection, center, vec3(0.0, 1.0, 0.0));
+
+    float minX = std::numeric_limits<float>::max();
+    float maxX = std::numeric_limits<float>::lowest();
+    float minY = std::numeric_limits<float>::max();
+    float maxY = std::numeric_limits<float>::lowest();
+    float minZ = std::numeric_limits<float>::max();
+    float maxZ = std::numeric_limits<float>::lowest();
+    for (const auto& v : corners)
+    {
+        const auto trf = lightView * v;
+        minX = std::min(minX, trf.x);
+        maxX = std::max(maxX, trf.x);
+        minY = std::min(minY, trf.y);
+        maxY = std::max(maxY, trf.y);
+        minZ = std::min(minZ, trf.z);
+        maxZ = std::max(maxZ, trf.z);
+    }
+
+    // Tune this parameter according to the scene
+    constexpr float zMult = 10.0f;
+    if (minZ < 0)
+    {
+        minZ *= zMult;
+    }
+    else
+    {
+        minZ /= zMult;
+    }
+    if (maxZ < 0)
+    {
+        maxZ /= zMult;
+    }
+    else
+    {
+        maxZ *= zMult;
+    }
+    const glm::mat4 lightProjection = glm::ortho(minX, maxX, minY, maxY, minZ, maxZ);
+    return lightProjection * lightView;
+}
+
+void CalculateCascadesLightSpaceMatrices(mat4* matrices, f32* shadowCascadeLevels, u32 numberOfCascades, vec3& lightDirection, Camera3D& camera)
+{
+    for (u32 i = 0; i < numberOfCascades; ++i)
+    {
+        if (i == 0)
+        {
+            matrices[i] = GetLightSpaceMatrix(camera, lightDirection, camera.nearPlane, shadowCascadeLevels[i]);
+        }
+        else if (i < numberOfCascades)
+        {
+            matrices[i] = GetLightSpaceMatrix(camera, lightDirection, shadowCascadeLevels[i - 1], shadowCascadeLevels[i]);
+        }
+        else
+        {
+            matrices[i] = GetLightSpaceMatrix(camera, lightDirection, shadowCascadeLevels[i - 1], camera.farPlane);
+        }
+    }
 }
 
 float lerp(float a, float b, float f)
@@ -934,4 +1187,96 @@ void RenderQuad(RenderData* renderData)
     glBindVertexArray(renderData->quadVAO);
     glDrawArrays(GL_TRIANGLE_STRIP, 0, 4);
     glBindVertexArray(0);
+}
+
+void RenderSphere(RenderData* renderData)
+{
+    if (renderData->sphereVAO == 0)
+    {
+        glGenVertexArrays(1, &renderData->sphereVAO);
+
+        unsigned int vbo, ebo;
+        glGenBuffers(1, &vbo);
+        glGenBuffers(1, &ebo);
+
+        std::vector<glm::vec3> positions;
+        std::vector<glm::vec2> uv;
+        std::vector<glm::vec3> normals;
+        std::vector<unsigned int> indices;
+
+        const unsigned int X_SEGMENTS = 64;
+        const unsigned int Y_SEGMENTS = 64;
+        for (unsigned int x = 0; x <= X_SEGMENTS; ++x)
+        {
+            for (unsigned int y = 0; y <= Y_SEGMENTS; ++y)
+            {
+                float xSegment = (float)x / (float)X_SEGMENTS;
+                float ySegment = (float)y / (float)Y_SEGMENTS;
+                float xPos = std::cos(xSegment * 2.0f * PI) * std::sin(ySegment * PI);
+                float yPos = std::cos(ySegment * PI);
+                float zPos = std::sin(xSegment * 2.0f * PI) * std::sin(ySegment * PI);
+
+                positions.push_back(glm::vec3(xPos, yPos, zPos));
+                uv.push_back(glm::vec2(xSegment, ySegment));
+                normals.push_back(glm::vec3(xPos, yPos, zPos));
+            }
+        }
+
+        bool oddRow = false;
+        for (unsigned int y = 0; y < Y_SEGMENTS; ++y)
+        {
+            if (!oddRow) // even rows: y == 0, y == 2; and so on
+            {
+                for (unsigned int x = 0; x <= X_SEGMENTS; ++x)
+                {
+                    indices.push_back(y * (X_SEGMENTS + 1) + x);
+                    indices.push_back((y + 1) * (X_SEGMENTS + 1) + x);
+                }
+            }
+            else
+            {
+                for (int x = X_SEGMENTS; x >= 0; --x)
+                {
+                    indices.push_back((y + 1) * (X_SEGMENTS + 1) + x);
+                    indices.push_back(y * (X_SEGMENTS + 1) + x);
+                }
+            }
+            oddRow = !oddRow;
+        }
+        renderData->sphereIndexCount = static_cast<unsigned int>(indices.size());
+
+        std::vector<float> data;
+        for (unsigned int i = 0; i < positions.size(); ++i)
+        {
+            data.push_back(positions[i].x);
+            data.push_back(positions[i].y);
+            data.push_back(positions[i].z);
+            if (normals.size() > 0)
+            {
+                data.push_back(normals[i].x);
+                data.push_back(normals[i].y);
+                data.push_back(normals[i].z);
+            }
+            if (uv.size() > 0)
+            {
+                data.push_back(uv[i].x);
+                data.push_back(uv[i].y);
+            }
+        }
+        glBindVertexArray(renderData->sphereVAO);
+        glBindBuffer(GL_ARRAY_BUFFER, vbo);
+        glBufferData(GL_ARRAY_BUFFER, data.size() * sizeof(float), &data[0], GL_STATIC_DRAW);
+        glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, ebo);
+        glBufferData(GL_ELEMENT_ARRAY_BUFFER, indices.size() * sizeof(unsigned int), &indices[0], GL_STATIC_DRAW);
+        unsigned int stride = (3 + 2 + 3) * sizeof(float);
+        glEnableVertexAttribArray(0);
+        glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, stride, (void*)0);
+        glEnableVertexAttribArray(1);
+        glVertexAttribPointer(1, 3, GL_FLOAT, GL_FALSE, stride, (void*)(3 * sizeof(float)));
+        glEnableVertexAttribArray(2);
+        glVertexAttribPointer(2, 2, GL_FLOAT, GL_FALSE, stride, (void*)(6 * sizeof(float)));
+    }
+
+    glBindVertexArray(renderData->sphereVAO);
+    glDrawElements(GL_TRIANGLE_STRIP, renderData->sphereIndexCount, GL_UNSIGNED_INT, 0);
 }

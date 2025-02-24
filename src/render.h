@@ -16,6 +16,9 @@ struct Camera3D
 {
     glm::mat4 projection;
     glm::quat orientation;
+    f32 nearPlane;
+    f32 farPlane;
+    f32 fov;
     glm::vec3 position;
     glm::vec3 front;
     glm::vec3 up;
@@ -118,8 +121,12 @@ struct PointLightShadow
 struct ShadowPass
 {
     GLuint depthMapFBO;
-    GLuint depthMap;
+    GLuint lightDepthmaps;
     glm::mat4 lightSpaceMatrix;
+    u32 depthMapResolution;
+    GLuint lightMatricesUBO;
+    const u32 cascadesCount = 4;
+    f32 shadowCascadeLevels[4];
 
     u32 pointCount{ 0 };
     PointLightShadow pointShadows[4];
@@ -130,6 +137,17 @@ struct ShadowPass
     Shader pointDepthShader;
 
     u32 width, height;
+};
+
+struct LightProbePass
+{
+    u32 width;
+    u32 height;
+    vec3 position;
+    GLuint cubemap;
+    GLuint irradianceMap;
+    GLuint FBO;
+    Shader colorShader;
 };
 
 struct AmbientOcclusionPass {
@@ -189,14 +207,19 @@ struct RenderData
     ShadowPass shadowPass;
     glm::mat4 lightSpaceMatrix;
 
+
     AmbientOcclusionPass SSAOPass;
     EnvironmentMapPass environmentMapPass;
+    LightProbePass lightProbePass;
 
     DeferredPass deferredPass;
     ForwardPass forwardPass;
 
     GLuint quadVAO = 0;
     GLuint cubeVAO = 0;
+    GLuint sphereVAO = 0;
+    u32 sphereIndexCount = 0;
+    Shader sphereCubemap;
 
     GLuint lightShaderStorageObject;
     Light* lights;
@@ -210,7 +233,7 @@ void RenderSetupParameters(RenderData* renderData, u32 render_width, u32 render_
 
 void SetupLightsBuffer(RenderData* renderData, Light* lights, u32 numLights);
 
-void SetupShadowMapPass(RenderData* renderData, Light* lights, u32 numLights, u32 shadow_width, u32 shadow_height);
+void SetupShadowMapPass(RenderData* renderData, Light* lights, u32 numLights, u32 shadow_width, u32 shadow_height, Camera3D& camera);
 void SetupPointShadowMapPass(RenderData* renderData, Light* lights, u32 numLights, u32 shadow_width, u32 shadow_height);
 
 void SetupSSAOPass(RenderData* renderData);
@@ -222,20 +245,29 @@ void DrawScene(RenderData* renderData, std::vector<MeshRenderData>& meshRenderDa
 
 void RenderDepthNormalPass(RenderData* renderData, std::vector<MeshRenderData>& meshRenderData, glm::mat4 model, Camera3D& camera);
 void RenderSSAOPass(RenderData* renderData, Camera3D& camera);
-void RenderShadowMapPass(RenderData* renderData, std::vector<MeshRenderData>& meshRenderData, glm::mat4 model);
+void RenderShadowMapPass(RenderData* renderData, vec3& lightDirection, std::vector<MeshRenderData>& meshRenderData, glm::mat4& model, Camera3D& camera);
 void RenderOmidirectionalShadowMap(RenderData* renderData, std::vector<MeshRenderData>& meshRenderData, mat4& model, Light* lights, u32 numLights);
 
 void RenderScene(RenderData* renderData, std::vector<MeshRenderData>& meshRenderData, glm::mat4 model, Camera3D& camera, glm::vec3 lightPosition);
 void RenderEnvironmentMap(RenderData* renderData, Camera3D& camera);
+void RenderEnvironmentMap(RenderData* renderData, mat4& view, mat4& projection);
+
+void SetupLightProbe(RenderData* renderData);
+void RenderLightProbe(RenderData* renderData, vec3& lightProbePosition, std::vector<MeshRenderData>& meshRenderData, mat4& model, Light* lights, u32 numOfLights);
 
 void SetupGBuffers(RenderData* renderData);
 void RenderDeferredScene(RenderData* renderData, std::vector<MeshRenderData>& meshRenderData, glm::mat4 model, Camera3D& camera);
 
 u32 LoadSkyBoxTexture(const char* filePath);
 
+mat4 GetLightSpaceMatrix(Camera3D& camera, vec3& lightDirection, f32 nearPlane, f32 farPlane);
+void CalculateCascadesLightSpaceMatrices(mat4* matrices, f32* shadowCascadeLevels, u32 numberOfCascades, vec3& lightDirection, Camera3D& camera);
+void getFrustumCornersWorldSpace(glm::vec4* frustumCorners, const glm::mat4& proj, const glm::mat4& view);
+
 void RenderBRDFLUT(RenderData* renderData);
 void SetupBRDFLUT(RenderData* renderData, EnvironmentMapPass& pass);
 
 void RenderCube(RenderData* renderData);
 void RenderQuad(RenderData* renderData);
+void RenderSphere(RenderData* renderData);
 float lerp(float a, float b, float f);

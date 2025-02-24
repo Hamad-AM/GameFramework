@@ -4,14 +4,12 @@ out vec4 FragColor;
 
 in vec2 TexCoords;
 
-in vec4 FragPosLightSpace;
-
 uniform sampler2D gAlbedo;
 uniform sampler2D gNormal;
 uniform sampler2D gPosition;
 uniform sampler2D gMetallicRoughness;
 
-uniform sampler2D shadowMap;
+uniform sampler2DArray shadowMap;
 uniform sampler2D ssao;
 
 uniform samplerCube irradianceMap;
@@ -19,7 +17,6 @@ uniform samplerCube prefilterMap;
 uniform sampler2D   brdfLUT;
 
 uniform vec3 viewPos;
-
 
 #define Directional 1
 #define Point 2
@@ -55,11 +52,17 @@ layout(std430, binding=0) buffer Lights {
     Light lights[];
 };
 
+layout(std140) uniform LightSpaceMatrices
+{
+    mat4 lightSpaceMatrices;
+};
+
+uniform float cascadePlaneDistances[16];
+uniform int cascadeCount;
+
 uniform samplerCube depthCubemaps[4];
 uniform float pointShadowFarPlane;
 
-// uniform vec3 lightPosition;
-uniform mat4 lightSpaceMatrix;
 
 const float PI = 3.14159265359;
 
@@ -107,8 +110,24 @@ vec3 fresnelSchlickRoughness(float cosTheta, vec3 F0, float roughness)
     return F0 + (max(vec3(1.0 - roughness), F0) - F0) * pow(clamp(1.0 - cosTheta, 0.0, 1.0), 5.0);
 }
 
-float shadow_calculation(vec4 fragPosLightSpace, vec3 normal, vec3 lightDir)
+float shadow_calculation(vec3 fragPosWorldSpace, vec3 normal, vec3 lightDir)
 {
+    float depthValue = abs(viewPos.z);
+    int layer = -1;
+    for (int i = 0; i < cascadeCount; ++i)
+    {
+        if (depthValue < cascadePlaneDistances[i])
+        {
+            layer = i;
+            break;
+        }
+    }
+    if (layer == -1)
+    {
+        layer = cascadeCount;
+    }
+
+    vec4 fragPosLightSpace = lightSpaceMatrices[layer] * vec4(fragPosWorldSpace, 1.0f);
     // Perspective Divide, returns lgith space position in [-1, 1]
     vec3 projCoords = fragPosLightSpace.xyz / fragPosLightSpace.w;
     // Change range to [0, 1] to sample depthMap
@@ -121,12 +140,12 @@ float shadow_calculation(vec4 fragPosLightSpace, vec3 normal, vec3 lightDir)
     float shadow = 0.0f;
     if (projCoords.z <= 1.0)
     {
-        vec2 texelSize = 1.0 / textureSize(shadowMap, 0);
+        vec2 texelSize = 1.0 / textureSize(shadowMap, 0).xy;
         for (int x = -4; x <= 4; ++x)
         {
             for (int y = -4; y <= 4; ++y)
             {
-                float pcfDepth = texture(shadowMap, projCoords.xy + vec2(x, y) * texelSize).r;
+                float pcfDepth = texture(shadowMap, vec3(projCoords.xy + vec2(x, y) * texelSize, layer)).r;
                 shadow += currentDepth - bias > pcfDepth ? 1.0 : 0.0;
             }
         }
@@ -137,47 +156,33 @@ float shadow_calculation(vec4 fragPosLightSpace, vec3 normal, vec3 lightDir)
 
 float PointShadowCalculation(vec3 fragPos, vec3 lightPos, int shadowMapIndex)
 {
-    // get vector between fragment position and light position
     vec3 fragToLight = fragPos - lightPos;
-    // use the light to fragment vector to sample from the depth map    
-    float closestDepth = texture(depthCubemaps[0], fragToLight).r;
-    // it is currently in linear range between [0,1]. Re-transform back to original value
-    closestDepth *= pointShadowFarPlane;
-    // now get current linear depth as the length between the fragment and light position
     float currentDepth = length(fragToLight);
-    // now test for shadows
-    float bias = 0.05; 
-    float shadow = currentDepth - bias > closestDepth ? 1.0 : 0.0;
 
+    float bias = 0.05;
+    int sampleCount = 20;  // Number of samples for PCF
+    float shadow = 0.0;
+
+    float diskRadius = 0.05;  // Control softness
+
+    for(int i = 0; i < sampleCount; i++)
+    {
+        // Generate a small random offset (a simple Poisson Disk pattern)
+        vec3 offset = diskRadius * vec3(
+            cos(6.2831853 * float(i) / float(sampleCount)),
+            sin(6.2831853 * float(i) / float(sampleCount)),
+            0.0
+        );
+        
+        float closestDepth = texture(depthCubemaps[0], fragToLight + offset).r;
+        closestDepth *= pointShadowFarPlane; // Convert from [0,1] depth range
+
+        if (currentDepth - bias > closestDepth)
+            shadow += 1.0;
+    }
+
+    shadow /= float(sampleCount); // Average result
     return shadow;
-    //
-    // vec3 fragToLight = fragPos - lightPos;
-    // float currentDepth = length(fragToLight);
-    //
-    // float bias = 0.05;
-    // int sampleCount = 20;  // Number of samples for PCF
-    // float shadow = 0.0;
-    //
-    // float diskRadius = 0.05;  // Control softness
-    //
-    // for(int i = 0; i < sampleCount; i++)
-    // {
-    //     // Generate a small random offset (a simple Poisson Disk pattern)
-    //     vec3 offset = diskRadius * vec3(
-    //         cos(6.2831853 * float(i) / float(sampleCount)),
-    //         sin(6.2831853 * float(i) / float(sampleCount)),
-    //         0.0
-    //     );
-    //     
-    //     float closestDepth = texture(depthCubemaps[0], fragToLight + offset).r;
-    //     closestDepth *= pointShadowFarPlane; // Convert from [0,1] depth range
-    //
-    //     if (currentDepth - bias > closestDepth)
-    //         shadow += 1.0;
-    // }
-    //
-    // shadow /= float(sampleCount); // Average result
-    // return shadow;
 }
 
 vec3 ACESFilm(vec3 color)
@@ -238,7 +243,6 @@ void main()
             L = normalize(lightDirection);
             H = normalize(V + L);
             radiance = lightColor * light.luminance;
-            continue;
         }
         else if (light.type == Point) 
         {
@@ -268,10 +272,9 @@ void main()
         float shadow = 0;
         if (light.isShadowCasting == 1)
         {
-            vec4 fragPosLightSpace = lightSpaceMatrix * vec4(FragPos, 1.0f);
             if (light.type == Directional)
             {
-                shadow = shadow_calculation(fragPosLightSpace, N, L);
+                shadow = shadow_calculation(FragPos, N, L);
             }
             else if (light.type == Point)
             {
@@ -296,34 +299,15 @@ void main()
     vec3 ambient = (kD * diffuse + specular) * ao;
 
     vec3 color = (ambient + Lo);
-    // color = color * 0.00000000000001;
-    // color += vec3(0.0, 0.0, 0.0); //albedoColor.xyz;
 
     // // HDR Calculations
-    // color = color / (color + vec3(1.0));
     color = ACESFilm(color);
-    // // color = pow(color, vec3(0.4545f));
     color = pow(color, vec3(1.0f/2.2f));
 
     // if (lights[0].type == Directional)
     // {
     //     color = vec3(shadow);
     // }
-    //
-    // vec3 lightDirNorm = normalize(lightDir);
-    // float diff = max(dot(PN, lightDirNorm), 0.0);
-    // // vec3 color = vec3(texture(albedo, v_TexCoords));
-    // vec3 diffuse = 0.8 * diff * albedoColor.xyz;
-    //
-    // // Convert clip space to NDC by dividing by w, then to screen space
-    // vec3 ndcPos = v_FragPosScreenSpace.xyz / v_FragPosScreenSpace.w;
-    // vec2 screenSpaceCoords = ndcPos.xy * 0.5 + 0.5;  // Map to range [0, 1]
-    // 
-    // float AmbientOcclusion = texture(ssao, screenSpaceCoords).r;
-    // vec3 ambient = 0.2 * albedoColor.xyz * AmbientOcclusion;
-    //
-    // float shadow = shadow_calculation(v_FragPosLightSpace, N, lightDirNorm);
-    // vec3 result = ambient + (1.0 - shadow) * diffuse;
 
     FragColor = vec4(color, alpha);
 }
