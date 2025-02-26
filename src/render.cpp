@@ -113,7 +113,6 @@ void RenderDeferredScene(RenderData* renderData, std::vector<MeshRenderData>& me
     glBindFramebuffer(GL_FRAMEBUFFER, pass.gBuffer);
     glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
 
-    glBindBufferBase(GL_SHADER_STORAGE_BUFFER, 0, renderData->lightShaderStorageObject);
 
     pass.gBufferShader.bind();
     pass.gBufferShader.uniform_matrix4("projection", camera.projection);
@@ -137,6 +136,10 @@ void RenderDeferredScene(RenderData* renderData, std::vector<MeshRenderData>& me
     glBindFramebuffer(GL_FRAMEBUFFER, 0);
 
     glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
+    
+    glBindBufferBase(GL_SHADER_STORAGE_BUFFER, 0, renderData->lightShaderStorageObject);
+    glBindBufferBase(GL_UNIFORM_BUFFER, 1, renderData->shadowPass.lightMatricesUBO);
+
     pass.lightingPass.bind();
     glActiveTexture(GL_TEXTURE0);
     glBindTexture(GL_TEXTURE_2D, pass.gPosition);
@@ -177,7 +180,7 @@ void RenderDeferredScene(RenderData* renderData, std::vector<MeshRenderData>& me
     pass.lightingPass.uniform_float("pointShadowFarPlane", renderData->shadowPass.farPlane);
     pass.lightingPass.uniform_vector3f("viewPos", camera.position);
     pass.lightingPass.uniform_int("cascadeCount", renderData->shadowPass.cascadesCount);
-    for (s32 i = 0; i < renderData->shadowPass.cascadesCount; ++i)
+    for (s32 i = 0; i < renderData->shadowPass.cascadesCount-1; ++i)
     {
         std::string uniformName = "cascadePlaneDistances[" + std::to_string(i) + "]";
         pass.lightingPass.uniform_float(uniformName.c_str(), renderData->shadowPass.shadowCascadeLevels[i]);
@@ -233,7 +236,7 @@ void SetupShadowMapPass(RenderData* renderData, Light* lights, u32 numLights, u3
     glGenTextures(1, &pass.lightDepthmaps);
     glBindTexture(GL_TEXTURE_2D_ARRAY, pass.lightDepthmaps);
     glTexImage3D(GL_TEXTURE_2D_ARRAY, 0, GL_DEPTH_COMPONENT32F,
-        pass.depthMapResolution, pass.depthMapResolution, int(pass.cascadesCount) + 1, 0, GL_DEPTH_COMPONENT, GL_FLOAT, nullptr);
+        pass.depthMapResolution, pass.depthMapResolution, int(pass.cascadesCount), 0, GL_DEPTH_COMPONENT, GL_FLOAT, nullptr);
     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_BORDER);
@@ -879,11 +882,16 @@ void RenderShadowMapPass(RenderData* renderData, vec3& lightDirection, std::vect
     ShadowPass& pass = renderData->shadowPass;
 
     const u32 numberOfCascades = 4;
-    f32 shadowCascadeLevels[numberOfCascades] = { 1/50, 1/25, 1/10, 1/2 };
-    pass.shadowCascadeLevels[0] = camera.farPlane / 50.0f;
-    pass.shadowCascadeLevels[0] = camera.farPlane / 25.0f;
-    pass.shadowCascadeLevels[0] = camera.farPlane / 10.0f;
-    pass.shadowCascadeLevels[0] = camera.farPlane / 2.0f;
+    pass.shadowCascadeLevels[0] = camera.farPlane / 20.0f;
+    pass.shadowCascadeLevels[1] = (camera.farPlane * 3) / 20.0f;
+    pass.shadowCascadeLevels[2] = (camera.farPlane * 2) / 5.0f;
+    float lambda = 0.925f;
+    for (int i = 0; i < numberOfCascades - 1; ++i)
+    {
+        float linearSplit = camera.nearPlane + (camera.farPlane - camera.nearPlane) * (i + 1) / numberOfCascades;
+        float logSplit = camera.nearPlane * pow((camera.farPlane / camera.nearPlane), (float)(i + 1) / numberOfCascades);
+        pass.shadowCascadeLevels[i] = lambda * logSplit + (1.0f - lambda) * linearSplit;
+    }
     mat4 lightSpaceMatrices[numberOfCascades];
     CalculateCascadesLightSpaceMatrices(lightSpaceMatrices, pass.shadowCascadeLevels, numberOfCascades, lightDirection, camera);
     glBindBuffer(GL_UNIFORM_BUFFER, pass.lightMatricesUBO);
@@ -902,9 +910,14 @@ void RenderShadowMapPass(RenderData* renderData, vec3& lightDirection, std::vect
     // glCullFace(GL_FRONT);
     glBindFramebuffer(GL_FRAMEBUFFER, pass.depthMapFBO);
     glClear(GL_DEPTH_BUFFER_BIT);
+    glBindBuffer(GL_UNIFORM_BUFFER, pass.lightMatricesUBO);
     pass.depthShader.bind();
     pass.depthShader.uniform_matrix4("model", model);
-    DrawScene(renderData, meshRenderData);
+    for (u32 i = 0; i < meshRenderData.size(); ++i)
+    {
+        glBindVertexArray(meshRenderData[i].VAO);
+        glDrawElements(GL_TRIANGLES, meshRenderData[i].numberOfIndices, GL_UNSIGNED_INT, (void*)(0 * sizeof(u32)));
+    }
     glBindFramebuffer(GL_FRAMEBUFFER, 0);
     glEnable(GL_CULL_FACE);
     glCullFace(GL_BACK);
@@ -1017,7 +1030,7 @@ mat4 GetLightSpaceMatrix(Camera3D& camera, vec3& lightDirection, f32 nearPlane, 
 {
     glm::vec4 corners[8] = {};
     mat4 projection = glm::perspective(glm::radians(camera.fov), 1.0f, nearPlane, farPlane);
-    getFrustumCornersWorldSpace(corners, camera.projection, camera.view);
+    getFrustumCornersWorldSpace(corners, projection, camera.view);
     vec3 center = vec3(0, 0, 0);
     for (vec3 corner : corners)
     {
@@ -1074,7 +1087,7 @@ void CalculateCascadesLightSpaceMatrices(mat4* matrices, f32* shadowCascadeLevel
         {
             matrices[i] = GetLightSpaceMatrix(camera, lightDirection, camera.nearPlane, shadowCascadeLevels[i]);
         }
-        else if (i < numberOfCascades)
+        else if (i < numberOfCascades-1)
         {
             matrices[i] = GetLightSpaceMatrix(camera, lightDirection, shadowCascadeLevels[i - 1], shadowCascadeLevels[i]);
         }

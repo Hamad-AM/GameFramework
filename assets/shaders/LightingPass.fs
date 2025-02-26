@@ -52,9 +52,9 @@ layout(std430, binding=0) buffer Lights {
     Light lights[];
 };
 
-layout(std140) uniform LightSpaceMatrices
+layout(std140, binding=1) uniform LightSpaceMatrices
 {
-    mat4 lightSpaceMatrices;
+    mat4 lightSpaceMatrices[16];
 };
 
 uniform float cascadePlaneDistances[16];
@@ -114,7 +114,7 @@ float shadow_calculation(vec3 fragPosWorldSpace, vec3 normal, vec3 lightDir)
 {
     float depthValue = abs(viewPos.z);
     int layer = -1;
-    for (int i = 0; i < cascadeCount; ++i)
+    for (int i = 0; i < cascadeCount-1; ++i)
     {
         if (depthValue < cascadePlaneDistances[i])
         {
@@ -124,7 +124,7 @@ float shadow_calculation(vec3 fragPosWorldSpace, vec3 normal, vec3 lightDir)
     }
     if (layer == -1)
     {
-        layer = cascadeCount;
+        layer = cascadeCount-1;
     }
 
     vec4 fragPosLightSpace = lightSpaceMatrices[layer] * vec4(fragPosWorldSpace, 1.0f);
@@ -138,6 +138,7 @@ float shadow_calculation(vec3 fragPosWorldSpace, vec3 normal, vec3 lightDir)
     float slope = length(vec2(dFdx(currentDepth), dFdy(currentDepth)));
     float bias = 0.005 * slope;
     float shadow = 0.0f;
+    float pcfDepth;
     if (projCoords.z <= 1.0)
     {
         vec2 texelSize = 1.0 / textureSize(shadowMap, 0).xy;
@@ -145,13 +146,14 @@ float shadow_calculation(vec3 fragPosWorldSpace, vec3 normal, vec3 lightDir)
         {
             for (int y = -4; y <= 4; ++y)
             {
-                float pcfDepth = texture(shadowMap, vec3(projCoords.xy + vec2(x, y) * texelSize, layer)).r;
+                pcfDepth = texture(shadowMap, vec3(projCoords.xy + vec2(x, y) * texelSize, layer)).r;
                 shadow += currentDepth - bias > pcfDepth ? 1.0 : 0.0;
             }
         }
         shadow /= 81.0f;
     }
-    return shadow;
+    return projCoords.y
+    ;
 }
 
 float PointShadowCalculation(vec3 fragPos, vec3 lightPos, int shadowMapIndex)
@@ -279,9 +281,10 @@ void main()
             else if (light.type == Point)
             {
                 shadow = PointShadowCalculation(FragPos, lightPosition, light.shadowIndex);
+                continue;
             }
         }
-        Lo += (1-shadow) * (kD * albedoColor.xyz / PI + specular) * radiance * NdotL;
+        Lo += shadow; //(1-shadow) * (kD * albedoColor.xyz / PI + specular) * radiance * NdotL;
     }
 
     vec3 F = fresnelSchlickRoughness(max(dot(N, V), 0.0), F0, roughness);
@@ -304,10 +307,10 @@ void main()
     color = ACESFilm(color);
     color = pow(color, vec3(1.0f/2.2f));
 
-    // if (lights[0].type == Directional)
-    // {
-    //     color = vec3(shadow);
-    // }
+    if (lights[0].type == Directional)
+    {
+        color = vec3(Lo);
+    }
 
     FragColor = vec4(color, alpha);
 }

@@ -115,7 +115,7 @@ void application::run()
     camera.position = glm::vec3(0.1f, 0.1f, 0.1f);
     camera.target = glm::vec3(0.0f, 0.0f, 0.0f);
     camera.nearPlane = 0.1f;
-    camera.farPlane = 1000.0f;
+    camera.farPlane = 500.0f;
     camera.fov = 90.0f;
     camera.projection = glm::perspective(glm::radians(camera.fov), (f32)screen_width_ / screen_height_, camera.nearPlane, camera.farPlane);
     camera.orientation = glm::quat(glm::vec3(0.f, 0.f, 0.f));
@@ -170,7 +170,8 @@ void application::run()
 
         // RenderBRDFLUT(&renderData);
 
-        RenderShadowMapPass(&renderData, state->lights[0].direction, batchMeshRenderData, model, camera);
+        vec3 lightDirection = glm::normalize(state->lights[0].direction * vec3(1));
+        RenderShadowMapPass(&renderData, lightDirection, batchMeshRenderData, model, camera);
         RenderOmidirectionalShadowMap(&renderData, batchMeshRenderData, model, state->lights, state->numberOfLights);
         RenderDepthNormalPass(&renderData, batchMeshRenderData, model, camera);
         RenderSSAOPass(&renderData, camera);

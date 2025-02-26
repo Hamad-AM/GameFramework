@@ -126,7 +126,7 @@ struct ShadowPass
     u32 depthMapResolution;
     GLuint lightMatricesUBO;
     const u32 cascadesCount = 4;
-    f32 shadowCascadeLevels[4];
+    f32 shadowCascadeLevels[3]; // cascade count - 1
 
     u32 pointCount{ 0 };
     PointLightShadow pointShadows[4];
