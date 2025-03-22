@@ -69,7 +69,7 @@ void application::run()
 
     GameState* state = PushStruct(&permanent_storage, GameState);
 
-    vec3 sunPosition = { -46, 10.0, 20.0f };
+    vec3 sunPosition = { -46, 25.0, 20.0f };
     // state->lights[0] = {
     //         .type = Directional,
     //         .position = sunPosition,
@@ -82,8 +82,8 @@ void application::run()
             .type = LightType::Directional,
             .position = sunPosition,
             .direction = sunPosition - vec3(0),
-            .color = { 1.0, 0.7, 0.39 },
-            .luminance = 200,
+            .color = { 1.0, 0.95, 0.9 },
+            .luminance = 70,
             .isShadowCasting = 1,
     };
     state->lights[1] = {
@@ -97,7 +97,7 @@ void application::run()
 
     state->numberOfLights = 2;
 
-    vec3 lightProbePosition = {9, 2, -3};
+    vec3 lightProbePosition = {3.5, 2, -3};
 
     lightPosition = glm::vec3();
 
@@ -109,15 +109,16 @@ void application::run()
     MemoryArena assetArena = InitArena(PushSize(&permanent_storage, asset_size), asset_size);
     InitAssetSystem(assets, assetArena);
 
-    LoadScene(assets, "assets/models/bristro/bristro_interior.gltf", batchMeshRenderData, gpu_textures);
+    LoadScene(assets, "assets/models/nature_test/nature_test.gltf", batchMeshRenderData, gpu_textures);
 
     camera = {};
     camera.position = glm::vec3(0.1f, 0.1f, 0.1f);
     camera.target = glm::vec3(0.0f, 0.0f, 0.0f);
     camera.nearPlane = 0.1f;
-    camera.farPlane = 500.0f;
+    camera.farPlane = 100.0f;
     camera.fov = 90.0f;
-    camera.projection = glm::perspective(glm::radians(camera.fov), (f32)screen_width_ / screen_height_, camera.nearPlane, camera.farPlane);
+    camera.ratio = (f32)screen_width_ / (f32)screen_height_;
+    camera.projection = glm::perspective(glm::radians(camera.fov), camera.ratio, camera.nearPlane, camera.farPlane);
     camera.orientation = glm::quat(glm::vec3(0.f, 0.f, 0.f));
 
     camera.front = glm::vec3(0.0, 0.0, -1.0);

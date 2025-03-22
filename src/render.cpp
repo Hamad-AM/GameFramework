@@ -141,6 +141,7 @@ void RenderDeferredScene(RenderData* renderData, std::vector<MeshRenderData>& me
     glBindBufferBase(GL_UNIFORM_BUFFER, 1, renderData->shadowPass.lightMatricesUBO);
 
     pass.lightingPass.bind();
+    pass.lightingPass.uniform_matrix4("view", camera.view);
     glActiveTexture(GL_TEXTURE0);
     glBindTexture(GL_TEXTURE_2D, pass.gPosition);
     pass.lightingPass.uniform_int("gPosition", 0);
@@ -162,7 +163,7 @@ void RenderDeferredScene(RenderData* renderData, std::vector<MeshRenderData>& me
     glBindTexture(GL_TEXTURE_2D, renderData->SSAOPass.ssaoColorBufferBlur);
     pass.lightingPass.uniform_int("ssao", 5);
     glActiveTexture(GL_TEXTURE6);
-    glBindTexture(GL_TEXTURE_CUBE_MAP, renderData->environmentMapPass.irradianceMap);
+    glBindTexture(GL_TEXTURE_CUBE_MAP, renderData->lightProbePass.irradianceMap);
     pass.lightingPass.uniform_int("irradianceMap", 6);
     glActiveTexture(GL_TEXTURE7);
     glBindTexture(GL_TEXTURE_CUBE_MAP, renderData->environmentMapPass.prefilterMap);
@@ -237,12 +238,15 @@ void SetupShadowMapPass(RenderData* renderData, Light* lights, u32 numLights, u3
     glBindTexture(GL_TEXTURE_2D_ARRAY, pass.lightDepthmaps);
     glTexImage3D(GL_TEXTURE_2D_ARRAY, 0, GL_DEPTH_COMPONENT32F,
         pass.depthMapResolution, pass.depthMapResolution, int(pass.cascadesCount), 0, GL_DEPTH_COMPONENT, GL_FLOAT, nullptr);
-    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
-    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
-    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_BORDER);
-    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_BORDER);
+    glTexParameteri(GL_TEXTURE_2D_ARRAY, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
+    glTexParameteri(GL_TEXTURE_2D_ARRAY, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
+    glTexParameteri(GL_TEXTURE_2D_ARRAY, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_BORDER);
+    glTexParameteri(GL_TEXTURE_2D_ARRAY, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_BORDER);
     float borderColor[] = { 1.0f, 1.0f, 1.0f, 1.0f };
     glTexParameterfv(GL_TEXTURE_2D_ARRAY, GL_TEXTURE_BORDER_COLOR, borderColor);
+
+    glTexParameteri(GL_TEXTURE_2D_ARRAY, GL_TEXTURE_COMPARE_MODE, GL_COMPARE_REF_TO_TEXTURE);
+    glTexParameteri(GL_TEXTURE_2D_ARRAY, GL_TEXTURE_COMPARE_FUNC, GL_LEQUAL);
 
     glBindFramebuffer(GL_FRAMEBUFFER, pass.depthMapFBO);
     glFramebufferTexture(GL_FRAMEBUFFER, GL_DEPTH_ATTACHMENT, pass.lightDepthmaps, 0);
@@ -260,7 +264,7 @@ void SetupShadowMapPass(RenderData* renderData, Light* lights, u32 numLights, u3
 void SetupPointShadowMapPass(RenderData* renderData, Light* lights, u32 numLights, u32 shadow_width, u32 shadow_height)
 {
     ShadowPass& pass = renderData->shadowPass;
-
+    
     glGenFramebuffers(1, &pass.depthCubemapFBO);
 
     for (u32 i = 0; i < numLights; ++i)
@@ -277,8 +281,8 @@ void SetupPointShadowMapPass(RenderData* renderData, Light* lights, u32 numLight
                 glTexImage2D(GL_TEXTURE_CUBE_MAP_POSITIVE_X + j, 0, GL_DEPTH_COMPONENT,
                     pass.pointShadows[pass.pointCount].pointWidth, pass.pointShadows[pass.pointCount].pointHeight, 0, GL_DEPTH_COMPONENT, GL_FLOAT, NULL);
             }
-            glTexParameteri(GL_TEXTURE_CUBE_MAP, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
-            glTexParameteri(GL_TEXTURE_CUBE_MAP, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
+            glTexParameteri(GL_TEXTURE_CUBE_MAP, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
+            glTexParameteri(GL_TEXTURE_CUBE_MAP, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
             glTexParameteri(GL_TEXTURE_CUBE_MAP, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
             glTexParameteri(GL_TEXTURE_CUBE_MAP, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
             glTexParameteri(GL_TEXTURE_CUBE_MAP, GL_TEXTURE_WRAP_R, GL_CLAMP_TO_EDGE);
@@ -561,7 +565,7 @@ void SetupSSAOPass(RenderData* renderData)
 
 void SetupEnvironmentCubeMap(RenderData* renderData)
 {
-    u32 hdrTexture = LoadSkyBoxTexture("assets/hdr/clarens_midday_4k.hdr");
+    u32 hdrTexture = LoadSkyBoxTexture("assets/hdr/klippad_dawn_1_4k.hdr");
 
     EnvironmentMapPass& pass = renderData->environmentMapPass;
 
@@ -885,13 +889,13 @@ void RenderShadowMapPass(RenderData* renderData, vec3& lightDirection, std::vect
     pass.shadowCascadeLevels[0] = camera.farPlane / 20.0f;
     pass.shadowCascadeLevels[1] = (camera.farPlane * 3) / 20.0f;
     pass.shadowCascadeLevels[2] = (camera.farPlane * 2) / 5.0f;
-    float lambda = 0.925f;
-    for (int i = 0; i < numberOfCascades - 1; ++i)
-    {
-        float linearSplit = camera.nearPlane + (camera.farPlane - camera.nearPlane) * (i + 1) / numberOfCascades;
-        float logSplit = camera.nearPlane * pow((camera.farPlane / camera.nearPlane), (float)(i + 1) / numberOfCascades);
-        pass.shadowCascadeLevels[i] = lambda * logSplit + (1.0f - lambda) * linearSplit;
-    }
+    // float lambda = 0.9f;
+    // for (int i = 0; i < numberOfCascades - 1; ++i)
+    // {
+    //     float linearSplit = camera.nearPlane + (camera.farPlane - camera.nearPlane) * (i + 1) / numberOfCascades;
+    //     float logSplit = camera.nearPlane * pow((camera.farPlane / camera.nearPlane), (float)(i + 1) / numberOfCascades);
+    //     pass.shadowCascadeLevels[i] = lambda * logSplit + (1.0f - lambda) * linearSplit;
+    // }
     mat4 lightSpaceMatrices[numberOfCascades];
     CalculateCascadesLightSpaceMatrices(lightSpaceMatrices, pass.shadowCascadeLevels, numberOfCascades, lightDirection, camera);
     glBindBuffer(GL_UNIFORM_BUFFER, pass.lightMatricesUBO);
@@ -996,7 +1000,7 @@ void RenderEnvironmentMap(RenderData* renderData, mat4& view, mat4& projection)
     mat4 viewProj = projection * mat4(glm::mat3(view));
     pass.backgroundShader.uniform_matrix4("viewProj", viewProj);
     glActiveTexture(GL_TEXTURE0);
-    glBindTexture(GL_TEXTURE_CUBE_MAP, pass.envCubemap);
+    glBindTexture(GL_TEXTURE_CUBE_MAP, pass.irradianceMap);
     pass.backgroundShader.uniform_int("environmentMap", 0);
     RenderCube(renderData);
     // glEnable(GL_DEPTH_TEST);
@@ -1029,7 +1033,7 @@ void getFrustumCornersWorldSpace(glm::vec4* frustumCorners, const glm::mat4& pro
 mat4 GetLightSpaceMatrix(Camera3D& camera, vec3& lightDirection, f32 nearPlane, f32 farPlane)
 {
     glm::vec4 corners[8] = {};
-    mat4 projection = glm::perspective(glm::radians(camera.fov), 1.0f, nearPlane, farPlane);
+    mat4 projection = glm::perspective(glm::radians(camera.fov), camera.ratio, nearPlane, farPlane);
     getFrustumCornersWorldSpace(corners, projection, camera.view);
     vec3 center = vec3(0, 0, 0);
     for (vec3 corner : corners)

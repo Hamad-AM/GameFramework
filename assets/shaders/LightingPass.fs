@@ -17,6 +17,7 @@ uniform samplerCube prefilterMap;
 uniform sampler2D   brdfLUT;
 
 uniform vec3 viewPos;
+uniform mat4 view;
 
 #define Directional 1
 #define Point 2
@@ -110,9 +111,30 @@ vec3 fresnelSchlickRoughness(float cosTheta, vec3 F0, float roughness)
     return F0 + (max(vec3(1.0 - roughness), F0) - F0) * pow(clamp(1.0 - cosTheta, 0.0, 1.0), 5.0);
 }
 
+float BoxBlur(float currentDepth, int layer, vec3 projCoords, float bias)
+{
+    float shadow = 0.0f;
+    float pcfDepth;
+    if (projCoords.z <= 1.0)
+    {
+        vec2 texelSize = 1.0 / textureSize(shadowMap, 0).xy;
+        for (int x = -1; x <= 1; ++x)
+        {
+            for (int y = -1; y <= 1; ++y)
+            {
+                pcfDepth = texture(shadowMap, vec3(projCoords.xy + vec2(x, y) * texelSize, layer)).r;
+                shadow += currentDepth - bias > pcfDepth ? 1.0 : 0.0;
+            }
+        }
+        shadow /= 9.0f;
+    }
+    return shadow;
+}
+
 float shadow_calculation(vec3 fragPosWorldSpace, vec3 normal, vec3 lightDir)
 {
-    float depthValue = abs(viewPos.z);
+    vec4 fragPosViewSpace = view * vec4(fragPosWorldSpace, 1.0);
+    float depthValue = abs(fragPosViewSpace.z);
     int layer = -1;
     for (int i = 0; i < cascadeCount-1; ++i)
     {
@@ -134,26 +156,28 @@ float shadow_calculation(vec3 fragPosWorldSpace, vec3 normal, vec3 lightDir)
     projCoords = projCoords * 0.5 + 0.5;
     float currentDepth = projCoords.z;
     // float bias = 0.005;
-    // float bias = max(0.05 * (1.0 - dot(normal, lightDir)), 0.005);
+    // float bias = max(0.05 * (1.0 - dot(normalize(normal), normalize(lightDir))), 0.005);
     float slope = length(vec2(dFdx(currentDepth), dFdy(currentDepth)));
     float bias = 0.005 * slope;
-    float shadow = 0.0f;
-    float pcfDepth;
-    if (projCoords.z <= 1.0)
+    int sampleCount = 20;  // Number of samples for PCF
+    float shadow = 0.0;
+
+    float diskRadius = 0.001;  // Control softness
+
+    for(int i = 0; i < sampleCount; i++)
     {
-        vec2 texelSize = 1.0 / textureSize(shadowMap, 0).xy;
-        for (int x = -4; x <= 4; ++x)
-        {
-            for (int y = -4; y <= 4; ++y)
-            {
-                pcfDepth = texture(shadowMap, vec3(projCoords.xy + vec2(x, y) * texelSize, layer)).r;
-                shadow += currentDepth - bias > pcfDepth ? 1.0 : 0.0;
-            }
-        }
-        shadow /= 81.0f;
+        // Generate a small random offset (a simple Poisson Disk pattern)
+        vec3 offset = diskRadius * vec3(
+            cos(6.2831853 * float(i) / float(sampleCount)),
+            sin(6.2831853 * float(i) / float(sampleCount)),
+            0.0
+        );
+        float pcfDepth = texture(shadowMap, vec3(projCoords.xy + offset.xy, layer)).r;
+        shadow += currentDepth - bias > pcfDepth ? 1.0 : 0.0;
     }
-    return projCoords.y
-    ;
+
+    shadow /= float(sampleCount); // Average result
+    return shadow;
 }
 
 float PointShadowCalculation(vec3 fragPos, vec3 lightPos, int shadowMapIndex)
@@ -165,7 +189,7 @@ float PointShadowCalculation(vec3 fragPos, vec3 lightPos, int shadowMapIndex)
     int sampleCount = 20;  // Number of samples for PCF
     float shadow = 0.0;
 
-    float diskRadius = 0.05;  // Control softness
+    float diskRadius = 0.01;  // Control softness
 
     for(int i = 0; i < sampleCount; i++)
     {
@@ -208,10 +232,10 @@ void main()
     vec3 albedoColor = pow(texture(gAlbedo, TexCoords).rgb, vec3(2.2));
     if (alpha < 0.1) discard;
     vec4 metallicRoughnessValues = texture(gMetallicRoughness, TexCoords);
-    // float metallic = metallicRoughnessValues.b;
-    // float roughness = metallicRoughnessValues.g;
-    float metallic = clamp((metallicRoughnessValues.g - 0.04) / (1.0-0.04), 0.0, 1.0);
-    float roughness = 1.0 - metallicRoughnessValues.b;
+    float metallic = metallicRoughnessValues.b;
+    float roughness = metallicRoughnessValues.g;
+    // float metallic = clamp((metallicRoughnessValues.g - 0.04) / (1.0-0.04), 0.0, 1.0);
+    // float roughness = 1.0 - metallicRoughnessValues.b;
 
     vec3 FragPos = texture(gPosition, TexCoords).rgb;
 
@@ -232,6 +256,7 @@ void main()
 
     // reflectance equation
     vec3 Lo = vec3(0.0);
+    vec3 L2;
     for(int i = 0; i < lights.length(); i++)
     {
         Light light = lights[i];
@@ -243,6 +268,7 @@ void main()
         if (light.type == Directional)
         {
             L = normalize(lightDirection);
+            L2 = L;
             H = normalize(V + L);
             radiance = lightColor * light.luminance;
         }
@@ -254,6 +280,7 @@ void main()
             float distance    = length(lightPosition - FragPos.xyz);
             float attenuation = 1.0 / (distance * distance);
             radiance          = lightColor * light.luminance * attenuation; // LightColor * attentuation lightColors[i] * attenuation;
+            continue;
         }
 
         // cook-torrance brdf
@@ -281,10 +308,9 @@ void main()
             else if (light.type == Point)
             {
                 shadow = PointShadowCalculation(FragPos, lightPosition, light.shadowIndex);
-                continue;
             }
         }
-        Lo += shadow; //(1-shadow) * (kD * albedoColor.xyz / PI + specular) * radiance * NdotL;
+        Lo += (kD * albedoColor.xyz / PI + specular) * radiance * NdotL;
     }
 
     vec3 F = fresnelSchlickRoughness(max(dot(N, V), 0.0), F0, roughness);
@@ -311,6 +337,44 @@ void main()
     {
         color = vec3(Lo);
     }
+
+    // vec4 fragPosViewSpace = view * vec4(FragPos, 1.0);
+    // float depthValue = abs(fragPosViewSpace.z);
+    // int layer = -1;
+    // for (int i = 0; i < cascadeCount-1; ++i)
+    // {
+    //     if (depthValue < cascadePlaneDistances[i])
+    //     {
+    //         layer = i;
+    //         break;
+    //     }
+    // }
+    //
+    // // if (lights[0].type == Directional)
+    // // {
+    // //     layer = -1;
+    // // }
+    //
+    // if (layer == 0)
+    // {
+    //     color = vec3(1, 0, 0);
+    // }
+    // else if (layer == 1)
+    // {
+    //     color = vec3(0, 1, 0);
+    // }
+    // else if (layer == 2)
+    // {
+    //     color = vec3(0, 0, 1);
+    // }
+    // else if (layer == 3)
+    // {
+    //     color = vec3(0.5, 0.8, 0);
+    // }
+    // else if (layer == -1)
+    // {
+    //     color = vec3(depthValue);
+    // }
 
     FragColor = vec4(color, alpha);
 }

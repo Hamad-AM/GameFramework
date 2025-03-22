@@ -16,6 +16,7 @@ struct Camera3D
 {
     glm::mat4 projection;
     glm::quat orientation;
+    f32 ratio;
     f32 nearPlane;
     f32 farPlane;
     f32 fov;
