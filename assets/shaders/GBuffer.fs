@@ -12,6 +12,7 @@ in mat3 TBN;
 uniform sampler2D albedo;
 uniform sampler2D metallicRoughness;
 uniform sampler2D normalMap;
+uniform vec3 cameraPosition;
 
 mat3 cotangent_frame( vec3 N, vec3 p, vec2 uv ) { // get edge vectors of the pixel triangle
     vec3 dp1 = dFdx( p );

@@ -119,6 +119,7 @@ void RenderGBuffer(RenderData* renderData, std::vector<MeshRenderData>& meshRend
     pass.gBufferShader.uniform_matrix4("projection", camera.projection);
     pass.gBufferShader.uniform_matrix4("view", camera.view);
     pass.gBufferShader.uniform_matrix4("model", model);
+    //pass.gBufferShader.uniform_vector3f("cameraPosition", camera.position);
     for (u32 i = 0; i < meshRenderData.size(); ++i)
     {
         glActiveTexture(GL_TEXTURE0);
@@ -170,7 +171,7 @@ void RenderDeferredScene(RenderData* renderData, std::vector<MeshRenderData>& me
     glBindTexture(GL_TEXTURE_2D, renderData->SSAOPass.ssaoColorBufferBlur);
     pass.lightingPass.uniform_int("ssao", 5);
     glActiveTexture(GL_TEXTURE6);
-    glBindTexture(GL_TEXTURE_CUBE_MAP, renderData->lightProbePass.irradianceMap);
+    glBindTexture(GL_TEXTURE_CUBE_MAP, renderData->environmentMapPass.irradianceMap);
     pass.lightingPass.uniform_int("irradianceMap", 6);
     glActiveTexture(GL_TEXTURE7);
     glBindTexture(GL_TEXTURE_CUBE_MAP, renderData->environmentMapPass.prefilterMap);

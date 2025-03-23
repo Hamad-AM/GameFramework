@@ -35,6 +35,7 @@ struct LoadImageJob
     std::string path;
     MemoryArena* arena;
     std::string name;
+    TextureType type;
 };
 
 struct AssetSystem

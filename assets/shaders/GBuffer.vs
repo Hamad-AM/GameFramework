@@ -22,10 +22,10 @@ void main()
     vec4 n = model * vec4(aNormal, 1.0f);
     Normal = n.xyz;
 
-    vec3 T = normalize(vec3(model * vec4(aTangent, 0.0)));
-    vec3 N = normalize(vec3(model * vec4(aNormal, 0.0)));
-    vec3 B = normalize(cross(N, T));
-    T = normalize(T - dot(T, N)*N);
+    vec3 T = normalize(vec3(model * vec4(aTangent, 1.0)));
+    vec3 N = normalize(vec3(model * vec4(n.xyz, 1.0)));
+    vec3 B = normalize(cross(N, T) * -1);
+    // T = normalize(T - dot(T, N)*N);
     TBN = mat3(T, B, N);
 
     gl_Position = projection * view * worldPos;

@@ -163,10 +163,10 @@ float shadow_calculation(vec3 fragPosWorldSpace, vec3 normal, vec3 lightDir)
     int sampleCount = 20;  // Number of samples for PCF
     float shadow = 0.0;
 
-    float diskRadius = 0.1;  // Control softness
-    float shadowdepth = texture(shadowMap, vec3(projCoords.xy, layer)).r;
-    float distance = abs(fragPosLightSpace.z - shadowdepth);
-    diskRadius *= distance;
+    float diskRadius = 0.001;  // Control softness
+    // float shadowdepth = texture(shadowMap, vec3(projCoords.xy, layer)).r;
+    // float distance = abs(fragPosLightSpace.z - shadowdepth);
+    // diskRadius *= distance;
 
     for(int i = 0; i < sampleCount; i++)
     {
@@ -314,6 +314,7 @@ void main()
                 shadow = PointShadowCalculation(FragPos, lightPosition, light.shadowIndex);
             }
         }
+        L2 = albedoColor * NdotL * radiance;
         Lo += (1-shadow) * (kD * albedoColor.xyz / PI + specular) * radiance * NdotL;
     }
 
@@ -337,10 +338,10 @@ void main()
     color = ACESFilm(color);
     color = pow(color, vec3(1.0f/2.2f));
 
-    // if (lights[0].type == Directional)
-    // {
-    //     color = vec3(Lo);
-    // }
+    if (lights[0].type == Directional)
+    {
+        color = vec3(N * 0.5 + 0.5);
+    }
 
     // vec4 fragPosViewSpace = view * vec4(FragPos, 1.0);
     // float depthValue = abs(fragPosViewSpace.z);

@@ -149,7 +149,7 @@ bool containsSubstring(const std::string& mainStr, const std::string& subStr) {
 
 void LoadImageFromFileAsync(AssetSystem& assets, Image& image)
 {
-    LoadImageJob job = {.path = image.filePath, .arena = &assets.arena, .name = image.name };
+    LoadImageJob job = {.path = image.filePath, .arena = &assets.arena, .name = image.name, .type = image.type };
 
     std::lock_guard<std::mutex> lock(assets.queueMutex);
 
@@ -162,11 +162,19 @@ void AddImage(AssetSystem& assets, const tinygltf::Image& image, TextureType typ
     const u8* imageData = image.image.data();
     std::string filename = image.name;
     if (assets.images.find(image.name) != assets.images.end()) return;
+
+    if (type == TextureType::NORMAL)
+    {
+        filename += ".png";
+    }
+    else
+    {
 #ifdef USE_KTX
-    filename += ".ktx2";
+        filename += ".ktx2";
 #else
-    filename += ".dds";
+        filename += ".dds";
 #endif
+    }
     std::filesystem::path texture_file = filePath / filename;
     assets.images[image.name] = { .filePath = texture_file.string(), .name = image.name, .type = type };
 }
@@ -214,7 +222,7 @@ void LoadImageFromFile(AssetSystem* assets, std::string& path, std::string& name
     u32 mipMapCount = (u32)ddsImage->header.dwMipMapCount;
 
 
-    Image& im = assets->images[name];;
+    Image& im = assets->images[name];
     im.width = width;
     im.height = height;
     im.format = texture_format::RGBA;
@@ -249,74 +257,25 @@ void ShutDownLoading(AssetSystem& assets)
     assets.condition.notify_all();
 }
 
-void LoadImageFromFile(AssetSystem& assets, const tinygltf::Image& image, std::filesystem::path& textures_path)
+void LoadImageFromFileNormal(AssetSystem* assets, std::string& path, std::string& name)
 {
-    if (assets.images.find(image.name) != assets.images.end())
-    {
-        return;
-    }
-
-    const u8* imageData = image.image.data();
-    std::string filename = image.name;
-#ifdef USE_KTX
-    filename += ".ktx2";
-#else
-    filename += ".dds";
-#endif
-    std::filesystem::path texture_file = textures_path / filename;
-    if (!std::filesystem::exists(texture_file))
-    {
-        std::cerr << "No compressed texture" << std::endl;
-    }
-#if 0
+    std::string filename = name;
     u8* buffer = nullptr;
-    size_t size;
-    std::vector<u8> outImageData;
     s32 width, height, channels;
-    std::filesystem::path pngTextureFile = texture_file.replace_extension(".png");
-    u8* imageDatastb = stbi_load(pngTextureFile.string().c_str(), &width, &height, &channels, 4);
-    buffer = PushSize(&assets.arena, width * height * 4 * sizeof(u8));
+    u8* imageDatastb = stbi_load(path.c_str(), &width, &height, &channels, 4);
+    u64 size = width * height * 4 * sizeof(u8);
+    buffer = AllocateAsset(assets, size);
     memcpy(buffer, imageDatastb, width * height * 4 * sizeof(u8));
-    size = width * height * 4 * sizeof(u8);
     stbi_image_free(imageDatastb);
-#endif
-
-    FILE* file = fopen(texture_file.string().c_str(), "rb");
-    if (!file)
-    {
-        std::cerr << "Could not read file : " << filename << std::endl;
-    }
-
-    fseek(file, 0, SEEK_END);
-    u64 fileSize = ftell(file);
-    fseek(file, 0, SEEK_SET);
-
-    u8* buffer = PushSize(&assets.arena, fileSize);
-    size_t bytesRead = fread(buffer, 1, fileSize, file);
-    fclose(file);
-
-    DDSFile* ddsImage = (DDSFile*)buffer;
-
-    u32 width = (u32)ddsImage->header.dwWidth;
-    u32 height = (u32)ddsImage->header.dwHeight;
-    u64 size = (u64)ddsImage->header.dwPitchOrLinearSize;
-
-    assets.images[image.name] = Image{};
-    Image& i = assets.images[image.name];
+    
+    assets->images[name] = Image{};
+    Image& i = assets->images[name];
     i.width = width;
     i.height = height;
     i.format = texture_format::RGBA;
-
-    u32 numBlocksWide = std::max<size_t>(1, (width + 3) / 4);
-    u32 numBlocksHigh = std::max<size_t>(1, (height + 3) / 4);
-    u32 rowBytes = numBlocksWide * 16;
-    u32 numRows = numBlocksHigh;
-    u32 numBytes = rowBytes * numRows;
-
-    u64 offset = sizeof(DWORD) + sizeof(DDS_HEADER) + sizeof(DDS_HEADER_DXT10);
-    u8* compressedImageData = buffer + offset;
-    u64 imageSize = numBytes;
-
+    i.imageData[0].data = buffer;
+    i.filePath = path;
+    i.type = NORMAL;
 }
 
 Model GltfToModel(AssetSystem& assets, tinygltf::Model& model, std::string& path, std::unordered_map<std::string, u32> gpu_textures)
@@ -684,14 +643,18 @@ u32 CreateTexture(Image& image)
     switch(image.type)
     {
         // Normal maps should not have mipmap levels
-    //case TextureType::NORMAL:
-    //{
-    //    ImageData& data = image.imageData[0];
-    //    glCompressedTexImage2D(GL_TEXTURE_2D, 0, GL_COMPRESSED_RGBA_BPTC_UNORM, data.width, data.height, 0, data.bytes, data.data);
-    //    glTexParameterf(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
-    //    glTexParameterf(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
-    //    break;
-    //}
+    case TextureType::NORMAL:
+    {
+        ImageData& data = image.imageData[0];
+        glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, image.width, image.height, 0, GL_RGBA, GL_UNSIGNED_BYTE, data.data);
+        glTexParameterf(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR_MIPMAP_LINEAR);
+        glTexParameterf(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
+        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_REPEAT);
+        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_REPEAT);
+
+        glGenerateMipmap(GL_TEXTURE_2D);
+        break;
+    }
     default:
     {
         for (s32 i = 0; i < MAX_MIPMAP; ++i)
@@ -701,15 +664,13 @@ u32 CreateTexture(Image& image)
         }
         glTexParameterf(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR_MIPMAP_LINEAR);
         glTexParameterf(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
+        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_REPEAT);
+        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_REPEAT);
+
         break;
     }
     }
-
-    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_REPEAT);
-    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_REPEAT);
-
     glBindTexture(GL_TEXTURE_2D, 0);
-
     return textureID;
 }
 
@@ -719,7 +680,14 @@ void LookForWork(int threadId, AssetSystem* assets)
     {
         LoadImageJob job;
         if (!DoLoadImageJob(assets, job)) break;
-        LoadImageFromFile(assets, job.path, job.name);
+        if (job.type == TextureType::NORMAL)
+        {
+            LoadImageFromFileNormal(assets, job.path, job.name);
+        }
+        else
+        {
+            LoadImageFromFile(assets, job.path, job.name);
+        }
     }
 }
 
