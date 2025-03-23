@@ -8,13 +8,14 @@
     {
         DEFAULT,
         ALBEDO,
-        METTALIC_ROUGHNESS,
+        METALLIC_ROUGHNESS,
         NORMAL,
         AO,
         BUMP,
         METAL,
         ROUGHNESS,
         HEIGHT,
+        SPECULAR, // Not supported
     };
 
     enum texture_filter

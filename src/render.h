@@ -257,6 +257,7 @@ void SetupLightProbe(RenderData* renderData);
 void RenderLightProbe(RenderData* renderData, vec3& lightProbePosition, std::vector<MeshRenderData>& meshRenderData, mat4& model, Light* lights, u32 numOfLights);
 
 void SetupGBuffers(RenderData* renderData);
+void RenderGBuffer(RenderData* renderData, std::vector<MeshRenderData>& meshRenderData, glm::mat4 model, Camera3D& camera);
 void RenderDeferredScene(RenderData* renderData, std::vector<MeshRenderData>& meshRenderData, glm::mat4 model, Camera3D& camera);
 
 u32 LoadSkyBoxTexture(const char* filePath);

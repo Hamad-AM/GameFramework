@@ -83,7 +83,7 @@ void application::run()
             .position = sunPosition,
             .direction = sunPosition - vec3(0),
             .color = { 1.0, 0.95, 0.9 },
-            .luminance = 70,
+            .luminance = 5,
             .isShadowCasting = 1,
     };
     state->lights[1] = {
@@ -116,7 +116,7 @@ void application::run()
     camera.target = glm::vec3(0.0f, 0.0f, 0.0f);
     camera.nearPlane = 0.1f;
     camera.farPlane = 100.0f;
-    camera.fov = 90.0f;
+    camera.fov = 75.0f;
     camera.ratio = (f32)screen_width_ / (f32)screen_height_;
     camera.projection = glm::perspective(glm::radians(camera.fov), camera.ratio, camera.nearPlane, camera.farPlane);
     camera.orientation = glm::quat(glm::vec3(0.f, 0.f, 0.f));
@@ -174,11 +174,10 @@ void application::run()
         vec3 lightDirection = glm::normalize(state->lights[0].direction * vec3(1));
         RenderShadowMapPass(&renderData, lightDirection, batchMeshRenderData, model, camera);
         RenderOmidirectionalShadowMap(&renderData, batchMeshRenderData, model, state->lights, state->numberOfLights);
-        RenderDepthNormalPass(&renderData, batchMeshRenderData, model, camera);
-        RenderSSAOPass(&renderData, camera);
-        //
         // //RenderEnvironmentMap(&renderData, camera);
         // RenderScene(&renderData, batchMeshRenderData, model, camera, lightPosition);
+        RenderGBuffer(&renderData, batchMeshRenderData, model, camera);
+        RenderSSAOPass(&renderData, camera);
         RenderDeferredScene(&renderData, batchMeshRenderData, model, camera);
 
         window->swap_buffers();

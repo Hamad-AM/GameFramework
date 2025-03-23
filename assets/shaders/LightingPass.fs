@@ -156,13 +156,17 @@ float shadow_calculation(vec3 fragPosWorldSpace, vec3 normal, vec3 lightDir)
     projCoords = projCoords * 0.5 + 0.5;
     float currentDepth = projCoords.z;
     // float bias = 0.005;
-    // float bias = max(0.05 * (1.0 - dot(normalize(normal), normalize(lightDir))), 0.005);
-    float slope = length(vec2(dFdx(currentDepth), dFdy(currentDepth)));
-    float bias = 0.005 * slope;
+    float bias = max(0.05 * (1.0 - dot(normal, lightDir)), 0.005);
+    // float slope = length(vec2(dFdx(currentDepth), dFdy(currentDepth)));
+    // float bias = 0.005 * slope;
+    bias *= 1 / (cascadePlaneDistances[layer] * 4);
     int sampleCount = 20;  // Number of samples for PCF
     float shadow = 0.0;
 
-    float diskRadius = 0.001;  // Control softness
+    float diskRadius = 0.1;  // Control softness
+    float shadowdepth = texture(shadowMap, vec3(projCoords.xy, layer)).r;
+    float distance = abs(fragPosLightSpace.z - shadowdepth);
+    diskRadius *= distance;
 
     for(int i = 0; i < sampleCount; i++)
     {
@@ -232,7 +236,7 @@ void main()
     vec3 albedoColor = pow(texture(gAlbedo, TexCoords).rgb, vec3(2.2));
     if (alpha < 0.1) discard;
     vec4 metallicRoughnessValues = texture(gMetallicRoughness, TexCoords);
-    float metallic = metallicRoughnessValues.b;
+    float metallic = 1-metallicRoughnessValues.b;
     float roughness = metallicRoughnessValues.g;
     // float metallic = clamp((metallicRoughnessValues.g - 0.04) / (1.0-0.04), 0.0, 1.0);
     // float roughness = 1.0 - metallicRoughnessValues.b;
@@ -310,7 +314,7 @@ void main()
                 shadow = PointShadowCalculation(FragPos, lightPosition, light.shadowIndex);
             }
         }
-        Lo += (kD * albedoColor.xyz / PI + specular) * radiance * NdotL;
+        Lo += (1-shadow) * (kD * albedoColor.xyz / PI + specular) * radiance * NdotL;
     }
 
     vec3 F = fresnelSchlickRoughness(max(dot(N, V), 0.0), F0, roughness);
@@ -325,7 +329,7 @@ void main()
     vec2 brdf  = texture(brdfLUT, vec2(max(dot(N, V), 0.0), roughness)).rg;
     vec3 specular = prefilteredColor * (F * brdf.x + brdf.y);
 
-    vec3 ambient = (kD * diffuse + specular) * ao;
+    vec3 ambient = (kD * diffuse + specular) * ao * 0.5;
 
     vec3 color = (ambient + Lo);
 
@@ -333,10 +337,10 @@ void main()
     color = ACESFilm(color);
     color = pow(color, vec3(1.0f/2.2f));
 
-    if (lights[0].type == Directional)
-    {
-        color = vec3(Lo);
-    }
+    // if (lights[0].type == Directional)
+    // {
+    //     color = vec3(Lo);
+    // }
 
     // vec4 fragPosViewSpace = view * vec4(FragPos, 1.0);
     // float depthValue = abs(fragPosViewSpace.z);

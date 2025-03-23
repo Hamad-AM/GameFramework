@@ -104,15 +104,16 @@ void SetupGBuffers(RenderData* renderData)
     glBindFramebuffer(GL_FRAMEBUFFER, 0);
 }
 
-void RenderDeferredScene(RenderData* renderData, std::vector<MeshRenderData>& meshRenderData, glm::mat4 model, Camera3D& camera)
+
+void RenderGBuffer(RenderData* renderData, std::vector<MeshRenderData>& meshRenderData, glm::mat4 model, Camera3D& camera)
 {
     DeferredPass& pass = renderData->deferredPass;
+    glViewport(0, 0, renderData->render_width, renderData->render_height);
     glClearColor(0.0f, 0.0f, 0.0f, 1.0);
     glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
 
     glBindFramebuffer(GL_FRAMEBUFFER, pass.gBuffer);
     glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
-
 
     pass.gBufferShader.bind();
     pass.gBufferShader.uniform_matrix4("projection", camera.projection);
@@ -135,6 +136,12 @@ void RenderDeferredScene(RenderData* renderData, std::vector<MeshRenderData>& me
     }
     glBindFramebuffer(GL_FRAMEBUFFER, 0);
 
+}
+
+void RenderDeferredScene(RenderData* renderData, std::vector<MeshRenderData>& meshRenderData, glm::mat4 model, Camera3D& camera)
+{
+    DeferredPass& pass = renderData->deferredPass;
+    glViewport(0, 0, renderData->render_width, renderData->render_height);
     glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
     
     glBindBufferBase(GL_SHADER_STORAGE_BUFFER, 0, renderData->lightShaderStorageObject);
@@ -467,40 +474,6 @@ void RenderLightProbe(RenderData* renderData, vec3& lightProbePosition, std::vec
 void SetupSSAOPass(RenderData* renderData)
 {
     AmbientOcclusionPass& pass = renderData->SSAOPass;
-    glGenFramebuffers(1, &pass.depthNormalPassBO);
-    glBindFramebuffer(GL_FRAMEBUFFER, pass.depthNormalPassBO);
-
-    // Create and attach depth texture
-    glGenTextures(1, &pass.depthBuffer);
-    glBindTexture(GL_TEXTURE_2D, pass.depthBuffer);
-    glTexImage2D(GL_TEXTURE_2D, 0, GL_DEPTH_COMPONENT24, renderData->render_width, renderData->render_height, 0, GL_DEPTH_COMPONENT, GL_FLOAT, nullptr);
-    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
-    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
-    glFramebufferTexture2D(GL_FRAMEBUFFER, GL_DEPTH_ATTACHMENT, GL_TEXTURE_2D, pass.depthBuffer, 0);
-
-    // Create and attach normal texture
-    glGenTextures(1, &pass.normalBuffer);
-    glBindTexture(GL_TEXTURE_2D, pass.normalBuffer);
-    glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA16F, renderData->render_width, renderData->render_height, 0, GL_RGBA, GL_FLOAT, nullptr);
-    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
-    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
-    glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D, pass.normalBuffer, 0);
-    // Create and attach position texture
-    glGenTextures(1, &pass.positionBuffer);
-    glBindTexture(GL_TEXTURE_2D, pass.positionBuffer);
-    glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA16F, renderData->render_width, renderData->render_height, 0, GL_RGBA, GL_FLOAT, nullptr);
-    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
-    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
-    glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT1, GL_TEXTURE_2D, pass.positionBuffer, 0);
-
-    GLenum attachments[2] = { GL_COLOR_ATTACHMENT0, GL_COLOR_ATTACHMENT1 };
-    glDrawBuffers(2, attachments);
-    GLenum status = glCheckFramebufferStatus(GL_FRAMEBUFFER);
-    if (status != GL_FRAMEBUFFER_COMPLETE) {
-        std::cerr << "Framebuffer not complete: " << status << std::endl;
-        return;
-    }
-    glBindFramebuffer(GL_FRAMEBUFFER, 0);
 
     glGenFramebuffers(1, &pass.ssaoFBO);  glGenFramebuffers(1, &pass.ssaoBlurFBO);
     glBindFramebuffer(GL_FRAMEBUFFER, pass.ssaoFBO);
@@ -565,7 +538,7 @@ void SetupSSAOPass(RenderData* renderData)
 
 void SetupEnvironmentCubeMap(RenderData* renderData)
 {
-    u32 hdrTexture = LoadSkyBoxTexture("assets/hdr/klippad_dawn_1_4k.hdr");
+    u32 hdrTexture = LoadSkyBoxTexture("assets/hdr/rogland_overcast_4k.hdr");
 
     EnvironmentMapPass& pass = renderData->environmentMapPass;
 
@@ -828,17 +801,11 @@ void DrawScene(RenderData* renderData, std::vector<MeshRenderData>& meshRenderDa
     }
 }
 
-void RenderDepthNormalPass(RenderData* renderData, std::vector<MeshRenderData>& meshRenderData, glm::mat4 model, Camera3D& camera)
-{
-    StartDepthNormalPass(renderData);
-    UseDepthNormalShader(renderData, model, camera);
-    DrawScene(renderData, meshRenderData);
-    glBindFramebuffer(GL_FRAMEBUFFER, 0);
-}
 
 void RenderSSAOPass(RenderData* renderData, Camera3D& camera)
 {
     AmbientOcclusionPass& pass = renderData->SSAOPass;
+    glViewport(0, 0, renderData->render_width, renderData->render_height);
     pass.SSAOShader.bind();
     glBindFramebuffer(GL_FRAMEBUFFER, pass.ssaoFBO);
     glClearColor(0.0, 0.0, 0.0, 1.0);
@@ -850,14 +817,12 @@ void RenderSSAOPass(RenderData* renderData, Camera3D& camera)
         pass.SSAOShader.uniform_vector3f(kernelSample.c_str(), pass.ssaoKernel[i]);
     }
     pass.SSAOShader.uniform_matrix4("projection", camera.projection);
-    glActiveTexture(GL_TEXTURE0);
-    glBindTexture(GL_TEXTURE_2D, pass.depthBuffer);
-    //SSAOShader.uniform_int("depthBuffer", 0);
+    pass.SSAOShader.uniform_matrix4("view", camera.view);
     glActiveTexture(GL_TEXTURE1);
-    glBindTexture(GL_TEXTURE_2D, pass.normalBuffer);
+    glBindTexture(GL_TEXTURE_2D, renderData->deferredPass.gNormal);
     pass.SSAOShader.uniform_int("normalBuffer", 1);
     glActiveTexture(GL_TEXTURE2);
-    glBindTexture(GL_TEXTURE_2D, pass.positionBuffer);
+    glBindTexture(GL_TEXTURE_2D, renderData->deferredPass.gPosition);
     pass.SSAOShader.uniform_int("positionBuffer", 2);
     glActiveTexture(GL_TEXTURE3);
     glBindTexture(GL_TEXTURE_2D, pass.noiseTexture);
@@ -889,7 +854,7 @@ void RenderShadowMapPass(RenderData* renderData, vec3& lightDirection, std::vect
     pass.shadowCascadeLevels[0] = camera.farPlane / 20.0f;
     pass.shadowCascadeLevels[1] = (camera.farPlane * 3) / 20.0f;
     pass.shadowCascadeLevels[2] = (camera.farPlane * 2) / 5.0f;
-    // float lambda = 0.9f;
+    // float lambda = 0.8f;
     // for (int i = 0; i < numberOfCascades - 1; ++i)
     // {
     //     float linearSplit = camera.nearPlane + (camera.farPlane - camera.nearPlane) * (i + 1) / numberOfCascades;

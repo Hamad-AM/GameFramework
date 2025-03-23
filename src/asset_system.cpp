@@ -157,7 +157,7 @@ void LoadImageFromFileAsync(AssetSystem& assets, Image& image)
     assets.condition.notify_one();
 }
 
-void AddImage(AssetSystem& assets, const tinygltf::Image& image, std::filesystem::path& filePath)
+void AddImage(AssetSystem& assets, const tinygltf::Image& image, TextureType type, std::filesystem::path& filePath)
 {
     const u8* imageData = image.image.data();
     std::string filename = image.name;
@@ -168,7 +168,7 @@ void AddImage(AssetSystem& assets, const tinygltf::Image& image, std::filesystem
     filename += ".dds";
 #endif
     std::filesystem::path texture_file = filePath / filename;
-    assets.images[image.name] = { .filePath = texture_file.string(), .name = image.name };
+    assets.images[image.name] = { .filePath = texture_file.string(), .name = image.name, .type = type };
 }
 
 b32 DoLoadImageJob(AssetSystem* assets, LoadImageJob& job)
@@ -438,7 +438,7 @@ Model GltfToModel(AssetSystem& assets, tinygltf::Model& model, std::string& path
                         const tinygltf::Image& image = model.images[texture.source];
                         //std::shared_ptr<Image> myImage = std::make_shared<Image>(Image{ (u32)image.width, (u32)image.height, texture_format::RGBA, nullptr });
                         //images.emplace(textureIndex, myImage);
-                        AddImage(assets, image, textures_path);
+                        AddImage(assets, image, ALBEDO, textures_path);
                         mesh.albedo = image.name;
                     }
                 }
@@ -459,7 +459,7 @@ Model GltfToModel(AssetSystem& assets, tinygltf::Model& model, std::string& path
                         //std::shared_ptr<Image> myImage = std::make_shared<Image>(Image{ (u32)image.width, (u32)image.height, texture_format::RGBA, nullptr });
                         //myImage->image = (u8*)memcpy(sizeof(u32) * image.width * image.height);
                         //images.emplace(textureIndex, myImage);
-                        AddImage(assets, image, textures_path);
+                        AddImage(assets, image, METALLIC_ROUGHNESS, textures_path);
                         mesh.metallicRoughness = image.name;
                     }
                 }
@@ -479,7 +479,7 @@ Model GltfToModel(AssetSystem& assets, tinygltf::Model& model, std::string& path
                         const auto& image = model.images[texture.source];
                         //std::shared_ptr<Image> myImage = std::make_shared<Image>(Image{ (u32)image.width, (u32)image.height, texture_format::RGBA, image.image });
                         //images.emplace(textureIndex, myImage);
-                        AddImage(assets, image, textures_path);
+                        AddImage(assets, image, NORMAL, textures_path);
                         mesh.normalMap = image.name;
                     }
                 }
@@ -501,7 +501,7 @@ Model GltfToModel(AssetSystem& assets, tinygltf::Model& model, std::string& path
                 });
                 if (it != model.images.end())
                 {
-                    AddImage(assets, *it, textures_path);
+                    AddImage(assets, *it, SPECULAR, textures_path);
                     mesh.metallicRoughness = it->name;
                 }
                 else
@@ -681,14 +681,30 @@ u32 CreateTexture(Image& image)
     glBindTexture(GL_TEXTURE_2D, textureID);
 
     glPixelStorei(GL_UNPACK_ALIGNMENT, 1);
-    for (s32 i = 0; i < MAX_MIPMAP; ++i)
+    switch(image.type)
     {
-        ImageData& data = image.imageData[i];
-        glCompressedTexImage2D(GL_TEXTURE_2D, i, GL_COMPRESSED_RGBA_BPTC_UNORM, data.width, data.height, 0, data.bytes, data.data);
+        // Normal maps should not have mipmap levels
+    //case TextureType::NORMAL:
+    //{
+    //    ImageData& data = image.imageData[0];
+    //    glCompressedTexImage2D(GL_TEXTURE_2D, 0, GL_COMPRESSED_RGBA_BPTC_UNORM, data.width, data.height, 0, data.bytes, data.data);
+    //    glTexParameterf(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
+    //    glTexParameterf(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
+    //    break;
+    //}
+    default:
+    {
+        for (s32 i = 0; i < MAX_MIPMAP; ++i)
+        {
+            ImageData& data = image.imageData[i];
+            glCompressedTexImage2D(GL_TEXTURE_2D, i, GL_COMPRESSED_RGBA_BPTC_UNORM, data.width, data.height, 0, data.bytes, data.data);
+        }
+        glTexParameterf(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR_MIPMAP_LINEAR);
+        glTexParameterf(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
+        break;
+    }
     }
 
-    glTexParameterf(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR_MIPMAP_LINEAR);
-    glTexParameterf(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_REPEAT);
     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_REPEAT);
 
