@@ -69,7 +69,7 @@ void application::run()
 
     GameState* state = PushStruct(&permanent_storage, GameState);
 
-    vec3 sunPosition = { -46, 25.0, 20.0f };
+    vec3 sunPosition = { -4.6, 2.50, 2.0f };
     // state->lights[0] = {
     //         .type = Directional,
     //         .position = sunPosition,
@@ -82,7 +82,7 @@ void application::run()
             .type = LightType::Directional,
             .position = sunPosition,
             .direction = sunPosition - vec3(0),
-            .color = { 1.0, 0.95, 0.9 },
+            .color = { 1.0, 0.98, 0.97 },
             .luminance = 5,
             .isShadowCasting = 1,
     };
@@ -167,9 +167,11 @@ void application::run()
 
         camera.view = glm::lookAt(camera.position, camera.position + camera.front, camera.up);
 
-        update(dt);
+        update(dt, state);
 
         // RenderBRDFLUT(&renderData);
+
+        UpdateLightsBuffer(&renderData, state->lights, state->numberOfLights);
 
         vec3 lightDirection = glm::normalize(state->lights[0].direction * vec3(1));
         RenderShadowMapPass(&renderData, lightDirection, batchMeshRenderData, model, camera);
@@ -184,8 +186,9 @@ void application::run()
     }
 }
 
-void application::update(f32 dt)
+void application::update(f32 dt, GameState* state)
 {
+    vec3 changeLightPosition = vec3(0.0f);
     if (input::is_key_down(key::d))
         camera.position += glm::normalize(glm::cross(camera.front, camera.up)) * camera.speed * dt;
     else if (input::is_key_down(key::a))
@@ -198,18 +201,21 @@ void application::update(f32 dt)
         camera.position += camera.speed * camera.up * dt;
     else if (input::is_key_down(key::LSHIFT))
         camera.position -= camera.speed * camera.up * dt;
-    else if (input::is_key_down(key::UP))
-        lightPosition += 1.0f;
-    else if (input::is_key_down(key::DOWN))
-        lightPosition.x -= 1.0f;
-    else if (input::is_key_down(key::RIGHT))
-        lightPosition.z += 1.0f;
-    else if (input::is_key_down(key::LEFT))
-        lightPosition.z -= 1.0f;
-    else if (input::is_key_down(key::p))
+    if (input::is_key_down(key::UP))
+        changeLightPosition.x += 0.1f;
+    if (input::is_key_down(key::DOWN))
+        changeLightPosition.x -= 0.1f;
+    if (input::is_key_down(key::RIGHT))
+        changeLightPosition.z += 0.1f;
+    if (input::is_key_down(key::LEFT))
+        changeLightPosition.z -= 0.1f;
+    if (input::is_key_down(key::p))
         return;
-    else if (input::is_key_down(key::r))
+    if (input::is_key_down(key::r))
         CompileShaders(&renderData);
+
+    state->lights[0].position += changeLightPosition;
+    state->lights[0].direction = glm::normalize(state->lights[0].position - vec3(0));
 
     glm::vec2 mousePos = input::mouse_position();
     glm::vec2 offset{ mousePos.x - lastMousePos.x, lastMousePos.y - mousePos.y };

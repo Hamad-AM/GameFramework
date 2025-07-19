@@ -127,7 +127,7 @@ void RenderGBuffer(RenderData* renderData, std::vector<MeshRenderData>& meshRend
         pass.gBufferShader.uniform_int("albedo", 0);
         glActiveTexture(GL_TEXTURE1);
         glBindTexture(GL_TEXTURE_2D, meshRenderData[i].normalMapID);
-        pass.gBufferShader.uniform_int("normalMap", 1);
+        //pass.gBufferShader.uniform_int("normalMap", 1);
         glActiveTexture(GL_TEXTURE2);
         glBindTexture(GL_TEXTURE_2D, meshRenderData[i].metallicRoughnessID);
         pass.gBufferShader.uniform_int("metallicRoughness", 2);
@@ -690,11 +690,18 @@ void SetupLightsBuffer(RenderData* renderData, Light* lights, u32 numLights)
 {
     glGenBuffers(1, &renderData->lightShaderStorageObject);
     glBindBuffer(GL_SHADER_STORAGE_BUFFER, renderData->lightShaderStorageObject);
-    glBufferData(GL_SHADER_STORAGE_BUFFER, numLights * sizeof(Light), lights, GL_STATIC_DRAW);
+    glBufferData(GL_SHADER_STORAGE_BUFFER, numLights * sizeof(Light), lights, GL_DYNAMIC_DRAW);
     glBindBufferBase(GL_SHADER_STORAGE_BUFFER, 0, renderData->lightShaderStorageObject); // Bind to binding point 0
     glBindBuffer(GL_SHADER_STORAGE_BUFFER, 0); // Unbind
     renderData->lights = lights;
     renderData->numLights = numLights;
+}
+
+void UpdateLightsBuffer(RenderData* renderData, Light* lights, u32 numLights)
+{
+    glBindBuffer(GL_SHADER_STORAGE_BUFFER, renderData->lightShaderStorageObject);
+    glBufferSubData(GL_SHADER_STORAGE_BUFFER, 0, sizeof(Light) * numLights, lights);
+    glBindBuffer(GL_SHADER_STORAGE_BUFFER, 0);
 }
 
 void SetupBRDFLUT(RenderData* renderData, EnvironmentMapPass& pass)

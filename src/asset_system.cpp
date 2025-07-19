@@ -1,20 +1,7 @@
 #include "asset_system.h"
 
-#include <tiny_gltf.h>
-//#include <encoder/basisu_comp.h>
-//#include <transcoder/basisu_transcoder.h>
-#include <stb_image.h>
-
-//#define USE_KTX
-//#define USE_GPU_COMPRESSION
-
 #include <cstdlib>
 
-#ifdef USE_KTX
-    //#include <ktx.h>
-#else
-    //#include <DirectXTex.h>
-#endif
 
 #include <iostream>
 #include <fstream>
@@ -25,108 +12,63 @@
 #define TimeNow() std::chrono::high_resolution_clock::now()
 #define Timelapse(diff) std::chrono::duration_cast<std::chrono::microseconds>(end - start)
 
-struct DDS_PIXELFORMAT {
-    DWORD dwSize;
-    DWORD dwFlags;
-    DWORD dwFourCC;
-    DWORD dwRGBBitCount;
-    DWORD dwRBitMask;
-    DWORD dwGBitMask;
-    DWORD dwBBitMask;
-    DWORD dwABitMask;
-};
-
-typedef struct {
-    DWORD           dwSize;
-    DWORD           dwFlags;
-    DWORD           dwHeight;
-    DWORD           dwWidth;
-    DWORD           dwPitchOrLinearSize;
-    DWORD           dwDepth;
-    DWORD           dwMipMapCount;
-    DWORD           dwReserved1[11];
-    DDS_PIXELFORMAT ddspf;
-    DWORD           dwCaps;
-    DWORD           dwCaps2;
-    DWORD           dwCaps3;
-    DWORD           dwCaps4;
-    DWORD           dwReserved2;
-} DDS_HEADER;
-
-#include <dxgiformat.h>
-#include <d3d10.h>
-typedef struct {
-    DXGI_FORMAT              dxgiFormat;
-    D3D10_RESOURCE_DIMENSION resourceDimension;
-    UINT                     miscFlag;
-    UINT                     arraySize;
-    UINT                     miscFlags2;
-} DDS_HEADER_DXT10;
-
-struct DDSFile {
-    DWORD dwmagic;
-    DDS_HEADER header;
-    DDS_HEADER_DXT10 header10;
-    BYTE* bdata;
-    BYTE* bdata2;
-};
 
 b32 LoadGLTFModel(std::string path, tinygltf::Model& model)
 {
-    std::filesystem::path filePath = path;
-    tinygltf::TinyGLTF loader;
-    //loader.SetImageLoader(nullptr, nullptr);
-    std::string err;
-    std::string warn;
-    b32 ret;
+    //std::filesystem::path filePath = path;
+    //tinygltf::TinyGLTF loader;
+    ////loader.SetImageLoader(nullptr, nullptr);
+    //std::string err;
+    //std::string warn;
+    //b32 ret;
 
-    std::string ext = filePath.extension().string();
-    std::string filenameWithoutExt = filePath.stem().string();
-    filenameWithoutExt += "_no_images";
-    std::filesystem::path noImageFilePath = filePath.parent_path() / (filenameWithoutExt + ".glb");
-    b32 rewrite_file = false;
-    if (!std::filesystem::exists(noImageFilePath))
-    {
-        rewrite_file = true;
-    }
-    else
-    {
-        std::filesystem::file_time_type noImageFileWriteTime = std::filesystem::last_write_time(noImageFilePath);
-        std::filesystem::file_time_type withImageFileWriteTime = std::filesystem::last_write_time(path);
+    //std::string ext = filePath.extension().string();
+    //std::string filenameWithoutExt = filePath.stem().string();
+    //filenameWithoutExt += "_no_images";
+    //std::filesystem::path noImageFilePath = filePath.parent_path() / (filenameWithoutExt + ".glb");
+    //b32 rewrite_file = false;
+    //if (!std::filesystem::exists(noImageFilePath))
+    //{
+    //    rewrite_file = true;
+    //}
+    //else
+    //{
+    //    std::filesystem::file_time_type noImageFileWriteTime = std::filesystem::last_write_time(noImageFilePath);
+    //    std::filesystem::file_time_type withImageFileWriteTime = std::filesystem::last_write_time(path);
 
-        // If image embeded Model is newer than the mesh only model
-        auto timeSinceChange = std::chrono::duration_cast<std::chrono::seconds>(withImageFileWriteTime - noImageFileWriteTime);
-        if (noImageFileWriteTime < withImageFileWriteTime)
-        {
-            rewrite_file = true;
-        }
-    }
+    //    // If image embeded Model is newer than the mesh only model
+    //    auto timeSinceChange = std::chrono::duration_cast<std::chrono::seconds>(withImageFileWriteTime - noImageFileWriteTime);
+    //    if (noImageFileWriteTime < withImageFileWriteTime)
+    //    {
+    //        rewrite_file = true;
+    //    }
+    //}
 
-    if (rewrite_file)
-    {
-        std::cout << filenameWithoutExt << " has been modified." << std::endl;
-        tinygltf::Model tempModel;
-        std::cout << "    Loading Model with Images..." << std::endl;
-        ret = loader.LoadASCIIFromFile(&tempModel, &err, &warn, path);
-        std::filesystem::path textureFilePath = filePath.parent_path() / "textures";
-        std::string commandCall = "nvcompress -color -alpha -bc7 -fast -m " + textureFilePath.string() + " " + textureFilePath.string();
-        s32 result = system(commandCall.c_str());
-        for (tinygltf::Image& image : tempModel.images)
-        {
-            image.image.clear();
-        }
-        std::cout << "    Loaded Model With Images\n Cleared Images and writing mesh only model." << std::endl;
-        loader.WriteGltfSceneToFile(&tempModel, noImageFilePath.string(), true, false, true, true);
-    }
-    std::cout << "Loading Binary Model... " << std::endl;
-    ret = loader.LoadBinaryFromFile(&model, &err, &warn, noImageFilePath.string());
-    std::cout << "Finished Loading" << std::endl;
+    //if (rewrite_file)
+    //{
+    //    std::cout << filenameWithoutExt << " has been modified." << std::endl;
+    //    tinygltf::Model tempModel;
+    //    std::cout << "    Loading Model with Images..." << std::endl;
+    //    ret = loader.LoadASCIIFromFile(&tempModel, &err, &warn, path);
+    //    std::filesystem::path textustd::shared_ptrilePath = filePath.parent_path() / "textures";
+    //    std::string commandCall = "nvcompress -color -alpha -bc7 -fast -m " + textureFilePath.string() + " " + textureFilePath.string();
+    //    s32 result = system(commandCall.c_str());
+    //    for (tinygltf::Image& image : tempModel.images)
+    //    {
+    //        image.image.clear();
+    //    }
+    //    std::cout << "    Loaded Model With Images\n Cleared Images and writing mesh only model." << std::endl;
+    //    loader.WriteGltfSceneToFile(&tempModel, noImageFilePath.string(), true, false, true, true);
+    //}
+    //std::cout << "Loading Binary Model... " << std::endl;
+    //ret = loader.LoadBinaryFromFile(&model, &err, &warn, noImageFilePath.string());
+    //std::cout << "Finished Loading" << std::endl;
 
-    if (!ret)
-    {
-        std::cout << err << std::endl;
-    }
-    return ret;
+    //if (!ret)
+    //{
+    //    std::cout << err << std::endl;
+    //}
+    //return ret;
 }
 
 // Function to convert a string to lowercase
@@ -163,18 +105,8 @@ void AddImage(AssetSystem& assets, const tinygltf::Image& image, TextureType typ
     std::string filename = image.name;
     if (assets.images.find(image.name) != assets.images.end()) return;
 
-    if (type == TextureType::NORMAL)
-    {
-        filename += ".png";
-    }
-    else
-    {
-#ifdef USE_KTX
-        filename += ".ktx2";
-#else
-        filename += ".dds";
-#endif
-    }
+    filename += ".aasset";
+
     std::filesystem::path texture_file = filePath / filename;
     assets.images[image.name] = { .filePath = texture_file.string(), .name = image.name, .type = type };
 }
@@ -214,40 +146,7 @@ void LoadImageFromFile(AssetSystem* assets, std::string& path, std::string& name
     fclose(file);
     //std::cout << "Read file from : " << std::this_thread::get_id() << std::endl;
 
-    DDSFile* ddsImage = (DDSFile*)buffer;
-
-    u32 width = (u32)ddsImage->header.dwWidth;
-    u32 height = (u32)ddsImage->header.dwHeight;
-    u64 size = (u64)ddsImage->header.dwPitchOrLinearSize;
-    u32 mipMapCount = (u32)ddsImage->header.dwMipMapCount;
-
-
-    Image& im = assets->images[name];
-    im.width = width;
-    im.height = height;
-    im.format = texture_format::RGBA;
-    u64 offset = sizeof(DWORD) + sizeof(DDS_HEADER) + sizeof(DDS_HEADER_DXT10);
-    u8* start = buffer+offset;
-    for (s32 i = 0; i < mipMapCount; ++i)
-    {
-        u32 numBlocksWide = std::max<size_t>(1, (width + 3) / 4);
-        u32 numBlocksHigh = std::max<size_t>(1, (height + 3) / 4);
-        u32 rowBytes = numBlocksWide * 16;
-        u32 numRows = numBlocksHigh;
-        u32 numBytes = rowBytes * numRows;
-
-        u8* compressedImageData = buffer + offset;
-        u64 imageSize = numBytes;
-        im.imageData[i].width = width;
-        im.imageData[i].height = height;
-        im.imageData[i].data = start;
-        im.imageData[i].bytes = numBytes;
-        im.imageData[i].available = true;
-
-        start = start + numBytes;
-        width /= 2;
-        height /= 2;
-    }
+    assets->images[name] = (Image*)buffer;
 }
 
 void ShutDownLoading(AssetSystem& assets)

@@ -3,7 +3,6 @@ CMakeFiles/
 .vscode/
 libraries/fmod
 libraries/freetype-2.12.1
-libraries/glad
 libraries/SDL2-2.0.12
 libraries/spdlog
 libraries/stb_image
@@ -470,3 +469,6 @@ MigrationBackup/
 
 # Fody - auto-generated XML schema
 FodyWeavers.xsd
+/assets
+/libraries/freetype-2.13.3
+/libraries/KTX

@@ -66,11 +66,11 @@ renderer::init_glyph_bitmaps()
 {
     _text_shader.compile("../assets/shaders/glyph.vs", "../assets/shaders/glyph.fs");
 
-    fonts[font_type::Arial]      = ref<font>(new font("../assets/fonts/Arial/arial.ttf", 48));
-    fonts[font_type::Montserrat] = ref<font>(new font("../assets/fonts/Montserrat/Montserrat-Regular.ttf", 48));
-    fonts[font_type::OpenSans]   = ref<font>(new font("../assets/fonts/OpenSans/OpenSans-Regular.ttf", 48));
-    fonts[font_type::Playfair]   = ref<font>(new font("../assets/fonts/Playfair/PlayfairDisplay-Regular.ttf", 48));
-    fonts[font_type::Roboto]     = ref<font>(new font("../assets/fonts/Roboto/Roboto-Regular.ttf", 48));
+    fonts[font_type::Arial]      = std::shared_ptr<font>(new font("../assets/fonts/Arial/arial.ttf", 48));
+    fonts[font_type::Montserrat] = std::shared_ptr<font>(new font("../assets/fonts/Montserrat/Montserrat-Regular.ttf", 48));
+    fonts[font_type::OpenSans]   = std::shared_ptr<font>(new font("../assets/fonts/OpenSans/OpenSans-Regular.ttf", 48));
+    fonts[font_type::Playfair]   = std::shared_ptr<font>(new font("../assets/fonts/Playfair/PlayfairDisplay-Regular.ttf", 48));
+    fonts[font_type::Roboto]     = std::shared_ptr<font>(new font("../assets/fonts/Roboto/Roboto-Regular.ttf", 48));
         
 }
 

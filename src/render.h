@@ -233,6 +233,7 @@ void CompileShaders(RenderData* renderData);
 void RenderSetupParameters(RenderData* renderData, u32 render_width, u32 render_height);
 
 void SetupLightsBuffer(RenderData* renderData, Light* lights, u32 numLights);
+void UpdateLightsBuffer(RenderData* renderData, Light* lights, u32 numLights);
 
 void SetupShadowMapPass(RenderData* renderData, Light* lights, u32 numLights, u32 shadow_width, u32 shadow_height, Camera3D& camera);
 void SetupPointShadowMapPass(RenderData* renderData, Light* lights, u32 numLights, u32 shadow_width, u32 shadow_height);

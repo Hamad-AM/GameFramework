@@ -1,14 +1,6 @@
 #pragma once
 
 #include <stdint.h>
-#include <stdlib.h>
-#include <memory>
-#include <vector>
-#include <string>
-#include <glm/glm.hpp>
-#include <glm/gtc/matrix_transform.hpp>
-
-#include "statistics.h"
 
 typedef uint8_t  u8;
 typedef uint16_t u16;
@@ -27,10 +19,4 @@ typedef double f64;
 
 typedef unsigned char ubyte;
 
-template<typename T>
-using ref = std::shared_ptr<T>;
-
-template<typename T>
-ref<T> make_ref(T t) { return std::make_shared<T>(t); }
-
-static f32 pixel2screen = 3.2f/455.0f;
+//static f32 pixel2screen = 3.2f/455.0f;

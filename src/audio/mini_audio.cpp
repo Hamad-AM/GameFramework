@@ -22,9 +22,9 @@
         return ma_engine_get_time(&engine);
     }
 
-    ref<sound> mini_audio_system::create_sound(const char* file)
+    std::shared_ptr<sound> mini_audio_system::create_sound(const char* file)
     {
-        ref<mini_sound> s(new mini_sound());
+        std::shared_ptr<mini_sound> s(new mini_sound());
         s->file = file;
         result = ma_sound_init_from_file(&engine, file, 0, NULL, NULL, &s->internal_sound);
         assert(result == MA_SUCCESS);

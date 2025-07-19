@@ -47,7 +47,7 @@ struct AssetSystem
     std::condition_variable condition;
     b32 stopLoading = false;
 
-    std::unordered_map<std::string, Image> images;
+    std::unordered_map<std::string, Image*> images;
     std::unordered_map<s32, Mesh*> models;
 };
 

@@ -24,27 +24,27 @@ namespace atl
         fmod_error(result);
     }
 
-    ref<sound> fmod_audio_system::create_sound(const char* file)
+    std::shared_ptr<sound> fmod_audio_system::create_sound(const char* file)
     {
         sound s;
         s.name = file;
         FMOD::Sound* internal_sound;
         result = system->createSound(file, FMOD_DEFAULT, {}, &internal_sound);
         fmod_error(result);
-        ref<sound> s_p = make_ref<sound>(s);
+        std::shared_ptr<sound> s_p = make_ref<sound>(s);
         s_p->internal_sound = internal_sound;
         sounds.push_back(s_p);
         return s_p;
     }
 
-    ref<sound_channel> fmod_audio_system::play(ref<sound>& playing_sound, f32 volume, f32 pan, f32 frequency, b32 start_paused)
+    std::shared_ptr<sound_channel> fmod_audio_system::play(std::shared_ptr<sound>& playing_sound, f32 volume, f32 pan, f32 frequency, b32 start_paused)
     {
         FMOD::Channel* f_channel = nullptr;
         playing_sound->internal_sound->setMode(FMOD_LOOP_OFF);
         result = system->playSound(playing_sound->internal_sound, nullptr, false, &f_channel);
         fmod_error(result);
 
-        ref<sound_channel> game_channel = make_ref<fmod_sound_channel>(f_channel);
+        std::shared_ptr<sound_channel> game_channel = make_ref<fmod_sound_channel>(f_channel);
         game_channel->set_volume(volume);
         game_channel->set_pan(pan);
         // game_channel->set_frequency(frequency);
@@ -54,9 +54,9 @@ namespace atl
         return game_channel;
     }
 
-    ref<sound_channel> fmod_audio_system::play(ref<sound>& playing_sound, const vec3& position, const vec3& velocity, f32 volume, f32 pan, f32 frequency, b32 start_paused)
+    std::shared_ptr<sound_channel> fmod_audio_system::play(std::shared_ptr<sound>& playing_sound, const vec3& position, const vec3& velocity, f32 volume, f32 pan, f32 frequency, b32 start_paused)
     {
-        ref<sound_channel> chan = play(playing_sound, volume, pan, frequency, start_paused);
+        std::shared_ptr<sound_channel> chan = play(playing_sound, volume, pan, frequency, start_paused);
         chan->set_3d_attributes(position, velocity);
         return chan;
     }

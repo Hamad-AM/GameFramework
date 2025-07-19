@@ -37,7 +37,7 @@ public:
 
     void initialize(u32 screen_width, u32 screen_height);
     void run();
-    void update(f32 dt);
+    void update(f32 dt, GameState* state);
     void close();
     void UploadDataToGL(MeshRenderData& data);
 

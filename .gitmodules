@@ -37,3 +37,6 @@
 [submodule "libraries/fpng"]
 	path = libraries/fpng
 	url = https://github.com/richgel999/fpng.git
+[submodule "libraries/assimp"]
+	path = libraries/assimp
+	url = https://github.com/assimp/assimp.git
