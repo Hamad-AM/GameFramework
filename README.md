@@ -1,73 +1,51 @@
-# GameFramework
-Video game framework using SDL2 and OpenGL
+# Anthology Game Framework
 
-Plan:
--> Renderer
-    - Batch renderering
-    - Texture Atlas
-    - Animation
-    - Anti-Aliasing
-    - Material System
-    - 3D Model
-    - Forward+ renderer
-    - PBR Materials
-    - Animation for Models
-    - Shadow Maps
-    - Ambient Occlusion (SSAO and offline)
-    - Cube Map Reflections
-    - Light Maps with Offline Global Illuminations
-    - Back-face culling
-    - Bloom
-    - HDR / SRGB
-    - Bloom
-    - Hotreload Shaders
+**Anthology** is a modular and modern 3D Game Engine.
 
--> Physics
-    - Box2D physics
-    - PhysX phyiscs for 3D
+## Features
 
--> Scripting
-    - Mono with C#
-    - Python with Cython or Java
+- **Rendering**
+  - Deferred renderer with physically based rendering (PBR)
+  - Cascaded Shadow Maps (CSM)
+  - Point Light Shadows
+  - Screen-Space Ambient Occlusion (SSAO)
+  - HDR, Tone Mapping - ACES, ASX
+- **Audio**
+  - Integrated with [miniaudio](https://github.com/mackron/miniaudio)
+- **Physics (Planned)**
+  - [Jolt Physics](https://github.com/jrouwe/JoltPhysics) integration
+- **Asset Pipeline**
+  - External asset converter using:
+    - [Assimp](https://github.com/assimp/assimp)
+    - [tinygltf](https://github.com/syoyo/tinygltf)
+- **Dependencies**
+  - Input and windowing via [GLFW](https://www.glfw.org/)
+  - GL function loading via [GLAD](https://github.com/Dav1dde/glad)
+  - Math with [GLM](https://github.com/g-truc/glm)
+  - Text rendering with [FreeType](https://freetype.org/)
+  - Experimental networking via [GameNetworkingSockets](https://github.com/ValveSoftware/GameNetworkingSockets)
 
--> UI
-    - Resizing / Fits screen
-    - Buttons
-    - Panes
-    - In game world
-    - Input boxes
-    - Grid Pane
-    - Scroll Panes
-    - HUD
-    - Layouts
-    - Animations (User friendly editing)
+---
 
--> Cinematic Camera/Programmable camera
--> Work with TileEditor
+## 🛠️ Build and Installation
 
--> Resources
-    - Serializations
-    - Save Game
-    - YAML/Json files?
-    - Config Files
-    - Custom Formats?
-    - Compression
-    - Async loading and unloading assets
-    - Loading to ram vs loading to gpu etc.
-    - Memory mapping
-    - Packaging/blob
-    - Hotreload textures/models
+> **Note:** Anthology uses CMake (version X.X or higher). Tested on Windows / Linux / macOS.
 
--> Audio
-    - Use Raylib audio
-    - FMOD audio
-    - Playback
-    - Proceduaral Generation
-    - Events
+### Prerequisites
 
--> Networking
-    - Enet networking
-    - Client-Server Communication
-    - Sync physics system
+Make sure you have the following installed:
 
--> Possibly multi-thread
+- C++ compiler (C++20 or later)
+- CMake
+- Git
+- Dependencies listed below (some fetched automatically via submodules)
+
+### Building
+
+```bash
+git clone --recurse-submodules https://github.com/Hamad-AM/Gameframework.git
+cd gameframework
+mkdir build
+cd build
+cmake ..
+cmake --build .
