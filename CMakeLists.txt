@@ -2,9 +2,11 @@ cmake_minimum_required(VERSION 3.10)
 
 project(Anthology)
 
-set(CMAKE_CXX_STANDARD 20)
+set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED True)
 set(CMAKE_CXX_EXTENSIONS ON)
+
+set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
 
 if (MSVC)
     set(CMAKE_CXX_FLAGS_DEBUG "${CMAKE_CXX_FLAGS_DEBUG} /D_ITERATOR_DEBUG_LEVEL=1")
@@ -21,30 +23,8 @@ set(BUILD_SHARED_LIBS OFF CACHE BOOL "Build static libraries")
 find_package(OpenGL REQUIRED)
 
 add_subdirectory(libraries/glfw)
-# include_directories(libraries/glfw/include)
-# add_subdirectory(libraries/glm)
-add_subdirectory(libraries/freetype-2.13.3)
+# add_subdirectory(libraries/freetype-2.13.3)
 # include_directories(libraries/freetype-2.13.3/include)
-# add_subdirectory(libraries/KTX-Software)
-# add_subdirectory(libraries/gli)
-
-add_subdirectory(libraries/DirectXTex)
-add_subdirectory(libraries/assimp)
-#
-# # add_subdirectory(libraries/basis_universal)
-# include_directories(${CMAKE_SOURCE_DIR}/libraries/basis_universal/)
-# # set(basisu "${CMAKE_SOURCE_DIR}/libraries/basis_universal/build/Release/")
-# add_subdirectory(libraries/basis_universal)
-
-# include_directories(${CMAKE_SOURCE_DIR}/libraries/KTX/include)
-
-
-
-
-# include_directories(${CMAKE_SOURCE_DIR}/libraries/fpng/src/)
-
-
-# include_directories(${CMAKE_SOURCE_DIR}/libraries/cgltf/)
 
 #include_directories(${CMAKE_SOURCE_DIR}/libraries/stb/)
 
@@ -66,21 +46,19 @@ file (GLOB_RECURSE ASSET_CONVERTER_HEADER
         ${CMAKE_SOURCE_DIR}/tools/AssetConverter/*.h
         ${CMAKE_SOURCE_DIR}/tools/AssetConverter/*.hpp)
 
+target_include_directories(AssetConverter PRIVATE ${CMAKE_SOURCE_DIR}/libraries/stb/)
+target_include_directories(AssetConverter PRIVATE ${CMAKE_SOURCE_DIR}/libraries/tinygltf/)
 add_executable(AssetConverter ${ASSET_CONVERTER_HEADER} ${ASSET_CONVERTER_SOURCE})
-target_link_libraries(AssetConverter assimp)
+target_link_libraries(AssetConverter)
 
 add_executable(Anthology ${SOURCE_FILES})
 
 target_include_directories(Anthology PRIVATE ${CMAKE_SOURCE_DIR}/libraries/glm/)
 target_include_directories(Anthology PRIVATE ${CMAKE_SOURCE_DIR}/libraries/miniaudio/)
-target_include_directories(Anthology PRIVATE ${CMAKE_SOURCE_DIR}/libraries/stb/)
-target_include_directories(Anthology PRIVATE ${CMAKE_SOURCE_DIR}/libraries/tinygltf/)
 add_library(glad ${CMAKE_SOURCE_DIR}/libraries/glad/src/glad.c)
 target_include_directories(glad PUBLIC ${CMAKE_SOURCE_DIR}/libraries/glad/include)
-target_link_libraries(Anthology glfw glad freetype)
-# target_link_libraries(Anthology glfw glm glad freetype ktx)
-# add_dependencies(Anthology anthology_shaders)
-# set_target_properties(Anthology PROPERTIES FOLDER "src/")
+target_link_libraries(Anthology glfw glad)
+
 set_property(TARGET Anthology PROPERTY VS_DEBUGGER_WORKING_DIRECTORY "${CMAKE_SOURCE_DIR}")
 set_property(TARGET AssetConverter PROPERTY VS_DEBUGGER_WORKING_DIRECTORY "${CMAKE_SOURCE_DIR}")
 

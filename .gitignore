@@ -6,6 +6,7 @@ libraries/freetype-2.12.1
 libraries/SDL2-2.0.12
 libraries/spdlog
 libraries/stb_image
+asset-source/
 
 #
 #

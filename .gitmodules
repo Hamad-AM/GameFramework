@@ -4,9 +4,6 @@
 [submodule "libraries/glfw"]
 	path = libraries/glfw
 	url = https://github.com/glfw/glfw.git
-[submodule "libraries/flecs"]
-	path = libraries/flecs
-	url = https://github.com/Hamad-AM/flecs.git
 [submodule "libraries/JoltPhysics"]
 	path = libraries/JoltPhysics
 	url = https://github.com/Hamad-AM/JoltPhysics.git
@@ -16,27 +13,12 @@
 [submodule "libraries/glm"]
 	path = libraries/glm
 	url = https://github.com/Hamad-AM/glm.git
-[submodule "libraries/basis_universal"]
-	path = libraries/basis_universal
-	url = https://github.com/BinomialLLC/basis_universal.git
 [submodule "libraries/miniaudio"]
 	path = libraries/miniaudio
 	url = https://github.com/mackron/miniaudio.git
 [submodule "libraries/tinygltf"]
 	path = libraries/tinygltf
 	url = https://github.com/syoyo/tinygltf.git
-[submodule "libraries/DirectXTex"]
-	path = libraries/DirectXTex
-	url = https://github.com/microsoft/DirectXTex.git
-[submodule "libraries/KTX-Software"]
-	path = libraries/KTX-Software
-	url = https://github.com/KhronosGroup/KTX-Software.git
-[submodule "libraries/gli"]
-	path = libraries/gli
-	url = https://github.com/g-truc/gli.git
-[submodule "libraries/fpng"]
-	path = libraries/fpng
-	url = https://github.com/richgel999/fpng.git
 [submodule "libraries/assimp"]
 	path = libraries/assimp
 	url = https://github.com/assimp/assimp.git
