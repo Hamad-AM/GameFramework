@@ -1,3 +1,4 @@
+#if 0
 #include "../../src/common.h"
 #include "../../src/asset_types.h"
 
@@ -139,3 +140,4 @@ void ConvertFBX2Model(std::filesystem::path& gameFile, std::filesystem::path& de
 void ConvertGLTF2Model(std::filesystem::path& gameFile, std::filesystem::path& devFile) {
     std::cout << "Implement gltf Loader" << std::endl;
 }
+#endif

@@ -14,9 +14,7 @@ bool isExtensionSupported(const char* extension) {
     // Loop through all extensions and check if the specific one is present
     for (GLint i = 0; i < numExtensions; ++i) {
         const char* ext = reinterpret_cast<const char*>(glGetStringi(GL_EXTENSIONS, i));
-        if (ext && strcmp(ext, extension) == 0) {
-            return true; // Extension found
-        }
+        return true;
     }
     return false; // Extension not found
 }
@@ -81,7 +79,8 @@ void glfw_window::initialize(u32 width, u32 height, const char *title)
     glfwMakeContextCurrent(window);
 
     glfwSetKeyCallback(window, key_callback);
-    glfwSetInputMode(window, GLFW_CURSOR, GLFW_CURSOR_DISABLED);
+    // For now set cursor to normal When playing or moving around disable?
+    glfwSetInputMode(window, GLFW_CURSOR, GLFW_CURSOR_NORMAL);
     glfwSetCursorPosCallback(window, mouse_callback);
 
     // glfwMakeContextCurrent(window);
@@ -94,15 +93,7 @@ void glfw_window::initialize(u32 width, u32 height, const char *title)
     const GLubyte* version = glGetString(GL_VERSION);
     std::cout << "OpenGL Version: " << version << std::endl;
 
-    if (!isExtensionSupported("GL_ARB_texture_compression_bptc")) {
-        std::cerr << "ASTC compression extension is not enabled!" << std::endl;
-    }
-    else {
-        std::cout << "ASTC compression extension is enabled!" << std::endl;
-    }
-
     glfwSwapInterval(1);
-
 
     // During init, enable debug output
     glEnable              ( GL_DEBUG_OUTPUT );

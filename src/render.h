@@ -1,7 +1,6 @@
 #pragma once
 
 #include "graphics/shader.h"
-#include "graphics/texture.h"
 
 #include <glad/glad.h>
 #include <glm/glm.hpp>
@@ -9,8 +8,12 @@
 #include <glm/gtc/matrix_inverse.hpp>
 #include <glm/gtc/quaternion.hpp>
 
+#include "memory.h"
+
 #include <vector>
-#include <unordered_map>
+
+struct LoadedScene;
+struct TextureHeader;
 
 struct Camera3D
 {
@@ -57,58 +60,22 @@ struct Light
     s32 pointShadowMapIndex;
 };
 
-
-struct Material
-{
-    u32 albedoID;
-    u32 metallicRoughnessID;
-    u32 normalID;
-    u32 aoID;
+struct RenderMaterial {
+    u32 albedoIdx;
+    u32 metallicRoughnessIdx;
+    u32 normalMapIdx;
 };
 
-#pragma pack(push, 1)
-struct Vertex
-{
-    f32 position[3];
-    f32 normal[3];
-    f32 uv[2];
-    f32 tangents[3];
-};
-#pragma pack(pop)
-
-struct Mesh
-{
-    u64 vertexCount;
-    std::vector<f32> vertices;
-    
-    u64 indexCount;
-    std::vector<u32> indices;
-    std::string albedo;
-    std::string metallicRoughness;
-    std::string normalMap;
-    std::string ao;
-    std::string name;
-};
-struct Model
-{
-    std::vector<Mesh> meshes;
-};
-
-struct MeshOffset {
-    u32 vertexOffset = 0;
-    u32 indexOffset = 0;
-    u32 indexCount = 0;
-};
-
-struct MeshRenderData
-{
+struct RenderMesh {
     u32 numberOfIndices;
     GLuint VBO;
     GLuint VAO;
     GLuint EBO;
-    GLuint albedoID;
-    GLuint metallicRoughnessID;
-    GLuint normalMapID;
+    RenderMaterial material;
+};
+
+struct RenderTexture {
+    GLuint textureID;
 };
 
 struct PointLightShadow
@@ -201,9 +168,15 @@ struct RenderData
     Shader textureToScreen;
     Shader UnlitShader;
 
-    std::unordered_map<std::string, u32> gpu_textures;
-    u32 render_width;
-    u32 render_height;
+    RenderTexture* textures;
+    u32 textureCount;
+    RenderMesh* meshes;
+    u32 meshCount;
+    RenderMaterial* materials;
+    u32 materialCount;
+
+    u32 renderWidth;
+    u32 renderHeight;
 
     ShadowPass shadowPass;
     glm::mat4 lightSpaceMatrix;
@@ -243,23 +216,24 @@ void SetupSSAOPass(RenderData* renderData);
 void SetupEnvironmentCubeMap(RenderData* renderData);
 void StartDepthNormalPass(RenderData* renderData);
 void UseDepthNormalShader(RenderData* renderData, glm::mat4 model, Camera3D& camera);
-void DrawScene(RenderData* renderData, std::vector<MeshRenderData>& meshRenderData);
+void DrawScene(RenderData* renderData);
+void RenderBindPBRTextures(u32 startingTextureSlot, u32 uniformSlot, Shader* shader, RenderMesh* renderMesh, RenderData* renderData);
 
-void RenderDepthNormalPass(RenderData* renderData, std::vector<MeshRenderData>& meshRenderData, glm::mat4 model, Camera3D& camera);
+void RenderDepthNormalPass(RenderData* renderData, glm::mat4 model, Camera3D& camera);
 void RenderSSAOPass(RenderData* renderData, Camera3D& camera);
-void RenderShadowMapPass(RenderData* renderData, vec3& lightDirection, std::vector<MeshRenderData>& meshRenderData, glm::mat4& model, Camera3D& camera);
-void RenderOmidirectionalShadowMap(RenderData* renderData, std::vector<MeshRenderData>& meshRenderData, mat4& model, Light* lights, u32 numLights);
+void RenderShadowMapPass(RenderData* renderData, vec3& lightDirection, glm::mat4& model, Camera3D& camera);
+void RenderOmidirectionalShadowMap(RenderData* renderData, mat4& model, Light* lights, u32 numLights);
 
-void RenderScene(RenderData* renderData, std::vector<MeshRenderData>& meshRenderData, glm::mat4 model, Camera3D& camera, glm::vec3 lightPosition);
+void RenderScene(RenderData* renderData, glm::mat4 model, Camera3D& camera, glm::vec3 lightPosition);
 void RenderEnvironmentMap(RenderData* renderData, Camera3D& camera);
 void RenderEnvironmentMap(RenderData* renderData, mat4& view, mat4& projection);
 
 void SetupLightProbe(RenderData* renderData);
-void RenderLightProbe(RenderData* renderData, vec3& lightProbePosition, std::vector<MeshRenderData>& meshRenderData, mat4& model, Light* lights, u32 numOfLights);
+void RenderLightProbe(RenderData* renderData, vec3& lightProbePosition, mat4& model, Light* lights, u32 numOfLights);
 
 void SetupGBuffers(RenderData* renderData);
-void RenderGBuffer(RenderData* renderData, std::vector<MeshRenderData>& meshRenderData, glm::mat4 model, Camera3D& camera);
-void RenderDeferredScene(RenderData* renderData, std::vector<MeshRenderData>& meshRenderData, glm::mat4 model, Camera3D& camera);
+void RenderGBuffer(RenderData* renderData, glm::mat4 model, Camera3D& camera);
+void RenderDeferredScene(RenderData* renderData, glm::mat4 model, Camera3D& camera);
 
 u32 LoadSkyBoxTexture(const char* filePath);
 
@@ -269,6 +243,9 @@ void getFrustumCornersWorldSpace(glm::vec4* frustumCorners, const glm::mat4& pro
 
 void RenderBRDFLUT(RenderData* renderData);
 void SetupBRDFLUT(RenderData* renderData, EnvironmentMapPass& pass);
+
+void UploadSceneToGPU(LoadedScene& scene, RenderData* renderData, MemoryArena* arena);
+RenderTexture CreateTexture(TextureHeader assetTexture, u8* textureData);
 
 void RenderCube(RenderData* renderData);
 void RenderQuad(RenderData* renderData);

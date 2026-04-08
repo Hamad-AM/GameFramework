@@ -1,4 +1,5 @@
  #include "texture.h"
+#if 0
 
 #include <assert.h>
 #include <iostream>
@@ -65,3 +66,4 @@
     {
         glBindTexture(GL_TEXTURE_2D, 0);
     }
+#endif

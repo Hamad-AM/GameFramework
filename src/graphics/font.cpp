@@ -1,4 +1,5 @@
 #include "font.h"
+#if 0
 
 #include <iostream>
 #include <filesystem>
@@ -142,3 +143,4 @@
         glBindVertexArray(0);
         glBindTexture(GL_TEXTURE_2D, 0);
     }
+#endif

@@ -1,12 +1,9 @@
+#if 0
 #include "renderer2d.h"
-
 #include <glad/glad.h>
 #include <glm/glm.hpp>
 #include <glm/gtc/type_ptr.hpp>
 
-#include <iostream>
-
-    
 renderer::renderer()
 {
         
@@ -168,3 +165,4 @@ renderer::clear()
     glClearColor(0.2f, 0.3f, 0.3f, 1.0f);
     glClear(GL_COLOR_BUFFER_BIT);
 }
+#endif

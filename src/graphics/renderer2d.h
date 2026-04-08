@@ -1,9 +1,10 @@
 #pragma once
 
+#if 0
 #include <map>
 
-#include <ft2build.h>
-#include FT_FREETYPE_H
+// #include <ft2build.h>
+// #include FT_FREETYPE_H
 
 #include "../common.h"
 #include "../camera.h"
@@ -12,7 +13,7 @@
 #include "shader.h"
 #include "texture.h"
 #include "texture_atlas.h"
-#include "font.h"
+// #include "font.h"
 
 typedef vec3 color;
 class game_state;
@@ -72,4 +73,5 @@ private:
     u32 text_quad_va_;
     u32 text_vb_;
 
-};
+}
+#endif

@@ -400,49 +400,11 @@ void main()
     color = AGXTonemapper(color);
     color = pow(color, vec3(1.0f/2.2f));
 
-    if (lights[0].type == Directional)
-    {
-        // color = vec3(N * 0.5 + 0.5);
-        color = vec3(N);
-    }
-
-    // vec4 fragPosViewSpace = view * vec4(FragPos, 1.0);
-    // float depthValue = abs(fragPosViewSpace.z);
-    // int layer = -1;
-    // for (int i = 0; i < cascadeCount-1; ++i)
-    // {
-    //     if (depthValue < cascadePlaneDistances[i])
-    //     {
-    //         layer = i;
-    //         break;
-    //     }
-    // }
-    //
-    // // if (lights[0].type == Directional)
-    // // {
-    // //     layer = -1;
-    // // }
-    //
-    // if (layer == 0)
-    // {
-    //     color = vec3(1, 0, 0);
-    // }
-    // else if (layer == 1)
-    // {
-    //     color = vec3(0, 1, 0);
-    // }
-    // else if (layer == 2)
-    // {
-    //     color = vec3(0, 0, 1);
-    // }
-    // else if (layer == 3)
-    // {
-    //     color = vec3(0.5, 0.8, 0);
-    // }
-    // else if (layer == -1)
-    // {
-    //     color = vec3(depthValue);
-    // }
+    //if (lights[0].type == Directional)
+    //{
+    //    // color = vec3(N * 0.5 + 0.5);
+    //    color = vec3(N);
+    //}
 
     FragColor = vec4(color, alpha);
 }

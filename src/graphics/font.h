@@ -1,4 +1,5 @@
 #pragma once
+#if 0
 
 #include "../common.h"
 #include "../gmath.h"
@@ -48,3 +49,4 @@
         static FT_Library font_library;
         FT_Face _face;
     };
+#endif

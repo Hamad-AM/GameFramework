@@ -4,6 +4,7 @@
 
 #include "shader.h"
 #include "texture.h"
+#include <memory>
 
 namespace atl
 {
@@ -13,7 +14,7 @@ namespace atl
         virtual void initialize() = 0;
 
         virtual void compile_shaders(const char* file) = 0;
-        virtual void use_shader(ref<Shader> shader) = 0;
+        virtual void use_shader(std::shared_ptr<Shader> shader) = 0;
         
         virtual void add_vertex_array() = 0;
         virtual void use_vertex_array() = 0;

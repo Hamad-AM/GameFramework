@@ -1,6 +1,7 @@
 #pragma once
 
 #include <stdint.h>
+#include <cassert>
 
 typedef uint8_t  u8;
 typedef uint16_t u16;
@@ -18,5 +19,7 @@ typedef float f32;
 typedef double f64;
 
 typedef unsigned char ubyte;
+
+#include "instrumentation.h"
 
 //static f32 pixel2screen = 3.2f/455.0f;

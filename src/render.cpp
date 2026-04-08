@@ -6,36 +6,203 @@
 
 #include <glad/glad.h>
 
-void CompileShaders(RenderData* renderData) {
-    renderData->forwardPass.pbrShader.compile("assets/shaders/Base.vs", "assets/shaders/Base.fs");
+#include "asset_types.h"
+#include "memory.h"
+#include "asset_types.h"
+
+#define STB_IMAGE_IMPLEMENTATION
+#include "stb_image.h"
+
+void UploadSceneToGPU(LoadedScene& scene, RenderData* renderData, MemoryArena* arena)
+{
+    std::chrono::microseconds totalMeshUploadTime = std::chrono::microseconds(0);
+    std::chrono::microseconds totalTextureUploadTime = std::chrono::microseconds(0);;
+
+    u32 vertexOffset = 0;
+    u32 lastVertexCount = 0;
+    u32 lastIndexCount = 0;
+    auto start = TimeNow();
     
-    renderData->textureToScreen.compile("assets/shaders/textureToScreen.vs", "assets/shaders/textureToScreen.fs");
+    // NEED TO MAKE SURE THE arena is properly initialized
+    renderData->meshes = PushArray(arena, RenderMesh, scene.meshCount);
+    renderData->meshCount = scene.meshCount;
+    renderData->textures = PushArray(arena, RenderTexture, scene.textureCount);
+    renderData->textureCount = scene.textureCount;
+    renderData->materials = PushArray(arena, RenderMaterial, scene.textureCount);
+    renderData->materialCount = scene.materialCount;
 
-    renderData->shadowPass.depthShader.compile("assets/shaders/CSMShader.vs", "assets/shaders/CSMShader.fs", "assets/shaders/CSMShader.gs");
-    renderData->shadowPass.pointDepthShader.compile("assets/shaders/PointDepthShader.vs", "assets/shaders/PointDepthShader.fs", "assets/shaders/PointDepthShader.gs");
-    renderData->depthNormalShader.compile("assets/shaders/DepthNormalPass.vs", "assets/shaders/DepthNormalPass.fs");
+    u32 textureIdx = 0;
+    while(textureIdx < scene.textureCount)
+    {
+        TextureHeader textureHeader = scene.textures[textureIdx];
+        u8* textureData = scene.textureData + scene.textureOffsets[textureIdx];
+        RenderTexture renderTexture = CreateTexture(textureHeader, textureData);
+        renderData->textures[textureIdx] = renderTexture;
 
-    renderData->SSAOPass.SSAOShader.compile("assets/shaders/SSAOPass.vs", "assets/shaders/SSAOPass.fs");
-    renderData->SSAOPass.SSAOBlurShader.compile("assets/shaders/SSAOPass.vs", "assets/shaders/SSAOBlurPass.fs");
+        textureIdx++;
+    }
 
-    renderData->environmentMapPass.equirectangularToCubemapShader.compile("assets/shaders/Image2CubeMap.vs", "assets/shaders/Image2CubeMap.fs");
-    renderData->environmentMapPass.backgroundShader.compile("assets/shaders/SkyBox.vs", "assets/shaders/SkyBox.fs");
-    renderData->environmentMapPass.irradianceShader.compile("assets/shaders/IrradianceConvolution.vs", "assets/shaders/IrradianceConvolution.fs");
-    renderData->environmentMapPass.prefilterShader.compile("assets/shaders/IrradianceConvolution.vs", "assets/shaders/Prefilter.fs");
-    renderData->environmentMapPass.brdfShader.compile("assets/shaders/BrdfShader.vs", "assets/shaders/BrdfShader.fs");
+    // TODO: Handle set of Materials for Render currently render mesh stores materials inplace
+    // u32 materialIdx = 0;
+    // u8* materialData = scene.textureData;
+    // while(textureIdx < scene.textureCount)
+    // {
+    //     TextureHeader textureHeader = scene.textures[textureIdx];
+    //     RenderTexture renderTexture = CreateTexture(textureHeader, textureData);
+    //     renderData->textures[textureIdx] = renderTexture;
+    //
+    //     textureData += scene.textureOffsets[textureIdx];
+    //     textureIdx++;
+    // }
+    auto end = TimeNow();
+    auto duration = Timelapse(end - start);
+    totalTextureUploadTime += duration;
 
+    start = TimeNow();
+    for (u32 meshIdx = 0;
+        meshIdx < scene.meshCount;
+        ++meshIdx)
+    {
+        RenderMesh& renderMesh = renderData->meshes[meshIdx];
+        MeshHeader& assetMesh = scene.meshes[meshIdx];
+        MaterialHeader& material = scene.materials[assetMesh.materialIdx];
+        renderMesh.material.albedoIdx = material.albedoIdx;
+        renderMesh.material.normalMapIdx = material.normalIdx;
+        renderMesh.material.metallicRoughnessIdx = material.metallicRoughnessIdx;
 
-    renderData->deferredPass.gBufferShader.compile("assets/shaders/GBuffer.vs", "assets/shaders/GBuffer.fs");
-    renderData->deferredPass.lightingPass.compile("assets/shaders/LightingPass.vs", "assets/shaders/LightingPass.fs");
+        renderMesh.numberOfIndices = assetMesh.indexCount;
+        glGenBuffers(1, &renderMesh.VBO);
+        glGenBuffers(1, &renderMesh.EBO);
+        glGenVertexArrays(1, &renderMesh.VAO);
 
-    renderData->lightProbePass.colorShader.compile("assets/shaders/RenderLightProbe.vs", "assets/shaders/RenderLightProbe.fs");
+        // Bind VAO
+        glBindVertexArray(renderMesh.VAO);
 
-    renderData->UnlitShader.compile("assets/shaders/UnlitShader.vs", "assets/shaders/UnlitShader.fs");
+        // Upload vertex data
+        glBindBuffer(GL_ARRAY_BUFFER, renderMesh.VBO);
+        glBufferData(GL_ARRAY_BUFFER, assetMesh.vertexCount * sizeof(Vertex), (u8*)scene.vertices + assetMesh.vertexOffset, GL_STATIC_DRAW);
 
-    renderData->sphereCubemap.compile("assets/shaders/SphereCubemap.vs", "assets/shaders/SphereCubemap.fs");
+        // Upload index data
+        glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, renderMesh.EBO);
+        glBufferData(GL_ELEMENT_ARRAY_BUFFER, assetMesh.indexCount * sizeof(u32), (u8*)scene.indices + assetMesh.indexOffset, GL_STATIC_DRAW);
+
+        // Define vertex attribute pointers (assuming layout: position, normal, UV)
+        glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, 11 * sizeof(float), (void*)0);       // Position
+        glEnableVertexAttribArray(0);
+        glVertexAttribPointer(1, 3, GL_FLOAT, GL_FALSE, 11 * sizeof(float), (void*)(3 * sizeof(float)));  // Normal
+        glEnableVertexAttribArray(1);
+        glVertexAttribPointer(2, 2, GL_FLOAT, GL_FALSE, 11 * sizeof(float), (void*)(6 * sizeof(float)));  // UV
+        glEnableVertexAttribArray(2);
+        glVertexAttribPointer(3, 3, GL_FLOAT, GL_FALSE, 11 * sizeof(float), (void*)(8 * sizeof(float)));  // Tangent
+        glEnableVertexAttribArray(3);
+
+        // Unbind VAO
+        glBindVertexArray(0);
+    }
+    end = TimeNow();
+    duration = Timelapse(end - start);
+    totalMeshUploadTime += duration;
+
+    std::cout << "  Time to Upload Mesh Data: " << totalMeshUploadTime.count() / 1000 << std::endl;
+    std::cout << "  Time to Upload Texture Data: " << totalTextureUploadTime.count() / 1000 << std::endl;
 }
 
-void RenderSetupParameters(RenderData* renderData, u32 render_width, u32 render_height)
+const char* getGLErrorString(GLenum errorCode) {
+    switch (errorCode) {
+    case GL_NO_ERROR:              return "GL_NO_ERROR";
+    case GL_INVALID_ENUM:          return "GL_INVALID_ENUM";
+    case GL_INVALID_VALUE:         return "GL_INVALID_VALUE";
+    case GL_INVALID_OPERATION:     return "GL_INVALID_OPERATION";
+    case GL_STACK_OVERFLOW:        return "GL_STACK_OVERFLOW";
+    case GL_STACK_UNDERFLOW:       return "GL_STACK_UNDERFLOW";
+    case GL_OUT_OF_MEMORY:         return "GL_OUT_OF_MEMORY";
+    case GL_INVALID_FRAMEBUFFER_OPERATION: return "GL_INVALID_FRAMEBUFFER_OPERATION";
+    default:                       return "Unknown error";
+    }
+}
+
+RenderTexture CreateTexture(TextureHeader assetTexture, u8* textureData)
+{
+    GLuint textureID;
+    glGenTextures(1, &textureID);
+    glBindTexture(GL_TEXTURE_2D, textureID);
+    glPixelStorei(GL_UNPACK_ALIGNMENT, 1);
+    switch(assetTexture.format)
+    {
+        case TextureFormat::RGBA8:
+        {
+            glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, assetTexture.width, assetTexture.height, 0, GL_RGBA, GL_UNSIGNED_BYTE, textureData);
+            glTexParameterf(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR_MIPMAP_LINEAR);
+            glTexParameterf(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
+            glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_REPEAT);
+            glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_REPEAT);
+
+            glGenerateMipmap(GL_TEXTURE_2D);
+            break;
+        }
+        case TextureFormat::BC7:
+        {
+            assert(false && "No implementation of Compressed Texture BC7");
+#if 0
+            for (s32 i = 0; i < MAX_MIPMAP; ++i)
+            {
+                ImageData& data = image.imageData[i];
+                glCompressedTexImage2D(GL_TEXTURE_2D, i, GL_COMPRESSED_RGBA_BPTC_UNORM, data.width, data.height, 0, data.bytes, data.data);
+            }
+            glTexParameterf(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR_MIPMAP_LINEAR);
+            glTexParameterf(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
+            glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_REPEAT);
+            glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_REPEAT);
+#endif
+            break;
+        }
+        default:
+        {
+            glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, assetTexture.width, assetTexture.height, 0, GL_RGBA, GL_UNSIGNED_BYTE, textureData);
+            glTexParameterf(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR_MIPMAP_LINEAR);
+            glTexParameterf(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
+            glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_REPEAT);
+            glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_REPEAT);
+
+            glGenerateMipmap(GL_TEXTURE_2D);
+            break;
+        }
+    }
+    glBindTexture(GL_TEXTURE_2D, 0);
+    return RenderTexture{textureID};
+}
+
+
+void CompileShaders(RenderData* renderData) {
+    renderData->forwardPass.pbrShader.compile("shaders/Base.vs", "shaders/Base.fs");
+    
+    renderData->textureToScreen.compile("shaders/textureToScreen.vs", "shaders/textureToScreen.fs");
+
+    renderData->shadowPass.depthShader.compile("shaders/CSMShader.vs", "shaders/CSMShader.fs", "shaders/CSMShader.gs");
+    renderData->shadowPass.pointDepthShader.compile("shaders/PointDepthShader.vs", "shaders/PointDepthShader.fs", "shaders/PointDepthShader.gs");
+    renderData->depthNormalShader.compile("shaders/DepthNormalPass.vs", "shaders/DepthNormalPass.fs");
+
+    renderData->SSAOPass.SSAOShader.compile("shaders/SSAOPass.vs", "shaders/SSAOPass.fs");
+    renderData->SSAOPass.SSAOBlurShader.compile("shaders/SSAOPass.vs", "shaders/SSAOBlurPass.fs");
+
+    renderData->environmentMapPass.equirectangularToCubemapShader.compile("shaders/Image2CubeMap.vs", "shaders/Image2CubeMap.fs");
+    renderData->environmentMapPass.backgroundShader.compile("shaders/SkyBox.vs", "shaders/SkyBox.fs");
+    renderData->environmentMapPass.irradianceShader.compile("shaders/IrradianceConvolution.vs", "shaders/IrradianceConvolution.fs");
+    renderData->environmentMapPass.prefilterShader.compile("shaders/IrradianceConvolution.vs", "shaders/Prefilter.fs");
+    renderData->environmentMapPass.brdfShader.compile("shaders/BrdfShader.vs", "shaders/BrdfShader.fs");
+
+
+    renderData->deferredPass.gBufferShader.compile("shaders/GBuffer.vs", "shaders/GBuffer.fs");
+    renderData->deferredPass.lightingPass.compile("shaders/LightingPass.vs", "shaders/LightingPass.fs");
+
+    renderData->lightProbePass.colorShader.compile("shaders/RenderLightProbe.vs", "shaders/RenderLightProbe.fs");
+
+    renderData->UnlitShader.compile("shaders/UnlitShader.vs", "shaders/UnlitShader.fs");
+
+    renderData->sphereCubemap.compile("shaders/SphereCubemap.vs", "shaders/SphereCubemap.fs");
+}
+
+void RenderSetupParameters(RenderData* renderData, u32 renderWidth, u32 renderHeight)
 {
     glEnable(GL_DEPTH_TEST);
     // glDepthFunc(GL_LESS);
@@ -49,8 +216,8 @@ void RenderSetupParameters(RenderData* renderData, u32 render_width, u32 render_
 
     glEnable(GL_TEXTURE_CUBE_MAP_SEAMLESS);
 
-    renderData->render_width = render_width;
-    renderData->render_height = render_height;
+    renderData->renderWidth = renderWidth;
+    renderData->renderHeight = renderHeight;
 }
 
 void SetupGBuffers(RenderData* renderData)
@@ -62,7 +229,7 @@ void SetupGBuffers(RenderData* renderData)
     // - position color buffer
     glGenTextures(1, &pass.gPosition);
     glBindTexture(GL_TEXTURE_2D, pass.gPosition);
-    glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA16F, renderData->render_width, renderData->render_height, 0, GL_RGBA, GL_FLOAT, NULL);
+    glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA16F, renderData->renderWidth, renderData->renderHeight, 0, GL_RGBA, GL_FLOAT, NULL);
     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
     glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D, pass.gPosition, 0);
@@ -70,7 +237,7 @@ void SetupGBuffers(RenderData* renderData)
     // - normal color buffer
     glGenTextures(1, &pass.gNormal);
     glBindTexture(GL_TEXTURE_2D, pass.gNormal);
-    glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA16F, renderData->render_width, renderData->render_height, 0, GL_RGBA, GL_FLOAT, NULL);
+    glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA16F, renderData->renderWidth, renderData->renderHeight, 0, GL_RGBA, GL_FLOAT, NULL);
     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
     glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT1, GL_TEXTURE_2D, pass.gNormal, 0);
@@ -78,14 +245,14 @@ void SetupGBuffers(RenderData* renderData)
     // - color buffer
     glGenTextures(1, &pass.gAlbedo);
     glBindTexture(GL_TEXTURE_2D, pass.gAlbedo);
-    glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, renderData->render_width, renderData->render_height, 0, GL_RGBA, GL_UNSIGNED_BYTE, NULL);
+    glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, renderData->renderWidth, renderData->renderHeight, 0, GL_RGBA, GL_UNSIGNED_BYTE, NULL);
     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
     glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT2, GL_TEXTURE_2D, pass.gAlbedo, 0);
 
     glGenTextures(1, &pass.gMetallicRoughness);
     glBindTexture(GL_TEXTURE_2D, pass.gMetallicRoughness);
-    glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, renderData->render_width, renderData->render_height, 0, GL_RGBA, GL_UNSIGNED_BYTE, NULL);
+    glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, renderData->renderWidth, renderData->renderHeight, 0, GL_RGBA, GL_UNSIGNED_BYTE, NULL);
     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
     glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT3, GL_TEXTURE_2D, pass.gMetallicRoughness, 0);
@@ -96,7 +263,7 @@ void SetupGBuffers(RenderData* renderData)
 
     glGenRenderbuffers(1, &pass.rboDepth);
     glBindRenderbuffer(GL_RENDERBUFFER, pass.rboDepth);
-    glRenderbufferStorage(GL_RENDERBUFFER, GL_DEPTH_COMPONENT, renderData->render_width, renderData->render_height);
+    glRenderbufferStorage(GL_RENDERBUFFER, GL_DEPTH_COMPONENT, renderData->renderWidth, renderData->renderHeight);
     glFramebufferRenderbuffer(GL_FRAMEBUFFER, GL_DEPTH_ATTACHMENT, GL_RENDERBUFFER, pass.rboDepth);
     // finally check if framebuffer is complete
     if (glCheckFramebufferStatus(GL_FRAMEBUFFER) != GL_FRAMEBUFFER_COMPLETE)
@@ -104,11 +271,23 @@ void SetupGBuffers(RenderData* renderData)
     glBindFramebuffer(GL_FRAMEBUFFER, 0);
 }
 
+void RenderBindPBRTextures(u32 startingTextureSlot, u32 uniformSlot, Shader* shader, RenderMesh* renderMesh, RenderData* renderData) {
+    RenderMaterial material = renderMesh->material;
+    glActiveTexture(startingTextureSlot);
+    glBindTexture(GL_TEXTURE_2D, renderData->textures[material.albedoIdx].textureID);
+    shader->uniform_int("albedo", uniformSlot);
+    glActiveTexture(startingTextureSlot+1);
+    glBindTexture(GL_TEXTURE_2D, renderData->textures[material.normalMapIdx].textureID);
+    shader->uniform_int("normalMap", uniformSlot+1);
+    glActiveTexture(startingTextureSlot+2);
+    glBindTexture(GL_TEXTURE_2D, renderData->textures[material.metallicRoughnessIdx].textureID);
+    shader->uniform_int("metallicRoughness", uniformSlot+2);
+}
 
-void RenderGBuffer(RenderData* renderData, std::vector<MeshRenderData>& meshRenderData, glm::mat4 model, Camera3D& camera)
+void RenderGBuffer(RenderData* renderData, glm::mat4 model, Camera3D& camera)
 {
     DeferredPass& pass = renderData->deferredPass;
-    glViewport(0, 0, renderData->render_width, renderData->render_height);
+    glViewport(0, 0, renderData->renderWidth, renderData->renderHeight);
     glClearColor(0.0f, 0.0f, 0.0f, 1.0);
     glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
 
@@ -120,29 +299,21 @@ void RenderGBuffer(RenderData* renderData, std::vector<MeshRenderData>& meshRend
     pass.gBufferShader.uniform_matrix4("view", camera.view);
     pass.gBufferShader.uniform_matrix4("model", model);
     //pass.gBufferShader.uniform_vector3f("cameraPosition", camera.position);
-    for (u32 i = 0; i < meshRenderData.size(); ++i)
+    for (u32 i = 0; i < renderData->meshCount; ++i)
     {
-        glActiveTexture(GL_TEXTURE0);
-        glBindTexture(GL_TEXTURE_2D, meshRenderData[i].albedoID);
-        pass.gBufferShader.uniform_int("albedo", 0);
-        glActiveTexture(GL_TEXTURE1);
-        glBindTexture(GL_TEXTURE_2D, meshRenderData[i].normalMapID);
-        //pass.gBufferShader.uniform_int("normalMap", 1);
-        glActiveTexture(GL_TEXTURE2);
-        glBindTexture(GL_TEXTURE_2D, meshRenderData[i].metallicRoughnessID);
-        pass.gBufferShader.uniform_int("metallicRoughness", 2);
-
-        glBindVertexArray(meshRenderData[i].VAO);
-        glDrawElements(GL_TRIANGLES, meshRenderData[i].numberOfIndices, GL_UNSIGNED_INT, (void*)(0 * sizeof(u32)));
+        RenderMesh* renderMesh = &renderData->meshes[i];
+        RenderBindPBRTextures(GL_TEXTURE0, 0, &pass.gBufferShader, renderMesh, renderData);
+        glBindVertexArray(renderMesh->VAO);
+        glDrawElements(GL_TRIANGLES, renderMesh->numberOfIndices, GL_UNSIGNED_INT, (void*)(0 * sizeof(u32)));
     }
     glBindFramebuffer(GL_FRAMEBUFFER, 0);
 
 }
 
-void RenderDeferredScene(RenderData* renderData, std::vector<MeshRenderData>& meshRenderData, glm::mat4 model, Camera3D& camera)
+void RenderDeferredScene(RenderData* renderData, glm::mat4 model, Camera3D& camera)
 {
     DeferredPass& pass = renderData->deferredPass;
-    glViewport(0, 0, renderData->render_width, renderData->render_height);
+    glViewport(0, 0, renderData->renderWidth, renderData->renderHeight);
     glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
     
     glBindBufferBase(GL_SHADER_STORAGE_BUFFER, 0, renderData->lightShaderStorageObject);
@@ -202,7 +373,7 @@ void RenderDeferredScene(RenderData* renderData, std::vector<MeshRenderData>& me
     // blit to default framebuffer. Note that this may or may not work as the internal formats of both the FBO and default framebuffer have to match.
     // the internal formats are implementation defined. This works on all of my systems, but if it doesn't on yours you'll likely have to write to the 		
     // depth buffer in another shader stage (or somehow see to match the default framebuffer's internal format with the FBO's internal format).
-    glBlitFramebuffer(0, 0, renderData->render_width, renderData->render_height, 0, 0, renderData->render_width, renderData->render_height, GL_DEPTH_BUFFER_BIT, GL_NEAREST);
+    glBlitFramebuffer(0, 0, renderData->renderWidth, renderData->renderHeight, 0, 0, renderData->renderWidth, renderData->renderHeight, GL_DEPTH_BUFFER_BIT, GL_NEAREST);
     glBindFramebuffer(GL_FRAMEBUFFER, 0);
 
     renderData->UnlitShader.bind();
@@ -307,7 +478,7 @@ void SetupPointShadowMapPass(RenderData* renderData, Light* lights, u32 numLight
     glBindFramebuffer(GL_FRAMEBUFFER, 0);
 }
 
-void RenderOmidirectionalShadowMap(RenderData* renderData,std::vector<MeshRenderData>& meshRenderData, mat4& model, Light* lights, u32 numLights)
+void RenderOmidirectionalShadowMap(RenderData* renderData, mat4& model, Light* lights, u32 numLights)
 {
     ShadowPass& pass = renderData->shadowPass;
     f32 nearPlane = 1.0f;
@@ -344,7 +515,7 @@ void RenderOmidirectionalShadowMap(RenderData* renderData,std::vector<MeshRender
                 pass.pointDepthShader.uniform_matrix4(uniform.c_str(), shadowTransforms[j]);
             }
             pass.pointDepthShader.uniform_matrix4("model", model);
-            DrawScene(renderData, meshRenderData);
+            DrawScene(renderData);
         }
     }
     glBindFramebuffer(GL_FRAMEBUFFER, 0);
@@ -378,7 +549,7 @@ void SetupLightProbe(RenderData* renderData)
     glBindFramebuffer(GL_FRAMEBUFFER, 0);
 }
 
-void RenderLightProbe(RenderData* renderData, vec3& lightProbePosition, std::vector<MeshRenderData>& meshRenderData, mat4& model, Light* lights, u32 numOfLights)
+void RenderLightProbe(RenderData* renderData, vec3& lightProbePosition, mat4& model, Light* lights, u32 numOfLights)
 {
     LightProbePass& pass = renderData->lightProbePass;
     pass.position = lightProbePosition;
@@ -412,14 +583,15 @@ void RenderLightProbe(RenderData* renderData, vec3& lightProbePosition, std::vec
         pass.colorShader.bind();
         pass.colorShader.uniform_matrix4("model", model);
         pass.colorShader.uniform_matrix4("viewProj", probeTransforms[i]);
-        for (u32 j = 0; j < meshRenderData.size(); ++j)
+        for (u32 j = 0; j < renderData->meshCount; ++j)
         {
+            RenderMesh* renderMesh = &renderData->meshes[j];
             glActiveTexture(GL_TEXTURE0);
-            glBindTexture(GL_TEXTURE_2D, meshRenderData[j].albedoID);
+            glBindTexture(GL_TEXTURE_2D, renderData->textures[renderMesh->material.albedoIdx].textureID);
             pass.colorShader.uniform_int("albedo", 0);
 
-            glBindVertexArray(meshRenderData[j].VAO);
-            glDrawElements(GL_TRIANGLES, meshRenderData[j].numberOfIndices, GL_UNSIGNED_INT, (void*)(0 * sizeof(u32)));
+            glBindVertexArray(renderMesh->VAO);
+            glDrawElements(GL_TRIANGLES, renderMesh->numberOfIndices, GL_UNSIGNED_INT, (void*)(0 * sizeof(u32)));
         }
     }
 
@@ -481,7 +653,7 @@ void SetupSSAOPass(RenderData* renderData)
     // SSAO color buffer
     glGenTextures(1, &pass.ssaoColorBuffer);
     glBindTexture(GL_TEXTURE_2D, pass.ssaoColorBuffer);
-    glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, renderData->render_width, renderData->render_height, 0, GL_RGBA, GL_FLOAT, NULL);
+    glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, renderData->renderWidth, renderData->renderHeight, 0, GL_RGBA, GL_FLOAT, NULL);
     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
     glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D, pass.ssaoColorBuffer, 0);
@@ -493,7 +665,7 @@ void SetupSSAOPass(RenderData* renderData)
     glBindFramebuffer(GL_FRAMEBUFFER, pass.ssaoBlurFBO);
     glGenTextures(1, &pass.ssaoColorBufferBlur);
     glBindTexture(GL_TEXTURE_2D, pass.ssaoColorBufferBlur);
-    glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, renderData->render_width, renderData->render_height, 0, GL_RGBA, GL_FLOAT, NULL);
+    glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, renderData->renderWidth, renderData->renderHeight, 0, GL_RGBA, GL_FLOAT, NULL);
     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
@@ -787,7 +959,7 @@ u32 LoadSkyBoxTexture(const char* filePath)
 
 void StartDepthNormalPass(RenderData* renderData)
 {
-    glViewport(0, 0, renderData->render_width, renderData->render_height);
+    glViewport(0, 0, renderData->renderWidth, renderData->renderHeight);
     glBindFramebuffer(GL_FRAMEBUFFER, renderData->SSAOPass.depthNormalPassBO);
     glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
 }
@@ -800,12 +972,13 @@ void UseDepthNormalShader(RenderData* renderData, glm::mat4 model, Camera3D& cam
     renderData->depthNormalShader.uniform_matrix4("projection", camera.projection);
 }
 
-void DrawScene(RenderData* renderData, std::vector<MeshRenderData>& meshRenderData)
+void DrawScene(RenderData* renderData)
 {
-    for (u32 i = 0; i < meshRenderData.size(); ++i)
+    for (u32 i = 0; i < renderData->meshCount; ++i)
     {
-        glBindVertexArray(meshRenderData[i].VAO);
-        glDrawElements(GL_TRIANGLES, meshRenderData[i].numberOfIndices, GL_UNSIGNED_INT, (void*)(0 * sizeof(u32)));
+        RenderMesh* renderMesh = &renderData->meshes[i];
+        glBindVertexArray(renderMesh->VAO);
+        glDrawElements(GL_TRIANGLES, renderMesh->numberOfIndices, GL_UNSIGNED_INT, (void*)(0 * sizeof(u32)));
     }
 }
 
@@ -813,7 +986,7 @@ void DrawScene(RenderData* renderData, std::vector<MeshRenderData>& meshRenderDa
 void RenderSSAOPass(RenderData* renderData, Camera3D& camera)
 {
     AmbientOcclusionPass& pass = renderData->SSAOPass;
-    glViewport(0, 0, renderData->render_width, renderData->render_height);
+    glViewport(0, 0, renderData->renderWidth, renderData->renderHeight);
     pass.SSAOShader.bind();
     glBindFramebuffer(GL_FRAMEBUFFER, pass.ssaoFBO);
     glClearColor(0.0, 0.0, 0.0, 1.0);
@@ -854,7 +1027,7 @@ void RenderSSAOPass(RenderData* renderData, Camera3D& camera)
 }
 
 
-void RenderShadowMapPass(RenderData* renderData, vec3& lightDirection, std::vector<MeshRenderData>& meshRenderData, glm::mat4& model, Camera3D& camera)
+void RenderShadowMapPass(RenderData* renderData, vec3& lightDirection, glm::mat4& model, Camera3D& camera)
 {
     ShadowPass& pass = renderData->shadowPass;
 
@@ -890,23 +1063,19 @@ void RenderShadowMapPass(RenderData* renderData, vec3& lightDirection, std::vect
     glBindBuffer(GL_UNIFORM_BUFFER, pass.lightMatricesUBO);
     pass.depthShader.bind();
     pass.depthShader.uniform_matrix4("model", model);
-    for (u32 i = 0; i < meshRenderData.size(); ++i)
-    {
-        glBindVertexArray(meshRenderData[i].VAO);
-        glDrawElements(GL_TRIANGLES, meshRenderData[i].numberOfIndices, GL_UNSIGNED_INT, (void*)(0 * sizeof(u32)));
-    }
+    DrawScene(renderData);
     glBindFramebuffer(GL_FRAMEBUFFER, 0);
     glEnable(GL_CULL_FACE);
     glCullFace(GL_BACK);
 }
 
-void RenderScene(RenderData* renderData, std::vector<MeshRenderData>& meshRenderData, glm::mat4 model, Camera3D& camera, glm::vec3 lightPosition)
+void RenderScene(RenderData* renderData, glm::mat4 model, Camera3D& camera, glm::vec3 lightPosition)
 {
     glm::vec3 lightDirection = lightPosition - glm::vec3(0.0f);
 
     // SetupEnvironmentCubeMap(renderData);
 
-    glViewport(0, 0, renderData->render_width, renderData->render_height);
+    glViewport(0, 0, renderData->renderWidth, renderData->renderHeight);
 
     glClearColor(0.0f, 0.0f, 0.0f, 1.0f);
     glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
@@ -937,24 +1106,13 @@ void RenderScene(RenderData* renderData, std::vector<MeshRenderData>& meshRender
     renderData->forwardPass.pbrShader.uniform_matrix4("view", camera.view);
     renderData->forwardPass.pbrShader.uniform_matrix4("projection", camera.projection);
 
-    for (u32 i = 0; i < meshRenderData.size(); ++i)
+    for (u32 i = 0; i < renderData->meshCount; ++i)
     {
-        //if (sponza.meshes[i].name.find("decals") != std::string::npos)
-        //{
-        //    renderAfter = i;
-        //}
-        glActiveTexture(GL_TEXTURE5);
-        glBindTexture(GL_TEXTURE_2D, meshRenderData[i].albedoID);
-        renderData->forwardPass.pbrShader.uniform_int("albedo", 5);
-        glActiveTexture(GL_TEXTURE6);
-        glBindTexture(GL_TEXTURE_2D, meshRenderData[i].normalMapID);
-        renderData->forwardPass.pbrShader.uniform_int("normalMap", 6);
-        glActiveTexture(GL_TEXTURE7);
-        glBindTexture(GL_TEXTURE_2D, meshRenderData[i].metallicRoughnessID);
-        renderData->forwardPass.pbrShader.uniform_int("metallicRoughness", 7);
+        RenderMesh* renderMesh = &renderData->meshes[i];
+        RenderBindPBRTextures(GL_TEXTURE5, 5, &renderData->forwardPass.pbrShader, renderMesh, renderData);
 
-        glBindVertexArray(meshRenderData[i].VAO);
-        glDrawElements(GL_TRIANGLES, meshRenderData[i].numberOfIndices, GL_UNSIGNED_INT, (void*)(0 * sizeof(u32)));
+        glBindVertexArray(renderMesh->VAO);
+        glDrawElements(GL_TRIANGLES, renderMesh->numberOfIndices, GL_UNSIGNED_INT, (void*)(0 * sizeof(u32)));
     }
 }
 

@@ -1,3 +1,4 @@
+#if 0
 #include <assimp/Importer.hpp>
 #include <assimp/scene.h>
 #include <assimp/postprocess.h>
@@ -23,3 +24,4 @@ void ConvertFBX2Model(fs::path& gameFile, fs::path& file) {
         nodes.erase(nodes.begin());
     }
 }
+#endif

@@ -54,12 +54,12 @@ void main()
     // vec3 PN = perturb_normal(N, V, TexCoords);
     // gNormal = vec4(PN, 1.0f);
     
-    // vec3 N = texture(normalMap, TexCoords).rgb;
-    // N = N * 2.0 - 1.0;
-    // // float normalMapStrength = 0.6f;
-    // // vec3 blendedNormal = normalize(mix(vec3(0.0, 0.0, 1.0), N, normalMapStrength));
-    // N = normalize(TBN * N);
-    gNormal = vec4(T, 1.0f);
+    vec3 N = texture(normalMap, TexCoords).rgb;
+    N = N * 2.0 - 1.0;
+    float normalMapStrength = 1.0f;
+    vec3 blendedNormal = normalize(mix(vec3(0.0, 0.0, 1.0), N, normalMapStrength));
+    N = normalize(TBN * N);
+    gNormal = vec4(N, 1.0f);
 
 
     // and the diffuse per-fragment color

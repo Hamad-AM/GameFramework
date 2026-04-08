@@ -1,0 +1,43 @@
+struct Vertex {
+    f32 position[3];
+    f32 normal[3];
+    f32 uv[2];
+    f32 tangent[4];
+};
+
+struct Mesh {
+    Vertex* vertices;
+    u32 vertexCount;
+    
+    u32* indices;
+    u32 indexCount;
+    
+    u32 materialIndex;
+};
+
+struct Texture {
+    u8* pixels;
+    u32 width;
+    u32 height;
+    u32 channels; // Usually 4 (RGBA)
+    u32 sizeInBytes;
+};
+
+struct Material {
+    u32 albedoTexIdx;
+    u32 normalTexIdx;
+    u32 metallicRoughnessTexIdx;
+    // -1 (or 0xFFFFFFFF) means "No texture, use fallback"
+};
+
+// The overarching container
+struct AssetScene {
+    Mesh* meshes;
+    u32 meshCount;
+    
+    Texture* textures;
+    u32 textureCount;
+    
+    Material* materials;
+    u32 materialCount;
+};

@@ -2,6 +2,9 @@
 
 #include "common.h"
 #include "gmath.h"
+#include <string>
+#include <memory>
+#include <vector>
 
 struct sound
 {
@@ -56,10 +59,10 @@ public:
     virtual void* get_system() = 0;
     virtual u64 get_time() = 0;
 
-    virtual ref<sound> create_sound(const char* file) = 0;
-    // virtual void play(ref<sound>& playing_sound, f32 volume = 0.5f, f32 pan = 1.0f, f32 frequency = -1, b32 start_paused = false) = 0;
-    // virtual void play(ref<sound>& playing_sound, const vec3& position, const vec3& velocity, f32 volume = 1.0f, f32 pan = 1.0f, f32 frequency = -1, b32 start_paused = false) = 0;
+    virtual std::shared_ptr<sound> create_sound(const char* file) = 0;
+    // virtual void play(std::shared_ptr<sound>& playing_sound, f32 volume = 0.5f, f32 pan = 1.0f, f32 frequency = -1, b32 start_paused = false) = 0;
+    // virtual void play(std::shared_ptr<sound>& playing_sound, const vec3& position, const vec3& velocity, f32 volume = 1.0f, f32 pan = 1.0f, f32 frequency = -1, b32 start_paused = false) = 0;
 
 protected:
-    std::vector<ref<sound>> sounds;
+    std::vector<std::shared_ptr<sound>> sounds;
 };

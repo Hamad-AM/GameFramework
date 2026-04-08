@@ -60,7 +60,7 @@ public:
     // void update() override;
     void destroy() override;
     u64 get_time() override;
-    ref<sound> create_sound(const char* file) override;
+    std::shared_ptr<sound> create_sound(const char* file) override;
     // void play(ref<sound>& playing_sound, f32 volume = 0.5f, f32 pan = 1.0f, f32 frequency = -1, b32 start_paused = false) override;
     // void play(ref<sound>& playing_sound, const vec3& position, const vec3& velocity, f32 volume = 1.0f, f32 pan = 1.0f, f32 frequency = -1, b32 start_paused = false) override;
     void* get_system() override;

@@ -35,10 +35,16 @@
 
 Make sure you have the following installed:
 
-- C++ compiler (C++20 or later)
+- C++ compiler (C++17 or later)
 - CMake
 - Git
 - Dependencies listed below (some fetched automatically via submodules)
+
+Linux
+- OpenGL development devel : libglvnd-devel
+- X11 sdk : libX11-devel libXrandr-devel libXi-devel libXcursor-devel libXinerama-devel
+- Installed nvidia drivers for gpu double check for opengl support (apparently not supported)
+- TODO: Check if it works with wayland (for now assumes and only works for x11)
 
 ### Building
 

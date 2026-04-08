@@ -3,8 +3,6 @@
 #include <iostream>
 #include <string>
 #include <fstream>
-#include <sstream>
-#include <stdio.h>
 
 #include <glad/glad.h>
 #include <glm/gtc/type_ptr.hpp>

@@ -3,21 +3,17 @@
 #include "application.h"
 #include "input.h"
 #include "event.h"
-#include "components.h"
+#include "memory.h"
 #include "render.h"
 #include "asset_system.h"
+#include "glfw_window.h"
 
-#include <iostream>
-#include <map>
-#include <limits>
-#include <chrono>
 
 #ifdef _WIN32
 #include <Windows.h>
-#else
-#include <unistd.h>
+#elif __linux__
+#include <sys/mman.h>
 #endif
-#include <random>
 
 application::application() {}
 
@@ -31,36 +27,41 @@ void application::initialize(u32 screen_width, u32 screen_height)
     size_t perm_size = (size_t)4 * 1024 * 1024 * 1024;
     size_t trans_size = (size_t)256 * 1024 * 1024;
 
-    permanent_storage.size = perm_size;
-    permanent_storage.used = 0;
+#ifdef _WIN32
     permanent_storage.base = (u8*)VirtualAlloc(nullptr, perm_size, MEM_RESERVE | MEM_COMMIT, PAGE_READWRITE);
-    transient_storage.size = trans_size;
-    transient_storage.used = 0;
     transient_storage.base = (u8*)VirtualAlloc(nullptr, trans_size, MEM_RESERVE | MEM_COMMIT, PAGE_READWRITE);
+#elif __linux__
+    u8* permanentBase = (u8*)mmap(
+        nullptr,                    // address (let OS choose)
+        perm_size,                       // size
+        PROT_READ | PROT_WRITE,     // protection
+        MAP_PRIVATE | MAP_ANONYMOUS,// flags
+        -1,                         // fd (not used)
+        0                           // offset
+    );
+
+    u8* transientBase = (u8*)mmap(
+        nullptr,                    // address (let OS choose)
+        perm_size,                       // size
+        PROT_READ | PROT_WRITE,     // protection
+        MAP_PRIVATE | MAP_ANONYMOUS,// flags
+        -1,                         // fd (not used)
+        0                           // offset
+    );
+    if (permanentBase == nullptr && transientBase == nullptr) {
+        assert(false && "failed to allocate memory");
+    }
+#endif
+    permanent_storage = InitArena(permanentBase, perm_size);
+    transient_storage = InitArena(transientBase, trans_size);
 
     window = new glfw_window();
     screen_width_ = screen_width;
     screen_height_ = screen_height;
-    window->initialize(screen_width_, screen_height_, "Game");
-
-    camera2d_position = vec3(0.0f, 0.0f, 0.0f);
-    camera2d.set_projection(glm::ortho(0.0f, 1280.0f, 0.0f, 720.0f, -1.0f, 1.0f));
-
-
-    // sponza = load_model("assets/Sponza/sponza.glb");
-    // sponza = load_model("assets/models/sphere.glb");
-    
+    window->initialize(screen_width_, screen_height_, "GameWindow");
 
     CompileShaders(&renderData);
-
-    //render.initialize();
-
     audio.init();
-
-    //     for (u32 i = 0; i < entities.size(); ++i)
-    //     {
-    //         entities[i]->init(&render, &audio);
-    //     }
 }
 
 void application::run()
@@ -70,14 +71,6 @@ void application::run()
     GameState* state = PushStruct(&permanent_storage, GameState);
 
     vec3 sunPosition = { -4.6, 2.50, 2.0f };
-    // state->lights[0] = {
-    //         .type = Directional,
-    //         .position = sunPosition,
-    //         .direction = sunPosition - vec3(0),
-    //         .color = { 1.0, 0.7, 0.39 },
-    //         .luminance = 100000,
-    //         .isShadowCasting = true,
-    // };
     state->lights[0] = {
             .type = LightType::Directional,
             .position = sunPosition,
@@ -97,11 +90,10 @@ void application::run()
 
     state->numberOfLights = 2;
 
-    vec3 lightProbePosition = {3.5, 2, -3};
+    // vec3 lightProbePosition = {3.5, 2, -3};
 
     lightPosition = glm::vec3();
 
-    renderData.gpu_textures = gpu_textures;
 
     RenderSetupParameters(&renderData, screen_width_, screen_height_);
 
@@ -109,7 +101,8 @@ void application::run()
     MemoryArena assetArena = InitArena(PushSize(&permanent_storage, asset_size), asset_size);
     InitAssetSystem(assets, assetArena);
 
-    LoadScene(assets, "assets/models/nature_test/nature_test.gltf", batchMeshRenderData, gpu_textures);
+    LoadScene(assets, "assets/asset-game/TestObjects/FlightHelmet.asset");
+    UploadSceneToGPU(assets.scene, &renderData, &permanent_storage);
 
     camera = {};
     camera.position = glm::vec3(0.1f, 0.1f, 0.1f);
@@ -140,8 +133,8 @@ void application::run()
     glm::mat4 model = glm::mat4(1.0f);
     model = glm::scale(model, glm::vec3(1.0f));
 
-    SetupLightProbe(&renderData);
-    RenderLightProbe(&renderData, lightProbePosition, batchMeshRenderData, model, state->lights, state->numberOfLights);
+    // SetupLightProbe(&renderData);
+    // RenderLightProbe(&renderData, lightProbePosition, batchMeshRenderData, model, state->lights, state->numberOfLights);
 
     SetupSSAOPass(&renderData);
 
@@ -174,13 +167,13 @@ void application::run()
         UpdateLightsBuffer(&renderData, state->lights, state->numberOfLights);
 
         vec3 lightDirection = glm::normalize(state->lights[0].direction * vec3(1));
-        RenderShadowMapPass(&renderData, lightDirection, batchMeshRenderData, model, camera);
-        RenderOmidirectionalShadowMap(&renderData, batchMeshRenderData, model, state->lights, state->numberOfLights);
+        RenderShadowMapPass(&renderData, lightDirection, model, camera);
+        RenderOmidirectionalShadowMap(&renderData, model, state->lights, state->numberOfLights);
         // //RenderEnvironmentMap(&renderData, camera);
         // RenderScene(&renderData, batchMeshRenderData, model, camera, lightPosition);
-        RenderGBuffer(&renderData, batchMeshRenderData, model, camera);
+        RenderGBuffer(&renderData, model, camera);
         RenderSSAOPass(&renderData, camera);
-        RenderDeferredScene(&renderData, batchMeshRenderData, model, camera);
+        RenderDeferredScene(&renderData, model, camera);
 
         window->swap_buffers();
     }
@@ -250,31 +243,5 @@ void application::update(f32 dt, GameState* state)
 
 void application::close()
 {
-    render.render_delete();
     window->close();
 }
-
-
-//glm::vec3 minBound(std::numeric_limits<float>::max(),
-//    std::numeric_limits<float>::max(),
-//    std::numeric_limits<float>::max());
-//glm::vec3 maxBound(std::numeric_limits<float>::lowest(),
-//    std::numeric_limits<float>::lowest(),
-//    std::numeric_limits<float>::lowest());
-//for (const Mesh& mesh : sponza.meshes)
-//{
-//    for (const auto& vertex : mesh.positions) {
-//        minBound.x = std::min(minBound.x, vertex.x);
-//        minBound.y = std::min(minBound.y, vertex.y);
-//        minBound.z = std::min(minBound.z, vertex.z);
-//
-//        maxBound.x = std::max(maxBound.x, vertex.x);
-//        maxBound.y = std::max(maxBound.y, vertex.y);
-//        maxBound.z = std::max(maxBound.z, vertex.z);
-//    }
-//}
-//minBound = minBound * 0.001f;
-//maxBound = maxBound * 0.001f;
-//glm::vec3 center = (minBound + maxBound) * 0.5f;
-//glm::vec3 size = maxBound - minBound;
-//f32 distance = std::max({ size.x, size.y, size.z }) * 1.0f;
