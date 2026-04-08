@@ -33,8 +33,9 @@ MessageCallback( GLenum source,
         fprintf( stderr, "GL CALLBACK: %s type = 0x%x, severity = 0x%x, message = %s\n",
             ( type == GL_DEBUG_TYPE_ERROR ? "** GL ERROR **" : "" ),
                 type, severity, message );
+        assert(false);
     }
-    // assert(type != GL_DEBUG_TYPE_ERROR);
+    assert(type != GL_DEBUG_TYPE_ERROR);
 }
 
 static void error_callback(s32 error, const char *description)

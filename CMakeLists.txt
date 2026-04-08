@@ -32,6 +32,17 @@ add_subdirectory(libraries/glfw)
 
 include_directories(${CMAKE_SOURCE_DIR}/libraries/stb/)
 
+set(IMGUI_DIR ${CMAKE_SOURCE_DIR}/libraries/imgui)
+
+set(IMGUI_SOURCES
+    ${IMGUI_DIR}/imgui.cpp
+    ${IMGUI_DIR}/imgui_draw.cpp
+    ${IMGUI_DIR}/imgui_tables.cpp
+    ${IMGUI_DIR}/imgui_widgets.cpp
+    ${IMGUI_DIR}/backends/imgui_impl_glfw.cpp
+    ${IMGUI_DIR}/backends/imgui_impl_opengl3.cpp
+)
+
 file(GLOB_RECURSE SOURCE_FILES
         ${CMAKE_SOURCE_DIR}/src/*.c
         ${CMAKE_SOURCE_DIR}/src/*.cpp)
@@ -56,8 +67,9 @@ target_link_libraries(AssetConverter)
 target_include_directories(AssetConverter PUBLIC ${CMAKE_SOURCE_DIR}/libraries/stb/)
 target_include_directories(AssetConverter PUBLIC ${CMAKE_SOURCE_DIR}/libraries/tinygltf/)
 
-add_executable(Anthology ${SOURCE_FILES})
+add_executable(Anthology ${SOURCE_FILES} ${IMGUI_SOURCES})
 
+target_include_directories(Anthology PRIVATE ${IMGUI_DIR} ${IMGUI_DIR}/backends/)
 target_include_directories(Anthology PRIVATE ${CMAKE_SOURCE_DIR}/libraries/glm/)
 target_include_directories(Anthology PRIVATE ${CMAKE_SOURCE_DIR}/libraries/miniaudio/)
 add_library(glad ${CMAKE_SOURCE_DIR}/libraries/glad/src/glad.c)

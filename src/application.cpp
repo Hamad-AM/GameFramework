@@ -101,7 +101,7 @@ void application::run()
     MemoryArena assetArena = InitArena(PushSize(&permanent_storage, asset_size), asset_size);
     InitAssetSystem(assets, assetArena);
 
-    LoadScene(assets, "assets/asset-game/TestObjects/FlightHelmet.asset");
+    LoadScene(assets, "assets/asset-game/TestObjects/MetallicRoughnessTest.asset");
     UploadSceneToGPU(assets.scene, &renderData, &permanent_storage);
 
     camera = {};

@@ -389,6 +389,11 @@ void RenderDeferredScene(RenderData* renderData, glm::mat4 model, Camera3D& came
         RenderCube(renderData);
     }
 
+    RenderEnvironmentMap(renderData, camera);
+    glBindBuffer(GL_SHADER_STORAGE_BUFFER, 0);
+}
+
+void RenderLightProbeDebugSphere(RenderData* renderData, Camera3D& camera) {
     renderData->sphereCubemap.bind();
     renderData->sphereCubemap.uniform_matrix4("projection", camera.projection);
     renderData->sphereCubemap.uniform_matrix4("view", camera.view);
@@ -400,9 +405,6 @@ void RenderDeferredScene(RenderData* renderData, glm::mat4 model, Camera3D& came
     glBindTexture(GL_TEXTURE_CUBE_MAP, renderData->lightProbePass.irradianceMap);
     renderData->sphereCubemap.uniform_int("cubemap", 0);
     RenderSphere(renderData);
-
-    RenderEnvironmentMap(renderData, camera);
-    glBindBuffer(GL_SHADER_STORAGE_BUFFER, 0);
 }
 
 void SetupShadowMapPass(RenderData* renderData, Light* lights, u32 numLights, u32 shadow_width, u32 shadow_height, Camera3D& camera)
