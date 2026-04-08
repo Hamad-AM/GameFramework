@@ -4,7 +4,7 @@ project(Anthology)
 
 set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED True)
-set(CMAKE_CXX_EXTENSIONS ON)
+set(CMAKE_CXX_EXTENSIONS OFF)
 
 set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
 
@@ -20,13 +20,17 @@ set(CMAKE_RUNTIME_OUTPUT_DIRECTORY_RELWITHDEBINFO "${CMAKE_RUNTIME_OUTPUT_DIRECT
 
 set(BUILD_SHARED_LIBS OFF CACHE BOOL "Build static libraries")
 
+set(OpenGL_GL_PREFERENCE "GLVND")
+set(GLFW_X11_WAYLAND ON CACHE BOOL "Use X11 instead of Wayland, modify in CMakeLists.txt of project to use wayland")
+set(GLFW_BUILD_WAYLAND OFF CACHE BOOL "Disabled Wayland")
+
 find_package(OpenGL REQUIRED)
 
 add_subdirectory(libraries/glfw)
 # add_subdirectory(libraries/freetype-2.13.3)
 # include_directories(libraries/freetype-2.13.3/include)
 
-#include_directories(${CMAKE_SOURCE_DIR}/libraries/stb/)
+include_directories(${CMAKE_SOURCE_DIR}/libraries/stb/)
 
 file(GLOB_RECURSE SOURCE_FILES
         ${CMAKE_SOURCE_DIR}/src/*.c
@@ -46,10 +50,11 @@ file (GLOB_RECURSE ASSET_CONVERTER_HEADER
         ${CMAKE_SOURCE_DIR}/tools/AssetConverter/*.h
         ${CMAKE_SOURCE_DIR}/tools/AssetConverter/*.hpp)
 
-target_include_directories(AssetConverter PRIVATE ${CMAKE_SOURCE_DIR}/libraries/stb/)
-target_include_directories(AssetConverter PRIVATE ${CMAKE_SOURCE_DIR}/libraries/tinygltf/)
 add_executable(AssetConverter ${ASSET_CONVERTER_HEADER} ${ASSET_CONVERTER_SOURCE})
+
 target_link_libraries(AssetConverter)
+target_include_directories(AssetConverter PUBLIC ${CMAKE_SOURCE_DIR}/libraries/stb/)
+target_include_directories(AssetConverter PUBLIC ${CMAKE_SOURCE_DIR}/libraries/tinygltf/)
 
 add_executable(Anthology ${SOURCE_FILES})
 
