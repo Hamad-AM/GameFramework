@@ -127,7 +127,7 @@ void application::run()
     camera.position = glm::vec3(5.0f, 5.0f, 5.0f);
     camera.target = glm::vec3(0.0f, 0.0f, 0.0f);
     camera.nearPlane = 0.1f;
-    camera.farPlane = 1000.0f;
+    camera.farPlane = 400.0f;
     camera.fov = 75.0f;
     camera.ratio = (f32)screen_width_ / (f32)screen_height_;
     camera.projection = glm::perspective(glm::radians(camera.fov), camera.ratio, camera.nearPlane, camera.farPlane);
