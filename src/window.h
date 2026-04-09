@@ -39,7 +39,12 @@
         void
         set_width(u32 width) { width_ = width; }
 
+        virtual void showMouseCursor() = 0;
+        virtual void hideMouseCursor() = 0;
+
     protected:
         u32 height_;
         u32 width_;
+
+        b32 mouseHidden = false;
     };

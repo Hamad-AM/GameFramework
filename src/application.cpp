@@ -8,6 +8,11 @@
 #include "asset_system.h"
 #include "glfw_window.h"
 
+#include <filesystem>
+#include <imgui.h>
+#include <imgui_impl_glfw.h>
+#include <imgui_impl_opengl3.h>
+
 
 #ifdef _WIN32
 #include <Windows.h>
@@ -59,9 +64,22 @@ void application::initialize(u32 screen_width, u32 screen_height)
     screen_width_ = screen_width;
     screen_height_ = screen_height;
     window->initialize(screen_width_, screen_height_, "GameWindow");
-
     CompileShaders(&renderData);
+
+    IMGUI_CHECKVERSION();
+    ImGui::CreateContext();
+    ImGuiIO& io = ImGui::GetIO();
+    io.ConfigFlags |= ImGuiConfigFlags_NavEnableKeyboard;
+    ImGui_ImplGlfw_InitForOpenGL(static_cast<glfw_window*>(window)->window, true);
+    ImGui_ImplOpenGL3_Init();
+
     audio.init();
+
+    for (const auto& entry : std::filesystem::recursive_directory_iterator("assets/asset-game/")) {
+        if (entry.is_regular_file()) {
+            scenes.push_back(entry.path().string());
+        }
+    }
 }
 
 void application::run()
@@ -73,22 +91,23 @@ void application::run()
     vec3 sunPosition = { -4.6, 2.50, 2.0f };
     state->lights[0] = {
             .type = LightType::Directional,
+            .name = "Sun",
             .position = sunPosition,
             .direction = sunPosition - vec3(0),
-            .color = { 1.0, 0.98, 0.97 },
+            .color = { 1.0, 1.0, 1.0 },
             .luminance = 5,
             .isShadowCasting = 1,
     };
-    state->lights[1] = {
-            .type = LightType::Point,
-            .position = {3.6, 2.5, -2.9},
-            .color = {1.0, 0.773, 0.561},
-            .luminance = 50,
-            .constant = 1.0, .linear=0.09, .quadratic=0.032,
-            .isShadowCasting = 1,
-    };
+    // state->lights[1] = {
+    //         .type = LightType::Point,
+    //         .position = {3.6, 2.5, -2.9},
+    //         .color = {1.0, 0.773, 0.561},
+    //         .luminance = 50,
+    //         .constant = 1.0, .linear=0.09, .quadratic=0.032,
+    //         .isShadowCasting = 1,
+    // };
 
-    state->numberOfLights = 2;
+    state->numberOfLights = 1;
 
     // vec3 lightProbePosition = {3.5, 2, -3};
 
@@ -101,11 +120,11 @@ void application::run()
     MemoryArena assetArena = InitArena(PushSize(&permanent_storage, asset_size), asset_size);
     InitAssetSystem(assets, assetArena);
 
-    LoadScene(assets, "assets/asset-game/TestObjects/MetallicRoughnessTest.asset");
+    LoadScene(assets, "assets/asset-game/TestObjects/FlightHelmet.asset");
     UploadSceneToGPU(assets.scene, &renderData, &permanent_storage);
 
     camera = {};
-    camera.position = glm::vec3(0.1f, 0.1f, 0.1f);
+    camera.position = glm::vec3(0.5f, 0.5f, 0.5f);
     camera.target = glm::vec3(0.0f, 0.0f, 0.0f);
     camera.nearPlane = 0.1f;
     camera.farPlane = 100.0f;
@@ -117,7 +136,7 @@ void application::run()
     camera.front = glm::vec3(0.0, 0.0, -1.0);
     camera.up = glm::vec3(0.0f, 1.0f, 0.0f);
     camera.right = glm::normalize(glm::cross(camera.up, camera.front));
-    camera.speed = 5.0f;
+    camera.speed = 1.0f;
     camera.view = glm::lookAt(camera.position, camera.position + camera.front, camera.up);
 
     lastMousePos = glm::vec2(0.0f);
@@ -128,7 +147,7 @@ void application::run()
     u32 shadow_width = 2048;
     u32 shadow_height = 2048;
     SetupShadowMapPass(&renderData, state->lights, state->numberOfLights, shadow_width, shadow_height, camera);
-    SetupPointShadowMapPass(&renderData, state->lights, state->numberOfLights, shadow_width, shadow_height);
+    // SetupPointShadowMapPass(&renderData, state->lights, state->numberOfLights, shadow_width, shadow_height);
 
     glm::mat4 model = glm::mat4(1.0f);
     model = glm::scale(model, glm::vec3(1.0f));
@@ -143,6 +162,12 @@ void application::run()
     
     // SetupBRDFLUT(&renderData);
 
+    b32 noSelectionMesh = true;
+    u32 selectedMeshIdx;
+    b32 noSelectionLight = true;
+    u32 selectedLightIdx;
+
+    s32 selectedSceneIdx = -1;
 
     while (!window->should_close())
     {
@@ -162,6 +187,57 @@ void application::run()
 
         update(dt, state);
 
+        ImGui_ImplOpenGL3_NewFrame();
+        ImGui_ImplGlfw_NewFrame();
+        ImGui::NewFrame();
+        if (ImGui::BeginMainMenuBar()) {
+            if (ImGui::BeginMenu("Scenes")) {
+                if (ImGui::BeginCombo("##sceneCombo", assets.scene.name)) {
+                    for (int i = 0; i < scenes.size(); ++i) {
+                        bool isSelected = (selectedSceneIdx==i);
+                        if (ImGui::Selectable(scenes[i].c_str(), isSelected)){
+                            selectedSceneIdx = i;
+                            // Load new scene
+                        }
+                        if (isSelected) {
+                            ImGui::SetItemDefaultFocus();
+                        }
+                    }
+                    ImGui::EndCombo();
+                }
+                ImGui::EndMenu();
+            }
+            ImGui::EndMainMenuBar();
+        }
+        ImGui::Begin("Scene");
+        for (u32 i = 0; i < renderData.meshCount; ++i) {
+            bool isSelected = (selectedMeshIdx == i);
+            if (ImGui::Selectable(renderData.meshes[i].name, isSelected)) {
+                noSelectionMesh = false;
+                selectedMeshIdx = i;
+            }
+        }
+        ImGui::End();
+
+        ImGui::Begin("Lights");
+        for (u32 i = 0; i < renderData.numLights; ++i) {
+            bool isSelected = (selectedLightIdx == i);
+            if (ImGui::Selectable(renderData.lights[i].name, isSelected)) {
+                noSelectionLight = false;
+                selectedLightIdx = i;
+            }
+        }
+        if (!noSelectionLight) {
+            ImGui::Separator();
+            ImGui::Text("Properties");
+            Light& light = renderData.lights[selectedLightIdx];
+            if (light.type != Directional) {
+                ImGui::DragFloat3("Position", &light.position[0]);
+            }
+            ImGui::DragFloat3("Rotation", &light.direction[0]);
+        }
+        ImGui::End();
+
         // RenderBRDFLUT(&renderData);
 
         UpdateLightsBuffer(&renderData, state->lights, state->numberOfLights);
@@ -175,73 +251,90 @@ void application::run()
         RenderSSAOPass(&renderData, camera);
         RenderDeferredScene(&renderData, model, camera);
 
+        ImGui::Render();
+        ImGui_ImplOpenGL3_RenderDrawData(ImGui::GetDrawData());
+
         window->swap_buffers();
     }
 }
 
 void application::update(f32 dt, GameState* state)
 {
-    vec3 changeLightPosition = vec3(0.0f);
-    if (input::is_key_down(key::d))
-        camera.position += glm::normalize(glm::cross(camera.front, camera.up)) * camera.speed * dt;
-    else if (input::is_key_down(key::a))
-        camera.position -= glm::normalize(glm::cross(camera.front, camera.up)) * camera.speed * dt;
-    else if (input::is_key_down(key::w))
-        camera.position += camera.speed * camera.front * dt;
-    else if (input::is_key_down(key::s))
-        camera.position -= camera.speed * camera.front * dt;
-    else if (input::is_key_down(key::SPACE))
-        camera.position += camera.speed * camera.up * dt;
-    else if (input::is_key_down(key::LSHIFT))
-        camera.position -= camera.speed * camera.up * dt;
-    if (input::is_key_down(key::UP))
-        changeLightPosition.x += 0.1f;
-    if (input::is_key_down(key::DOWN))
-        changeLightPosition.x -= 0.1f;
-    if (input::is_key_down(key::RIGHT))
-        changeLightPosition.z += 0.1f;
-    if (input::is_key_down(key::LEFT))
-        changeLightPosition.z -= 0.1f;
-    if (input::is_key_down(key::p))
-        return;
-    if (input::is_key_down(key::r))
+    // Recompile shaders
+    if (input::is_key_pressed(key::r))
         CompileShaders(&renderData);
-
-    state->lights[0].position += changeLightPosition;
-    state->lights[0].direction = glm::normalize(state->lights[0].position - vec3(0));
-
-    glm::vec2 mousePos = input::mouse_position();
-    glm::vec2 offset{ mousePos.x - lastMousePos.x, lastMousePos.y - mousePos.y };
-
-    lastMousePos = glm::vec2{ mousePos.x, mousePos.y };
-    const f32 sensitivity = 0.075f;
-    offset *= sensitivity;
-    yaw += offset.x;
-    pitch += offset.y;
-
-    if (pitch > 89.0f)
-        pitch = 89.0f;
-    if (pitch < -89.0f)
-        pitch = -89.0f;
-    glm::vec3 direction;
-    direction.x = cos(glm::radians(yaw)) * cos(glm::radians(pitch));
-    direction.y = sin(glm::radians(pitch));
-    direction.z = sin(glm::radians(yaw)) * cos(glm::radians(pitch));
-    camera.front = glm::normalize(direction);
-
-    if (input::is_left_mouse_down())
-    {
-        MouseEvent press_event(event_type::left_mouse_button_press, input::mouse_position());
-        event_system::get()->post_all(event_type::left_mouse_button_press, &press_event);
+    if (input::is_key_pressed(key::p)) {
+        if (mode == EditorMode) {
+            mode = PlayMode;
+            window->hideMouseCursor();
+        } else {
+            mode = EditorMode;
+            window->showMouseCursor();
+        }
     }
-    MouseEvent move_event(event_type::mouse_move, input::mouse_position());
-    event_system::get()->post_all(event_type::mouse_move, &move_event);
 
-    camera.view = glm::lookAt(camera.position, camera.position + camera.front, camera.up);
+    if (mode == PlayMode) {
+        vec3 changeLightPosition = vec3(0.0f);
+        if (input::is_key_down(key::d))
+            camera.position += glm::normalize(glm::cross(camera.front, camera.up)) * camera.speed * dt;
+        else if (input::is_key_down(key::a))
+            camera.position -= glm::normalize(glm::cross(camera.front, camera.up)) * camera.speed * dt;
+        else if (input::is_key_down(key::w))
+            camera.position += camera.speed * camera.front * dt;
+        else if (input::is_key_down(key::s))
+            camera.position -= camera.speed * camera.front * dt;
+        else if (input::is_key_down(key::SPACE))
+            camera.position += camera.speed * camera.up * dt;
+        else if (input::is_key_down(key::LSHIFT))
+            camera.position -= camera.speed * camera.up * dt;
+        if (input::is_key_down(key::UP))
+            changeLightPosition.x += 0.1f;
+        if (input::is_key_down(key::DOWN))
+            changeLightPosition.x -= 0.1f;
+        if (input::is_key_down(key::RIGHT))
+            changeLightPosition.z += 0.1f;
+        if (input::is_key_down(key::LEFT))
+            changeLightPosition.z -= 0.1f;
 
+        state->lights[0].position += changeLightPosition;
+        state->lights[0].direction = glm::normalize(state->lights[0].position - vec3(0));
+
+        glm::vec2 mousePos = input::mouse_position();
+        glm::vec2 offset{ mousePos.x - lastMousePos.x, lastMousePos.y - mousePos.y };
+
+        lastMousePos = glm::vec2{ mousePos.x, mousePos.y };
+        const f32 sensitivity = 0.075f;
+        offset *= sensitivity;
+        yaw += offset.x;
+        pitch += offset.y;
+
+        if (pitch > 89.0f)
+            pitch = 89.0f;
+        if (pitch < -89.0f)
+            pitch = -89.0f;
+        glm::vec3 direction;
+        direction.x = cos(glm::radians(yaw)) * cos(glm::radians(pitch));
+        direction.y = sin(glm::radians(pitch));
+        direction.z = sin(glm::radians(yaw)) * cos(glm::radians(pitch));
+        camera.front = glm::normalize(direction);
+
+        if (input::is_left_mouse_down())
+        {
+            MouseEvent press_event(event_type::left_mouse_button_press, input::mouse_position());
+            event_system::get()->post_all(event_type::left_mouse_button_press, &press_event);
+        }
+        MouseEvent move_event(event_type::mouse_move, input::mouse_position());
+        event_system::get()->post_all(event_type::mouse_move, &move_event);
+
+        camera.view = glm::lookAt(camera.position, camera.position + camera.front, camera.up);
+    }
 }
 
 void application::close()
 {
+    ImGui_ImplOpenGL3_Shutdown();
+    ImGui_ImplGlfw_Shutdown();
+    ImGui::DestroyContext();
+
     window->close();
 }

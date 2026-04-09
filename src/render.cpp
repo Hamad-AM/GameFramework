@@ -66,6 +66,8 @@ void UploadSceneToGPU(LoadedScene& scene, RenderData* renderData, MemoryArena* a
         RenderMesh& renderMesh = renderData->meshes[meshIdx];
         MeshHeader& assetMesh = scene.meshes[meshIdx];
         MaterialHeader& material = scene.materials[assetMesh.materialIdx];
+
+        renderMesh.name = assetMesh.name;
         renderMesh.material.albedoIdx = material.albedoIdx;
         renderMesh.material.normalMapIdx = material.normalIdx;
         renderMesh.material.metallicRoughnessIdx = material.metallicRoughnessIdx;
@@ -169,7 +171,7 @@ RenderTexture CreateTexture(TextureHeader assetTexture, u8* textureData)
         }
     }
     glBindTexture(GL_TEXTURE_2D, 0);
-    return RenderTexture{textureID};
+    return RenderTexture{"PlaceHolderTexture", textureID};
 }
 
 
@@ -287,6 +289,7 @@ void RenderBindPBRTextures(u32 startingTextureSlot, u32 uniformSlot, Shader* sha
 void RenderGBuffer(RenderData* renderData, glm::mat4 model, Camera3D& camera)
 {
     DeferredPass& pass = renderData->deferredPass;
+    glDisable(GL_CULL_FACE);
     glViewport(0, 0, renderData->renderWidth, renderData->renderHeight);
     glClearColor(0.0f, 0.0f, 0.0f, 1.0);
     glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
@@ -307,7 +310,7 @@ void RenderGBuffer(RenderData* renderData, glm::mat4 model, Camera3D& camera)
         glDrawElements(GL_TRIANGLES, renderMesh->numberOfIndices, GL_UNSIGNED_INT, (void*)(0 * sizeof(u32)));
     }
     glBindFramebuffer(GL_FRAMEBUFFER, 0);
-
+    glEnable(GL_CULL_FACE);
 }
 
 void RenderDeferredScene(RenderData* renderData, glm::mat4 model, Camera3D& camera)
@@ -336,7 +339,9 @@ void RenderDeferredScene(RenderData* renderData, glm::mat4 model, Camera3D& came
 
     glActiveTexture(GL_TEXTURE4);
     glBindTexture(GL_TEXTURE_2D_ARRAY, renderData->shadowPass.lightDepthmaps);
+    assert(glGetError() == GL_NO_ERROR);
     pass.lightingPass.uniform_int("shadowMap", 4);
+    assert(glGetError() == GL_NO_ERROR);
 
     glActiveTexture(GL_TEXTURE5);
     glBindTexture(GL_TEXTURE_2D, renderData->SSAOPass.ssaoColorBufferBlur);
@@ -350,14 +355,14 @@ void RenderDeferredScene(RenderData* renderData, glm::mat4 model, Camera3D& came
     glActiveTexture(GL_TEXTURE8);
     glBindTexture(GL_TEXTURE_2D, renderData->environmentMapPass.brdfLUTTexture);
     pass.lightingPass.uniform_int("brdfLUT", 8);
-    for (int i = 0; i < renderData->shadowPass.pointCount; ++i)
-    {
-        glActiveTexture(GL_TEXTURE9+i);
-        glBindTexture(GL_TEXTURE_CUBE_MAP, renderData->shadowPass.pointShadows[i].depthCubemap);
-        std::string name = "depthCubemaps[" + std::to_string(i) + "]";
-        pass.lightingPass.uniform_int(name.c_str(), 9+i);
-    }
-    pass.lightingPass.uniform_float("pointShadowFarPlane", renderData->shadowPass.farPlane);
+    // for (int i = 0; i < renderData->shadowPass.pointCount; ++i)
+    // {
+    //     glActiveTexture(GL_TEXTURE9+i);
+    //     glBindTexture(GL_TEXTURE_CUBE_MAP, renderData->shadowPass.pointShadows[i].depthCubemap);
+    //     std::string name = "depthCubemaps[" + std::to_string(i) + "]";
+    //     pass.lightingPass.uniform_int(name.c_str(), 9+i);
+    // }
+    // pass.lightingPass.uniform_float("pointShadowFarPlane", renderData->shadowPass.farPlane);
     pass.lightingPass.uniform_vector3f("viewPos", camera.position);
     pass.lightingPass.uniform_int("cascadeCount", renderData->shadowPass.cascadesCount);
     for (s32 i = 0; i < renderData->shadowPass.cascadesCount-1; ++i)
@@ -419,6 +424,10 @@ void SetupShadowMapPass(RenderData* renderData, Light* lights, u32 numLights, u3
     glBindTexture(GL_TEXTURE_2D_ARRAY, pass.lightDepthmaps);
     glTexImage3D(GL_TEXTURE_2D_ARRAY, 0, GL_DEPTH_COMPONENT32F,
         pass.depthMapResolution, pass.depthMapResolution, int(pass.cascadesCount), 0, GL_DEPTH_COMPONENT, GL_FLOAT, nullptr);
+    GLenum err = glGetError();
+    if (err != GL_NO_ERROR) {
+        std::cerr << "glTexImage3D failed: " << getGLErrorString(err) << std::endl;
+    }
     glTexParameteri(GL_TEXTURE_2D_ARRAY, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
     glTexParameteri(GL_TEXTURE_2D_ARRAY, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
     glTexParameteri(GL_TEXTURE_2D_ARRAY, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_BORDER);
@@ -431,6 +440,10 @@ void SetupShadowMapPass(RenderData* renderData, Light* lights, u32 numLights, u3
 
     glBindFramebuffer(GL_FRAMEBUFFER, pass.depthMapFBO);
     glFramebufferTexture(GL_FRAMEBUFFER, GL_DEPTH_ATTACHMENT, pass.lightDepthmaps, 0);
+    GLenum fboStatus = glCheckFramebufferStatus(GL_FRAMEBUFFER);
+    if (fboStatus != GL_FRAMEBUFFER_COMPLETE) {
+        std::cerr << "Shadow map FBO incomplete: 0x" << std::hex << fboStatus << std::dec << std::endl;
+    }
     glDrawBuffer(GL_NONE);
     glReadBuffer(GL_NONE);
     glBindFramebuffer(GL_FRAMEBUFFER, 0);
@@ -536,8 +549,8 @@ void SetupLightProbe(RenderData* renderData)
     glBindTexture(GL_TEXTURE_CUBE_MAP, pass.cubemap);
     for (u32 j = 0; j < 6; ++j)
     {
-        glTexImage2D(GL_TEXTURE_CUBE_MAP_POSITIVE_X + j, 0, GL_RGBA16F,
-            pass.width, pass.height, 0, GL_RGBA, GL_FLOAT, NULL);
+        glTexImage2D(GL_TEXTURE_CUBE_MAP_POSITIVE_X + j, 0, GL_RGB16F,
+            pass.width, pass.height, 0, GL_RGB, GL_FLOAT, NULL);
     }
     glTexParameteri(GL_TEXTURE_CUBE_MAP, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
     glTexParameteri(GL_TEXTURE_CUBE_MAP, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
@@ -713,7 +726,7 @@ void SetupSSAOPass(RenderData* renderData)
 
 void SetupEnvironmentCubeMap(RenderData* renderData)
 {
-    u32 hdrTexture = LoadSkyBoxTexture("assets/hdr/rogland_overcast_4k.hdr");
+    u32 hdrTexture = LoadSkyBoxTexture("assets/hdr/newport_loft.hdr");
 
     EnvironmentMapPass& pass = renderData->environmentMapPass;
 

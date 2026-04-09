@@ -17,7 +17,10 @@
         f64 get_time() override;
         void swap_buffers() override;
         b32 should_close() override;
-    private:
+
+        void hideMouseCursor() override;
+        void showMouseCursor() override;
+
         GLFWwindow* window;
         f64 previous_time;
     };

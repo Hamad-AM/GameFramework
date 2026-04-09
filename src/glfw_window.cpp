@@ -3,6 +3,7 @@
 #include <stdio.h>
 #include <assert.h>
 
+#include "GLFW/glfw3.h"
 #include "input.h"
 
 #include <iostream>
@@ -33,9 +34,8 @@ MessageCallback( GLenum source,
         fprintf( stderr, "GL CALLBACK: %s type = 0x%x, severity = 0x%x, message = %s\n",
             ( type == GL_DEBUG_TYPE_ERROR ? "** GL ERROR **" : "" ),
                 type, severity, message );
-        assert(false);
     }
-    assert(type != GL_DEBUG_TYPE_ERROR);
+    // assert(type != GL_DEBUG_TYPE_ERROR);
 }
 
 static void error_callback(s32 error, const char *description)
@@ -81,7 +81,7 @@ void glfw_window::initialize(u32 width, u32 height, const char *title)
 
     glfwSetKeyCallback(window, key_callback);
     // For now set cursor to normal When playing or moving around disable?
-    glfwSetInputMode(window, GLFW_CURSOR, GLFW_CURSOR_NORMAL);
+    showMouseCursor();
     glfwSetCursorPosCallback(window, mouse_callback);
 
     // glfwMakeContextCurrent(window);
@@ -101,9 +101,19 @@ void glfw_window::initialize(u32 width, u32 height, const char *title)
     glDebugMessageCallback( MessageCallback, 0 );
 }
 
+void glfw_window::showMouseCursor() {
+    glfwSetInputMode(window, GLFW_CURSOR, GLFW_CURSOR_NORMAL);
+}
+
+void glfw_window::hideMouseCursor() {
+    glfwSetInputMode(window, GLFW_CURSOR, GLFW_CURSOR_DISABLED);
+}
+
 b32 glfw_window::handle_input()
 {
     glfwPollEvents();
+
+    input::inputStateChange();
 
     if (glfwGetKey(window, GLFW_KEY_ESCAPE) == GLFW_PRESS)
     {

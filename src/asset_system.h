@@ -9,7 +9,8 @@ struct AssetSystem
 
     LoadedScene scene;
     MemoryArena arena;
-
+    
+    const char* name;
 #if 0
     std::mutex arenaMutex;
     std::queue<LoadImageJob> jobs;

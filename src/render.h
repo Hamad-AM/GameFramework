@@ -44,6 +44,7 @@ enum LightType : s32
 struct Light
 {
     LightType type{ LightType::None };
+    const char* name;
 
     vec3 position{ 0 };
     vec3 direction{ 0 };
@@ -67,6 +68,7 @@ struct RenderMaterial {
 };
 
 struct RenderMesh {
+    const char* name;
     u32 numberOfIndices;
     GLuint VBO;
     GLuint VAO;
@@ -75,6 +77,7 @@ struct RenderMesh {
 };
 
 struct RenderTexture {
+    const char* name;
     GLuint textureID;
 };
 

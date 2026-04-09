@@ -167,6 +167,7 @@ void ConvertGLB(std::filesystem::path& gameFile, std::filesystem::path& file) {
     uint64_t indexCursor = 0;
     uint32_t meshIdx = 0;
 
+    const char* meshName = "Mesh0";
     std::cout << "Allocating Mesh\n";
     for (const auto& gltfMesh : model.meshes) {
         for (const auto& prim : gltfMesh.primitives) {
@@ -176,6 +177,13 @@ void ConvertGLB(std::filesystem::path& gameFile, std::filesystem::path& file) {
             int uvIdx = prim.attributes.at("TEXCOORD_0");
             int tanIdx = prim.attributes.at("TANGENT");
             int idxIdx = prim.indices;
+
+            if (gltfMesh.name.size() > 256) {
+                std::cerr << "Mesh name is too big" << std::endl;
+            } else {
+                std::copy_n(gltfMesh.name.begin(), gltfMesh.name.size(), mh.name);
+                mh.name[gltfMesh.name.size()] = '\0';
+            }
 
             mh.vertexCount = model.accessors[posIdx].count;
             mh.indexCount  = model.accessors[idxIdx].count;
@@ -236,6 +244,13 @@ void ConvertGLB(std::filesystem::path& gameFile, std::filesystem::path& file) {
         hdr.type = TextureType::ALBEDO;
         hdr.mipmapCount = 1;   // no mipmaps for now
 
+        if (img.name.size() > 256) {
+            std::cerr << "Image name is too big" << std::endl;
+        } else {
+            std::copy_n(img.name.begin(), img.name.size(), hdr.name);
+            hdr.name[img.name.size()] = '\0';
+        }
+
         // Convert to RGBA if needed (makes rendering easier)
         if (img.component == 3) {
             texturePixelData[i] = ConvertRGBtoRGBA(img.image, img.width, img.height);
@@ -276,6 +291,14 @@ void ConvertGLB(std::filesystem::path& gameFile, std::filesystem::path& file) {
     uint64_t fileSize = 0;
     SceneHeader ls; // temporary to compute offsets
     ls.magic[0] = 'A'; ls.magic[1] = 'S'; ls.magic[2] = 'C'; ls.magic[3] = 'N';
+
+    if (file.filename().string().size() > 256) {
+        std::cerr << "Image name is too big" << std::endl;
+    } else {
+        std::copy_n(file.filename().string().begin(), file.filename().string().size(), ls.name);
+        ls.name[file.filename().string().size()] = '\0';
+    }
+
     ls.meshCount = totalPrimitives;
     ls.textureCount = (uint32_t)model.images.size();
     ls.materialCount = (uint32_t)model.materials.size();

@@ -21,6 +21,7 @@ void LoadScene(AssetSystem& assets, std::string path)
 
     SceneHeader* sceneHeader = (SceneHeader*)buffer;
     // should these be pointers / references?
+    assets.scene.name = sceneHeader->name;
     assets.scene.meshCount = sceneHeader->meshCount;
     assets.scene.materialCount = sceneHeader->materialCount;
     assets.scene.textureCount = sceneHeader->textureCount;

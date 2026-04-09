@@ -46,6 +46,15 @@ input::input()
     }
 }
 
+void input::inputStateChangeImpl() {
+    previousGamepad[0] = game_pad_[0];
+    previousGamepad[1] = game_pad_[1];
+    previousGamepad[2] = game_pad_[2];
+    previousGamepad[3] = game_pad_[3];
+    previousKeyboard = keyboard_;
+    previousMouse = mouse_;
+}
+
 b32
 input::is_key_down_impl(key key)
 {
@@ -56,6 +65,13 @@ b32
 input::is_key_up_impl(key key)
 {
     return keyboard_.keys[key] == input_state::up;
+}
+
+b32
+input::is_key_pressed_impl(key key)
+{
+    return keyboard_.keys[key] == input_state::up &&
+            previousKeyboard.keys[key] == input_state::down;
 }
 
 void
@@ -73,7 +89,8 @@ input::is_left_mouse_down_impl()
 b32 
 input::is_left_mouse_pressed_impl()
 {
-    return false;
+    return mouse_.left_button == input_state::up &&
+           mouse_.left_button == input_state::down;
 }
 
 b32 
@@ -97,7 +114,8 @@ input::is_right_mouse_down_impl()
 b32 
 input::is_right_mouse_pressed_impl()
 {
-    return false;
+    return mouse_.right_button == input_state::up &&
+           mouse_.right_button == input_state::down;
 }
 
 b32 

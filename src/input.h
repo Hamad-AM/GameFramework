@@ -71,6 +71,9 @@ public:
         s32 y;
     };
 
+    inline static void
+    inputStateChange() { return s_instance->inputStateChangeImpl(); };
+
     inline static b32
     is_key_down(key key) { return s_instance->is_key_down_impl(key); }
         
@@ -151,10 +154,17 @@ private:
 
     vec2 mouse_position_impl();
 
+    void inputStateChangeImpl();
+
 private:
     b32 game_pad_connected_;
     GamePad game_pad_[4];
     Keyboard keyboard_;
     Mouse mouse_;
+
+    GamePad previousGamepad[4];
+    Keyboard previousKeyboard;
+    Mouse previousMouse;
+
     static input* s_instance;
 };

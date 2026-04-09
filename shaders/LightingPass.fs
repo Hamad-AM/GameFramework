@@ -61,8 +61,8 @@ layout(std140, binding=1) uniform LightSpaceMatrices
 uniform float cascadePlaneDistances[16];
 uniform int cascadeCount;
 
-uniform samplerCube depthCubemaps[4];
-uniform float pointShadowFarPlane;
+// uniform samplerCube depthCubemaps[4];
+// uniform float pointShadowFarPlane;
 
 
 const float PI = 3.14159265359;
@@ -184,6 +184,7 @@ float shadow_calculation(vec3 fragPosWorldSpace, vec3 normal, vec3 lightDir)
     return shadow;
 }
 
+#if 0
 float PointShadowCalculation(vec3 fragPos, vec3 lightPos, int shadowMapIndex)
 {
     vec3 fragToLight = fragPos - lightPos;
@@ -214,6 +215,7 @@ float PointShadowCalculation(vec3 fragPos, vec3 lightPos, int shadowMapIndex)
     shadow /= float(sampleCount); // Average result
     return shadow;
 }
+#endif
 
 vec3 ACESFilm(vec3 x) {
     float a = 2.51f;
@@ -298,7 +300,7 @@ void main()
     vec3 albedoColor = pow(texture(gAlbedo, TexCoords).rgb, vec3(2.2));
     if (alpha < 0.1) discard;
     vec4 metallicRoughnessValues = texture(gMetallicRoughness, TexCoords);
-    float metallic = 1-metallicRoughnessValues.b;
+    float metallic = metallicRoughnessValues.b;
     float roughness = metallicRoughnessValues.g;
     // float metallic = clamp((metallicRoughnessValues.g - 0.04) / (1.0-0.04), 0.0, 1.0);
     // float roughness = 1.0 - metallicRoughnessValues.b;
@@ -336,7 +338,7 @@ void main()
             L = normalize(lightDirection);
             L2 = L;
             H = normalize(V + L);
-            radiance = lightColor * light.luminance;
+            radiance = vec3(1.0f) * light.luminance;
         }
         else if (light.type == Point) 
         {
@@ -371,10 +373,10 @@ void main()
             {
                 shadow = shadow_calculation(FragPos, N, L);
             }
-            else if (light.type == Point)
-            {
-                shadow = PointShadowCalculation(FragPos, lightPosition, light.shadowIndex);
-            }
+            // else if (light.type == Point)
+            // {
+            //    shadow = PointShadowCalculation(FragPos, lightPosition, light.shadowIndex);
+            // }
         }
         L2 = albedoColor * NdotL * radiance;
         Lo += (kD * albedoColor.xyz / PI + specular) * radiance * NdotL;
@@ -392,19 +394,21 @@ void main()
     vec2 brdf  = texture(brdfLUT, vec2(max(dot(N, V), 0.0), roughness)).rg;
     vec3 specular = prefilteredColor * (F * brdf.x + brdf.y);
 
-    vec3 ambient = (kD * diffuse + specular) * ao;
+    vec3 ambient = (kD * diffuse + specular) * (ao/ao);
 
     vec3 color = (ambient + Lo);
 
     // // HDR Calculations
-    color = AGXTonemapper(color);
+    color = ACESFilm(color);
     color = pow(color, vec3(1.0f/2.2f));
 
-    //if (lights[0].type == Directional)
-    //{
-    //    // color = vec3(N * 0.5 + 0.5);
-    //    color = vec3(N);
-    //}
+#if 0
+    if (lights[0].type == Directional)
+    {
+        // color = vec3(N * 0.5 + 0.5);
+        color = vec3(Lo);
+    }
+#endif
 
     FragColor = vec4(color, alpha);
 }

@@ -69,6 +69,7 @@ struct Vertex {
 struct TextureHeader
 {
     char magic[4] = {'A', 'I', 'M', 'G'};
+    char name[256];
     u32 width;
     u32 height;
     u32 channels;
@@ -94,6 +95,7 @@ struct MaterialHeader {
 
 struct MeshHeader
 {
+    char name[256];
     u64 vertexCount;
     u64 indexCount;
     u32 vertexOffset;
@@ -104,6 +106,7 @@ struct MeshHeader
 struct SceneHeader
 {
     char magic[4] = {'A', 'S', 'C', 'N'};
+    char name[256];
     u32 meshCount;
     u32 textureCount;
     u32 materialCount;
@@ -119,6 +122,7 @@ struct SceneHeader
 };
 
 struct LoadedScene {
+    const char* name;
     MeshHeader* meshes;
     u32 meshCount;
     MaterialHeader* materials;

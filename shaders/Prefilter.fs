@@ -95,7 +95,8 @@ void main()
 
             float mipLevel = roughness == 0.0 ? 0.0 : 0.5 * log2(saSample / saTexel); 
             
-            prefilteredColor += textureLod(environmentMap, L, mipLevel).rgb * NdotL;
+            vec3 color = textureLod(environmentMap, L, mipLevel).rgb * NdotL;
+            prefilteredColor += color;
             totalWeight      += NdotL;
         }
     }

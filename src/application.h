@@ -35,6 +35,11 @@ public:
     void close();
 
 private:
+    enum ApplicationMode {
+        EditorMode,
+        PlayMode
+    };
+
     MemoryArena permanent_storage;
     MemoryArena transient_storage;
 
@@ -57,5 +62,9 @@ private:
     f32 pitch = 0;
     f32 yaw = 0;
 
+    ApplicationMode mode = EditorMode;
+
     AssetSystem assets;
+
+    std::vector<std::string> scenes;
 };

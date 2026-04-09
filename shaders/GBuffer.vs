@@ -22,13 +22,13 @@ void main()
     TexCoords = aTexCoords;
 	
     vec4 n = model * vec4(aNormal, 1.0f);
-    Normal = n.xyz;
+    Normal = normalize(aNormal.xyz);
 
     // vec4 T = normalize(model * vec4(aTangent, 1.0f));
     T = normalize(model * vec4(aTangent, 1.0f)).xyz;
     vec3 N = normalize(Normal);
     // vec3 B = normalize(cross(N, T.xyz));
-    B = normalize(cross(N, T.xyz));
+    B = normalize(cross(N, T.xyz)) * 1;
     TBN = mat3(T.xyz, B, N);
 
 
