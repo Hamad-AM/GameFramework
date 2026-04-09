@@ -61,6 +61,20 @@ struct Light
     s32 pointShadowMapIndex;
 };
 
+struct SSOLight {
+    int type;
+    float positionX, positionY, positionZ;
+    float directionX, directionY, directionZ;
+    float colorX, colorY, colorZ;
+    float luminance;
+    float constant;
+    float linear;
+    float quadratic;
+    float cutOff;
+    int isShadowCasting;
+    int shadowIndex;
+};
+
 struct RenderMaterial {
     u32 albedoIdx;
     u32 metallicRoughnessIdx;
@@ -199,7 +213,7 @@ struct RenderData
     Shader sphereCubemap;
 
     GLuint lightShaderStorageObject;
-    Light* lights;
+    SSOLight* lights;
     u32 numLights;
 };
 
@@ -209,7 +223,7 @@ void CompileShaders(RenderData* renderData);
 void RenderSetupParameters(RenderData* renderData, u32 render_width, u32 render_height);
 
 void SetupLightsBuffer(RenderData* renderData, Light* lights, u32 numLights);
-void UpdateLightsBuffer(RenderData* renderData, Light* lights, u32 numLights);
+void UpdateLightsBuffer(RenderData* renderData, u32 numLights);
 
 void SetupShadowMapPass(RenderData* renderData, Light* lights, u32 numLights, u32 shadow_width, u32 shadow_height, Camera3D& camera);
 void SetupPointShadowMapPass(RenderData* renderData, Light* lights, u32 numLights, u32 shadow_width, u32 shadow_height);

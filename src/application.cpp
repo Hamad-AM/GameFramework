@@ -93,8 +93,8 @@ void application::run()
             .type = LightType::Directional,
             .name = "Sun",
             .position = sunPosition,
-            .direction = sunPosition - vec3(0),
-            .color = { 1.0, 1.0, 1.0 },
+            .direction = glm::vec3(0.179, 2.446, 2.357),
+            .color = { 1.0, 0.97, 0.92 },
             .luminance = 5,
             .isShadowCasting = 1,
     };
@@ -120,15 +120,15 @@ void application::run()
     MemoryArena assetArena = InitArena(PushSize(&permanent_storage, asset_size), asset_size);
     InitAssetSystem(assets, assetArena);
 
-    LoadScene(assets, "assets/asset-game/TestObjects/FlightHelmet.asset");
+    LoadScene(assets, "assets/asset-game/scenes/bistro/Bistro.asset");
     UploadSceneToGPU(assets.scene, &renderData, &permanent_storage);
 
     camera = {};
-    camera.position = glm::vec3(0.5f, 0.5f, 0.5f);
+    camera.position = glm::vec3(5.0f, 5.0f, 5.0f);
     camera.target = glm::vec3(0.0f, 0.0f, 0.0f);
     camera.nearPlane = 0.1f;
-    camera.farPlane = 100.0f;
-    camera.fov = 60.0f;
+    camera.farPlane = 1000.0f;
+    camera.fov = 75.0f;
     camera.ratio = (f32)screen_width_ / (f32)screen_height_;
     camera.projection = glm::perspective(glm::radians(camera.fov), camera.ratio, camera.nearPlane, camera.farPlane);
     camera.orientation = glm::quat(glm::vec3(0.f, 0.f, 0.f));
@@ -136,7 +136,7 @@ void application::run()
     camera.front = glm::vec3(0.0, 0.0, -1.0);
     camera.up = glm::vec3(0.0f, 1.0f, 0.0f);
     camera.right = glm::normalize(glm::cross(camera.up, camera.front));
-    camera.speed = 1.0f;
+    camera.speed = 5.0f;
     camera.view = glm::lookAt(camera.position, camera.position + camera.front, camera.up);
 
     lastMousePos = glm::vec2(0.0f);
@@ -220,9 +220,9 @@ void application::run()
         ImGui::End();
 
         ImGui::Begin("Lights");
-        for (u32 i = 0; i < renderData.numLights; ++i) {
+        for (u32 i = 0; i < state->numberOfLights; ++i) {
             bool isSelected = (selectedLightIdx == i);
-            if (ImGui::Selectable(renderData.lights[i].name, isSelected)) {
+            if (ImGui::Selectable(state->lights[i].name, isSelected)) {
                 noSelectionLight = false;
                 selectedLightIdx = i;
             }
@@ -230,7 +230,7 @@ void application::run()
         if (!noSelectionLight) {
             ImGui::Separator();
             ImGui::Text("Properties");
-            Light& light = renderData.lights[selectedLightIdx];
+            Light& light = state->lights[selectedLightIdx];
             if (light.type != Directional) {
                 ImGui::DragFloat3("Position", &light.position[0]);
             }
@@ -240,7 +240,7 @@ void application::run()
 
         // RenderBRDFLUT(&renderData);
 
-        UpdateLightsBuffer(&renderData, state->lights, state->numberOfLights);
+        UpdateLightsBuffer(&renderData, state->numberOfLights);
 
         vec3 lightDirection = glm::normalize(state->lights[0].direction * vec3(1));
         RenderShadowMapPass(&renderData, lightDirection, model, camera);
@@ -297,13 +297,13 @@ void application::update(f32 dt, GameState* state)
             changeLightPosition.z -= 0.1f;
 
         state->lights[0].position += changeLightPosition;
-        state->lights[0].direction = glm::normalize(state->lights[0].position - vec3(0));
+        // state->lights[0].direction = glm::normalize(state->lights[0].position - vec3(0));
 
         glm::vec2 mousePos = input::mouse_position();
         glm::vec2 offset{ mousePos.x - lastMousePos.x, lastMousePos.y - mousePos.y };
 
         lastMousePos = glm::vec2{ mousePos.x, mousePos.y };
-        const f32 sensitivity = 0.075f;
+        const f32 sensitivity = 0.04f;
         offset *= sensitivity;
         yaw += offset.x;
         pitch += offset.y;

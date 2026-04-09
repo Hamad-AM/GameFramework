@@ -338,7 +338,7 @@ void main()
             L = normalize(lightDirection);
             L2 = L;
             H = normalize(V + L);
-            radiance = vec3(1.0f) * light.luminance;
+            radiance = lightColor * light.luminance;
         }
         else if (light.type == Point) 
         {
@@ -379,7 +379,8 @@ void main()
             // }
         }
         L2 = albedoColor * NdotL * radiance;
-        Lo += (kD * albedoColor.xyz / PI + specular) * radiance * NdotL;
+        vec3 brdf = (kD * albedoColor.xyz / PI + specular) * radiance * NdotL;
+        Lo += brdf * (1 - shadow);
     }
 
     vec3 F = fresnelSchlickRoughness(max(dot(N, V), 0.0), F0, roughness);
@@ -387,7 +388,7 @@ void main()
     vec3 kD = 1.0 - kS;
     kD *= 1.0 - metallic;
     vec3 irradiance = texture(irradianceMap, N).rgb;
-    vec3 diffuse    = irradiance * albedoColor.xyz;
+    vec3 diffuse    = irradiance * albedoColor.xyz * 0.8;
 
     const float MAX_REFLECTION_LOD = 4.0;
     vec3 prefilteredColor = textureLod(prefilterMap, R,  roughness * MAX_REFLECTION_LOD).rgb;    

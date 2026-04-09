@@ -387,10 +387,11 @@ void RenderDeferredScene(RenderData* renderData, glm::mat4 model, Camera3D& came
     for (s32 i = 0; i < renderData->numLights; ++i)
     {
         glm::mat4 lightModel(1.0f);
-        lightModel = glm::translate(lightModel, renderData->lights[i].position);
+        SSOLight& light = renderData->lights[i];
+        lightModel = glm::translate(lightModel, glm::vec3(light.positionX, light.positionY, light.positionZ));
         lightModel = glm::scale(lightModel, glm::vec3(0.1f));
         renderData->UnlitShader.uniform_matrix4("model", lightModel);
-        renderData->UnlitShader.uniform_vector3f("lightColor", renderData->lights[i].color);
+        renderData->UnlitShader.uniform_vector3f("lightColor", glm::vec3(light.colorX, light.colorY, light.colorZ));
         RenderCube(renderData);
     }
 
@@ -726,7 +727,7 @@ void SetupSSAOPass(RenderData* renderData)
 
 void SetupEnvironmentCubeMap(RenderData* renderData)
 {
-    u32 hdrTexture = LoadSkyBoxTexture("assets/hdr/newport_loft.hdr");
+    u32 hdrTexture = LoadSkyBoxTexture("assets/hdr/rogland_overcast_4k.hdr");
 
     EnvironmentMapPass& pass = renderData->environmentMapPass;
 
@@ -875,19 +876,41 @@ void SetupEnvironmentCubeMap(RenderData* renderData)
 
 void SetupLightsBuffer(RenderData* renderData, Light* lights, u32 numLights)
 {
+    SSOLight* ssoLights = new SSOLight[numLights];
+    for (int i = 0; i < numLights; i++) {
+        ssoLights[i].type = lights[i].type;
+        ssoLights[i].positionX = lights[i].position.x;
+        ssoLights[i].positionY = lights[i].position.y;
+        ssoLights[i].positionZ = lights[i].position.z;
+        ssoLights[i].directionX = lights[i].direction.x;
+        ssoLights[i].directionY = lights[i].direction.y;
+        ssoLights[i].directionZ = lights[i].direction.z;
+        ssoLights[i].colorX = lights[i].color.r;
+        ssoLights[i].colorY = lights[i].color.g;
+        ssoLights[i].colorZ = lights[i].color.b;
+        ssoLights[i].luminance = lights[i].luminance;
+        ssoLights[i].constant = lights[i].constant;
+        ssoLights[i].linear = lights[i].linear;
+        ssoLights[i].quadratic = lights[i].quadratic;
+        ssoLights[i].cutOff = lights[i].cutOff;
+        ssoLights[i].isShadowCasting = lights[i].isShadowCasting;
+        ssoLights[i].shadowIndex = lights[i].pointShadowMapIndex;
+    }
+    renderData->lights = ssoLights;
     glGenBuffers(1, &renderData->lightShaderStorageObject);
     glBindBuffer(GL_SHADER_STORAGE_BUFFER, renderData->lightShaderStorageObject);
-    glBufferData(GL_SHADER_STORAGE_BUFFER, numLights * sizeof(Light), lights, GL_DYNAMIC_DRAW);
+    glBufferData(GL_SHADER_STORAGE_BUFFER, numLights * sizeof(SSOLight), ssoLights, GL_DYNAMIC_DRAW);
     glBindBufferBase(GL_SHADER_STORAGE_BUFFER, 0, renderData->lightShaderStorageObject); // Bind to binding point 0
     glBindBuffer(GL_SHADER_STORAGE_BUFFER, 0); // Unbind
-    renderData->lights = lights;
     renderData->numLights = numLights;
 }
 
-void UpdateLightsBuffer(RenderData* renderData, Light* lights, u32 numLights)
+//TODO: just use renderdatas lights stuff do not get it from outside have on bottleneck where 
+// data is glued / synced
+void UpdateLightsBuffer(RenderData* renderData, u32 numLights)
 {
     glBindBuffer(GL_SHADER_STORAGE_BUFFER, renderData->lightShaderStorageObject);
-    glBufferSubData(GL_SHADER_STORAGE_BUFFER, 0, sizeof(Light) * numLights, lights);
+    glBufferSubData(GL_SHADER_STORAGE_BUFFER, 0, sizeof(SSOLight) * numLights, renderData->lights);
     glBindBuffer(GL_SHADER_STORAGE_BUFFER, 0);
 }
 
