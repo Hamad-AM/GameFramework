@@ -11,6 +11,7 @@
 #include "memory.h"
 
 #include <vector>
+#include "asset_types.h"
 
 struct LoadedScene;
 struct TextureHeader;
@@ -88,11 +89,6 @@ struct RenderMesh {
     GLuint VAO;
     GLuint EBO;
     RenderMaterial material;
-};
-
-struct RenderTexture {
-    const char* name;
-    GLuint textureID;
 };
 
 struct PointLightShadow
@@ -198,7 +194,6 @@ struct RenderData
     ShadowPass shadowPass;
     glm::mat4 lightSpaceMatrix;
 
-
     AmbientOcclusionPass SSAOPass;
     EnvironmentMapPass environmentMapPass;
     LightProbePass lightProbePass;
@@ -215,6 +210,267 @@ struct RenderData
     GLuint lightShaderStorageObject;
     SSOLight* lights;
     u32 numLights;
+};
+
+enum DepthFunc {
+    LESS_EQUAL,
+    DEPTH_NONE,
+};
+
+enum BlendFunc {
+    ONE_MINUS,
+    BLEND_NONE,
+};
+
+enum RTextureType {
+    TEXTURE_2D,
+    TEXTURE_2D_ARRAY,
+    TEXTURE_NONE
+};
+
+struct Texture2DHandle {
+    u32 value;
+};
+
+struct TextureArray2DHandle {
+    u32 value;
+};
+
+struct MaterialHandle {
+    u32 value;
+};
+
+struct VertexBufferHandle {
+    u32 value;
+};
+
+struct IndexBufferHandle {
+    u32 value;
+};
+
+struct VertexAttributeHandle {
+    u32 value;
+};
+
+struct FrameBufferHandle {
+    u32 value;
+};
+
+enum MipmapScaling {
+    BILINEAR,
+    NEAREST_NEIGHBOUR,
+    MIPMAP_NONE,
+};
+
+enum TextureWrapping {
+    BORDER_COLOUR,
+    REPEAT,
+};
+
+struct RenderTexture2D {
+    const char* name;
+    u32 width;
+    u32 height;
+    u8* data;
+    TextureFormat format;
+    b32 generateMipMaps;
+    MipmapScaling scaling;
+    TextureWrapping wrap;
+
+    Texture2DHandle handle;
+};
+
+struct RenderTextureArray {
+    const char* name;
+    u32 width;
+    u32 height;
+    u8* data;
+    TextureFormat format;
+    b32 generateMipMaps;
+    MipmapScaling scaling;
+    TextureWrapping wrap;
+
+    TextureArray2DHandle handle;
+};
+
+struct RenderDevice {
+    RenderTexture2D CreateTexture2D(const char* name, u32 width, u32 height, u8* data, TextureFormat format, b32 generateMipMaps, MipmapScaling scaling, TextureWrapping wrap) {
+        u32 textureID;
+        RenderTexture2D texture{
+            name,
+            width,
+            height,
+            data,
+            format,
+            generateMipMaps,
+            scaling,
+            wrap
+        };
+
+        glGenTextures(1, &texture.handle.value);
+        glBindTexture(GL_TEXTURE_2D, texture.handle.value);
+        glPixelStorei(GL_UNPACK_ALIGNMENT, 1);
+
+        switch(texture.format)
+        {
+            case TextureFormat::RGBA8:
+            {
+                glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, texture.width, texture.height, 0, GL_RGBA, GL_UNSIGNED_BYTE, texture.data);
+                break;
+            }
+            case TextureFormat::BC7:
+            {
+                assert(false && "No implementation of Compressed Texture BC7");
+#if 0
+                for (s32 i = 0; i < MAX_MIPMAP; ++i)
+                {
+                    ImageData& data = image.imageData[i];
+                    glCompressedTexImage2D(GL_TEXTURE_2D, i, GL_COMPRESSED_RGBA_BPTC_UNORM, data.width, data.height, 0, data.bytes, data.data);
+                }
+                glTexParameterf(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR_MIPMAP_LINEAR);
+                glTexParameterf(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
+                glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_REPEAT);
+                glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_REPEAT);
+#endif
+                break;
+            }
+            default:
+            {
+                glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, texture.width, texture.height, 0, GL_RGBA, GL_UNSIGNED_BYTE, texture.data);
+                glTexParameterf(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR_MIPMAP_LINEAR);
+                glTexParameterf(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
+                glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_REPEAT);
+                glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_REPEAT);
+
+                glGenerateMipmap(GL_TEXTURE_2D);
+                break;
+            }
+        }
+
+        switch (texture.scaling) {
+            case MipmapScaling::BILINEAR:
+                glTexParameterf(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR_MIPMAP_LINEAR);
+                glTexParameterf(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
+                glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_REPEAT);
+                glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_REPEAT);
+                break;
+            case MipmapScaling::NEAREST_NEIGHBOUR:
+                assert(false && "Not implemented nearest neighbour filtering");
+                //TODO: get nearest neighbour scaling done for pixel 3D
+                glTexParameterf(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR_MIPMAP_LINEAR);
+                glTexParameterf(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
+                break;
+            default:
+                assert(false && "No scaling set");
+        }
+
+        if (texture.generateMipMaps) {
+                glGenerateMipmap(GL_TEXTURE_2D);
+        }
+
+        glBindTexture(GL_TEXTURE_2D, 0);
+        return texture;
+    }
+
+    RenderTextureArray CreateTexture2DArray(s32 count, s32 width, s32 height) {
+        RenderTextureArray texture{count, width, height};
+        glGenTextures(1, &value);
+        glBindTexture(GL_TEXTURE_2D_ARRAY, value);
+        glTexImage3D(GL_TEXTURE_2D_ARRAY, 0, GL_DEPTH_COMPONENT32F,
+            width, height, count, 0, GL_DEPTH_COMPONENT, GL_FLOAT, nullptr);
+        glTexParameteri(GL_TEXTURE_2D_ARRAY, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
+        glTexParameteri(GL_TEXTURE_2D_ARRAY, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
+        glTexParameteri(GL_TEXTURE_2D_ARRAY, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_BORDER);
+        glTexParameteri(GL_TEXTURE_2D_ARRAY, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_BORDER);
+
+        float borderColor[] = { 1.0f, 1.0f, 1.0f, 1.0f };
+        glTexParameterfv(GL_TEXTURE_2D_ARRAY, GL_TEXTURE_BORDER_COLOR, borderColor);
+
+        glTexParameteri(GL_TEXTURE_2D_ARRAY, GL_TEXTURE_COMPARE_MODE, GL_COMPARE_REF_TO_TEXTURE);
+        glTexParameteri(GL_TEXTURE_2D_ARRAY, GL_TEXTURE_COMPARE_FUNC, GL_LEQUAL);
+    }
+    MaterialHandle CreateMaterial();
+    VertexBufferHandle CreateVertexBuffer();
+    IndexBufferHandle CreateIndexBuffer();
+    VertexAttributeHandle CreateVertexAttrib();
+    FrameBufferHandle CreateFrameBuffer();
+};
+
+struct Texture {
+    GLuint value;
+    RTextureType type = TEXTURE_NONE;
+    s32 width = 0;
+    s32 height = 0;
+
+    void CreateTexture2D() {
+    }
+};
+
+struct FrameBuffer {
+    b32 bDrawBuffer = true;
+    b32 bReadBuffer = true;
+    b32 enabled = false;
+    GLuint frameBuffer;
+
+    // NOTE: This is the gauranteed amount of color attachments;
+    constexpr static s32 MaxColourAttachment = 8;
+    Texture textureColourAttachment[MaxColourAttachment];
+    s32 textureAttachmentCount = -1;
+
+    Texture depthAttachment;
+
+    void CreateFrameBuffer() {
+        glGenFramebuffers(1, &frameBuffer);
+        glBindFramebuffer(GL_FRAMEBUFFER, frameBuffer);
+        enabled = true;
+    }
+    void StartFrameBuffer() {
+        glBindFramebuffer(GL_FRAMEBUFFER, frameBuffer);
+        enabled = true;
+    }
+    void EndFrameBuffer() {
+        assert(enabled);
+        glBindFramebuffer(GL_FRAMEBUFFER, 0);
+        enabled = false;
+    }
+
+    void AttachColor(Texture colorAttachment) {
+        assert(enabled && "FrameBuffer Not Bound");
+        assert(textureAttachmentCount < MaxColourAttachment && "Too Many Texture Attachments");
+        glFramebufferTexture(GL_FRAMEBUFFER, GL_DEPTH_ATTACHMENT, colorAttachment.value, 0);
+        textureColourAttachment[++textureAttachmentCount] = colorAttachment;
+    }
+    void AttachDepth(Texture depthAttachment) {
+        assert(enabled && "FrameBuffer Not Bound");
+        assert(depthAttachment.type != TEXTURE_NONE && "Depth Attachment Already Set");
+        glFramebufferTexture(GL_FRAMEBUFFER, GL_DEPTH_ATTACHMENT, depthAttachment.value, 0);
+        this->depthAttachment = depthAttachment;
+    }
+
+    void NoDrawBuffer() {
+        assert(enabled && "FrameBuffer Not Bound");
+        glDrawBuffer(GL_NONE);
+    }
+
+    void NoReadBuffer() {
+        assert(enabled && "FrameBuffer Not Bound");
+        glReadBuffer(GL_NONE);
+    }
+};
+
+struct RenderState {
+    b32 bDepthTesting = false;
+    DepthFunc depthFunction = DEPTH_NONE;    
+    b32 bBlending = false;
+    BlendFunc blendFunction = BLEND_NONE;
+    b32 bCullFace = false;
+    b32 bBackFace = true;
+    b32 bTextureCubeMapSeamless = false;
+
+};
+
+struct RenderTarget {
+
 };
 
 

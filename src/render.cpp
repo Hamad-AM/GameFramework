@@ -7,13 +7,15 @@
 #include <glad/glad.h>
 
 #include "asset_types.h"
+#include "imgui.h"
 #include "memory.h"
 #include "asset_types.h"
 
 #define STB_IMAGE_IMPLEMENTATION
 #include "stb_image.h"
 
-void UploadSceneToGPU(LoadedScene& scene, RenderData* renderData, MemoryArena* arena)
+//void UploadSceneToGPU(LoadedScene& scene, RenderData* renderData, MemoryArena* arena)
+void UploadSceneToGPU(LoadedScene& scene, RenderState* renderState, RenderDevice* device, MemoryArena* arena)
 {
     std::chrono::microseconds totalMeshUploadTime = std::chrono::microseconds(0);
     std::chrono::microseconds totalTextureUploadTime = std::chrono::microseconds(0);;
@@ -24,19 +26,19 @@ void UploadSceneToGPU(LoadedScene& scene, RenderData* renderData, MemoryArena* a
     auto start = TimeNow();
     
     // NEED TO MAKE SURE THE arena is properly initialized
-    renderData->meshes = PushArray(arena, RenderMesh, scene.meshCount);
-    renderData->meshCount = scene.meshCount;
-    renderData->textures = PushArray(arena, RenderTexture, scene.textureCount);
-    renderData->textureCount = scene.textureCount;
-    renderData->materials = PushArray(arena, RenderMaterial, scene.textureCount);
-    renderData->materialCount = scene.materialCount;
+    renderState->meshes = PushArray(arena, RenderMesh, scene.meshCount);
+    renderState->meshCount = scene.meshCount;
+    renderState->textures = PushArray(arena, RenderTexture, scene.textureCount);
+    renderState->textureCount = scene.textureCount;
+    renderState->materials = PushArray(arena, RenderMaterial, scene.textureCount);
+    renderState->materialCount = scene.materialCount;
 
     u32 textureIdx = 0;
     while(textureIdx < scene.textureCount)
     {
         TextureHeader textureHeader = scene.textures[textureIdx];
         u8* textureData = scene.textureData + scene.textureOffsets[textureIdx];
-        RenderTexture renderTexture = CreateTexture(textureHeader, textureData);
+        RenderTexture textureHandle = device->CreateTexture("Temp", textureHeader.width, textureHeader.height, textureData, textureHeader.format, true, MipmapScaling::BILINEAR, TextureWrapping::REPEAT);
         renderData->textures[textureIdx] = renderTexture;
 
         textureIdx++;
@@ -227,6 +229,8 @@ void SetupGBuffers(RenderData* renderData)
     DeferredPass& pass = renderData->deferredPass;
     glGenFramebuffers(1, &pass.gBuffer);
     glBindFramebuffer(GL_FRAMEBUFFER, pass.gBuffer);
+    frameBuffer.CreateFrameBuffer();
+
 
     // - position color buffer
     glGenTextures(1, &pass.gPosition);
