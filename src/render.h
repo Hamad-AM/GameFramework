@@ -13,6 +13,8 @@
 #include <vector>
 #include "asset_types.h"
 
+#include "gl_types_render.h"
+
 struct LoadedScene;
 struct TextureHeader;
 
@@ -91,125 +93,17 @@ struct RenderMesh {
     RenderMaterial material;
 };
 
-struct PointLightShadow
-{
-    GLuint depthCubemap;
-    f32 farPlane;
-    u32 pointWidth, pointHeight;
-    Light* light;
-};
-
-struct ShadowPass
-{
-    GLuint depthMapFBO;
-    GLuint lightDepthmaps;
-    glm::mat4 lightSpaceMatrix;
-    u32 depthMapResolution;
-    GLuint lightMatricesUBO;
-    const u32 cascadesCount = 4;
-    f32 shadowCascadeLevels[3]; // cascade count - 1
-
-    u32 pointCount{ 0 };
-    PointLightShadow pointShadows[4];
-    GLuint depthCubemapFBO;
-    f32 farPlane;
-
-    Shader depthShader;
-    Shader pointDepthShader;
-
-    u32 width, height;
-};
-
-struct LightProbePass
-{
-    u32 width;
-    u32 height;
-    vec3 position;
-    GLuint cubemap;
-    GLuint irradianceMap;
-    GLuint FBO;
-    Shader colorShader;
-};
-
-struct AmbientOcclusionPass {
-
-    //TODO(): Remove this to a deferred pass
-    GLuint depthBuffer, normalBuffer, positionBuffer, depthNormalPassBO;
-    GLuint ssaoFBO, ssaoBlurFBO;
-    GLuint ssaoColorBuffer, ssaoColorBufferBlur;
-    GLuint noiseTexture; 
-    std::vector<glm::vec3> ssaoKernel;
-    Shader SSAOShader;
-    Shader SSAOBlurShader;
-};
-
-struct EnvironmentMapPass 
-{
-    GLuint captureFBO, captureRBO;
-    GLuint envCubemap;
-    GLuint irradianceMap;
-    GLuint prefilterMap;
-    GLuint brdfLUTTexture;
-    Shader brdfShader;
-    Shader equirectangularToCubemapShader;
-    Shader prefilterShader;
-    Shader irradianceShader;
-    Shader backgroundShader;
-};
-
-struct DeferredPass
-{
-    GLuint gBuffer;
-    GLuint gAlbedo;
-    GLuint gMetallicRoughness;
-    GLuint gNormal;
-    GLuint gPosition;
-    GLuint rboDepth;
-
-    Shader gBufferShader;
-    Shader lightingPass;
-};
-
-struct ForwardPass
-{
-    Shader pbrShader;
-};
-
-struct RenderData
-{
-    Shader depthNormalShader;
-    Shader textureToScreen;
-    Shader UnlitShader;
-
-    RenderTexture* textures;
-    u32 textureCount;
-    RenderMesh* meshes;
-    u32 meshCount;
-    RenderMaterial* materials;
-    u32 materialCount;
-
-    u32 renderWidth;
-    u32 renderHeight;
-
-    ShadowPass shadowPass;
-    glm::mat4 lightSpaceMatrix;
-
-    AmbientOcclusionPass SSAOPass;
-    EnvironmentMapPass environmentMapPass;
-    LightProbePass lightProbePass;
-
-    DeferredPass deferredPass;
-    ForwardPass forwardPass;
-
-    GLuint quadVAO = 0;
-    GLuint cubeVAO = 0;
-    GLuint sphereVAO = 0;
-    u32 sphereIndexCount = 0;
-    Shader sphereCubemap;
-
-    GLuint lightShaderStorageObject;
-    SSOLight* lights;
-    u32 numLights;
+enum RTextureFormat {
+    RGB8,
+    RGBA8,
+    RGB16F,
+    RGB32F,
+    RGBA16F,
+    RGBA32F,
+    R8,
+    DEPTH16F,
+    DEPTH32F,
+    COMPRESSED
 };
 
 enum DepthFunc {
@@ -227,35 +121,6 @@ enum RTextureType {
     TEXTURE_2D_ARRAY,
     TEXTURE_NONE
 };
-
-struct Texture2DHandle {
-    u32 value;
-};
-
-struct TextureArray2DHandle {
-    u32 value;
-};
-
-struct MaterialHandle {
-    u32 value;
-};
-
-struct VertexBufferHandle {
-    u32 value;
-};
-
-struct IndexBufferHandle {
-    u32 value;
-};
-
-struct VertexAttributeHandle {
-    u32 value;
-};
-
-struct FrameBufferHandle {
-    u32 value;
-};
-
 enum MipmapScaling {
     BILINEAR,
     NEAREST_NEIGHBOUR,
@@ -265,6 +130,8 @@ enum MipmapScaling {
 enum TextureWrapping {
     BORDER_COLOUR,
     REPEAT,
+    CLAMP,
+    WRAP_NONE
 };
 
 struct RenderTexture2D {
@@ -272,7 +139,7 @@ struct RenderTexture2D {
     u32 width;
     u32 height;
     u8* data;
-    TextureFormat format;
+    RTextureFormat format;
     b32 generateMipMaps;
     MipmapScaling scaling;
     TextureWrapping wrap;
@@ -282,10 +149,10 @@ struct RenderTexture2D {
 
 struct RenderTextureArray {
     const char* name;
+    s32 count;
+    RTextureFormat format;
     u32 width;
     u32 height;
-    u8* data;
-    TextureFormat format;
     b32 generateMipMaps;
     MipmapScaling scaling;
     TextureWrapping wrap;
@@ -293,172 +160,88 @@ struct RenderTextureArray {
     TextureArray2DHandle handle;
 };
 
-struct RenderDevice {
-    RenderTexture2D CreateTexture2D(const char* name, u32 width, u32 height, u8* data, TextureFormat format, b32 generateMipMaps, MipmapScaling scaling, TextureWrapping wrap) {
-        u32 textureID;
-        RenderTexture2D texture{
-            name,
-            width,
-            height,
-            data,
-            format,
-            generateMipMaps,
-            scaling,
-            wrap
-        };
-
-        glGenTextures(1, &texture.handle.value);
-        glBindTexture(GL_TEXTURE_2D, texture.handle.value);
-        glPixelStorei(GL_UNPACK_ALIGNMENT, 1);
-
-        switch(texture.format)
-        {
-            case TextureFormat::RGBA8:
-            {
-                glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, texture.width, texture.height, 0, GL_RGBA, GL_UNSIGNED_BYTE, texture.data);
-                break;
-            }
-            case TextureFormat::BC7:
-            {
-                assert(false && "No implementation of Compressed Texture BC7");
-#if 0
-                for (s32 i = 0; i < MAX_MIPMAP; ++i)
-                {
-                    ImageData& data = image.imageData[i];
-                    glCompressedTexImage2D(GL_TEXTURE_2D, i, GL_COMPRESSED_RGBA_BPTC_UNORM, data.width, data.height, 0, data.bytes, data.data);
-                }
-                glTexParameterf(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR_MIPMAP_LINEAR);
-                glTexParameterf(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
-                glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_REPEAT);
-                glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_REPEAT);
-#endif
-                break;
-            }
-            default:
-            {
-                glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, texture.width, texture.height, 0, GL_RGBA, GL_UNSIGNED_BYTE, texture.data);
-                glTexParameterf(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR_MIPMAP_LINEAR);
-                glTexParameterf(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
-                glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_REPEAT);
-                glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_REPEAT);
-
-                glGenerateMipmap(GL_TEXTURE_2D);
-                break;
-            }
-        }
-
-        switch (texture.scaling) {
-            case MipmapScaling::BILINEAR:
-                glTexParameterf(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR_MIPMAP_LINEAR);
-                glTexParameterf(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
-                glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_REPEAT);
-                glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_REPEAT);
-                break;
-            case MipmapScaling::NEAREST_NEIGHBOUR:
-                assert(false && "Not implemented nearest neighbour filtering");
-                //TODO: get nearest neighbour scaling done for pixel 3D
-                glTexParameterf(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR_MIPMAP_LINEAR);
-                glTexParameterf(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
-                break;
-            default:
-                assert(false && "No scaling set");
-        }
-
-        if (texture.generateMipMaps) {
-                glGenerateMipmap(GL_TEXTURE_2D);
-        }
-
-        glBindTexture(GL_TEXTURE_2D, 0);
-        return texture;
-    }
-
-    RenderTextureArray CreateTexture2DArray(s32 count, s32 width, s32 height) {
-        RenderTextureArray texture{count, width, height};
-        glGenTextures(1, &value);
-        glBindTexture(GL_TEXTURE_2D_ARRAY, value);
-        glTexImage3D(GL_TEXTURE_2D_ARRAY, 0, GL_DEPTH_COMPONENT32F,
-            width, height, count, 0, GL_DEPTH_COMPONENT, GL_FLOAT, nullptr);
-        glTexParameteri(GL_TEXTURE_2D_ARRAY, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
-        glTexParameteri(GL_TEXTURE_2D_ARRAY, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
-        glTexParameteri(GL_TEXTURE_2D_ARRAY, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_BORDER);
-        glTexParameteri(GL_TEXTURE_2D_ARRAY, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_BORDER);
-
-        float borderColor[] = { 1.0f, 1.0f, 1.0f, 1.0f };
-        glTexParameterfv(GL_TEXTURE_2D_ARRAY, GL_TEXTURE_BORDER_COLOR, borderColor);
-
-        glTexParameteri(GL_TEXTURE_2D_ARRAY, GL_TEXTURE_COMPARE_MODE, GL_COMPARE_REF_TO_TEXTURE);
-        glTexParameteri(GL_TEXTURE_2D_ARRAY, GL_TEXTURE_COMPARE_FUNC, GL_LEQUAL);
-    }
-    MaterialHandle CreateMaterial();
-    VertexBufferHandle CreateVertexBuffer();
-    IndexBufferHandle CreateIndexBuffer();
-    VertexAttributeHandle CreateVertexAttrib();
-    FrameBufferHandle CreateFrameBuffer();
+struct VertexArrayElement {
+    // RenderDataType type;
+    s32 size;
+    s32 numberOfElements;
 };
 
-struct Texture {
-    GLuint value;
-    RTextureType type = TEXTURE_NONE;
-    s32 width = 0;
-    s32 height = 0;
-
-    void CreateTexture2D() {
-    }
+struct VertexArray {
+    s32 numberOfElements = 0;
+    VertexArrayElement* elements = nullptr;
+    VertexArrayHandle handle;
 };
 
-struct FrameBuffer {
-    b32 bDrawBuffer = true;
-    b32 bReadBuffer = true;
-    b32 enabled = false;
-    GLuint frameBuffer;
-
+struct Framebuffer {
     // NOTE: This is the gauranteed amount of color attachments;
-    constexpr static s32 MaxColourAttachment = 8;
-    Texture textureColourAttachment[MaxColourAttachment];
+#define MaxColourAttachment 8
+    RenderTexture2D colors[MaxColourAttachment];
     s32 textureAttachmentCount = -1;
 
-    Texture depthAttachment;
+    FramebufferHandle fbHandle;
 
-    void CreateFrameBuffer() {
-        glGenFramebuffers(1, &frameBuffer);
-        glBindFramebuffer(GL_FRAMEBUFFER, frameBuffer);
-        enabled = true;
-    }
-    void StartFrameBuffer() {
-        glBindFramebuffer(GL_FRAMEBUFFER, frameBuffer);
-        enabled = true;
-    }
-    void EndFrameBuffer() {
-        assert(enabled);
-        glBindFramebuffer(GL_FRAMEBUFFER, 0);
-        enabled = false;
-    }
-
-    void AttachColor(Texture colorAttachment) {
-        assert(enabled && "FrameBuffer Not Bound");
-        assert(textureAttachmentCount < MaxColourAttachment && "Too Many Texture Attachments");
-        glFramebufferTexture(GL_FRAMEBUFFER, GL_DEPTH_ATTACHMENT, colorAttachment.value, 0);
-        textureColourAttachment[++textureAttachmentCount] = colorAttachment;
-    }
-    void AttachDepth(Texture depthAttachment) {
-        assert(enabled && "FrameBuffer Not Bound");
-        assert(depthAttachment.type != TEXTURE_NONE && "Depth Attachment Already Set");
-        glFramebufferTexture(GL_FRAMEBUFFER, GL_DEPTH_ATTACHMENT, depthAttachment.value, 0);
-        this->depthAttachment = depthAttachment;
-    }
-
-    void NoDrawBuffer() {
-        assert(enabled && "FrameBuffer Not Bound");
-        glDrawBuffer(GL_NONE);
-    }
-
-    void NoReadBuffer() {
-        assert(enabled && "FrameBuffer Not Bound");
-        glReadBuffer(GL_NONE);
-    }
+    u32 width;
+    u32 height;
 };
 
-struct RenderState {
+struct TextureCubemap {
+    static const u32 FACES = 6;
+    u32 width;
+    u32 height;
+    RTextureFormat format;
+    MipmapScaling scaling;
+    TextureWrapping wrap;
+
+    TextureCubemapHandle handle;
+};
+
+enum DrawState {
+    STATIC_DRAW,
+    DYNAMIC_DRAW
+};
+
+enum BufferType {
+    ARRAY,
+    INDEX,
+};
+
+enum DepthComp {
+    DepthComponent,
+    DepthComponent24
+};
+
+struct Buffer {
+    s32 count;
+    s32 sizeElement;
+    u8* data;
+    DrawState state;
+    BufferType type;
+    BufferHandle handle;
+};
+
+BufferHandle CreateBuffer(BufferType type, s32 vertexCount, s32 sizeElement, u8* data, DrawState state);
+VertexArray CreateVertexArray(void);
+void SetVertexArrayFormat(VertexArray& array, s32 numberOfElements, VertexArrayElement* elements);
+
+RenderTexture2D     CreateTexture2D(const char* name, u32 width, u32 height, u8* data, RTextureFormat format, b32 generateMipMaps, MipmapScaling scaling, TextureWrapping wrap);
+RenderTextureArray  CreateTexture2DArray(s32 count, RTextureFormat format, u32 width, u32 height, MipmapScaling scaling, TextureWrapping wrap);
+TextureCubemap      CreateTextureCubemap(u32 width, u32 height, RTextureFormat format, MipmapScaling scaling, TextureWrapping wrap);
+
+Shader CreateShader(const char* vert, const char* frag);
+
+Framebuffer CreateFramebuffer(void);
+RenderBufferHandle CreateRenderbuffer(u32 width, u32 height, DepthComp depthComp);
+void FramebufferAttachColor(Framebuffer& framebuffer, RenderTexture2D& colorAttachment);
+void FramebufferAttachDepth(Framebuffer& framebuffer, RenderTexture2D& depthAttachment);
+void FramebufferDrawAttachments(Framebuffer& framebuffer, u32* textures, u32 numberOfTextures);
+
+union RenderResource {
+    RenderTexture2D texture2D;
+    TextureCubemap cubemap;
+    RenderTextureArray textureArray;
+};
+
+struct Pipeline {
     b32 bDepthTesting = false;
     DepthFunc depthFunction = DEPTH_NONE;    
     b32 bBlending = false;
@@ -466,61 +249,65 @@ struct RenderState {
     b32 bCullFace = false;
     b32 bBackFace = true;
     b32 bTextureCubeMapSeamless = false;
-
 };
 
-struct RenderTarget {
-
+struct ShaderHandle {
+    u32 handle;
 };
 
+struct RenderPass {
+    Pipeline pipeline;
+    Framebuffer renderTarget;
+    RenderBufferHandle renderBuffer;
+    ShaderHandle shader;
+    u32 width;
+    u32 height;
+};
 
-void CompileShaders(RenderData* renderData);
+RenderPass CreateRenderPass(u32 width, u32 height, DepthComp depthComp);
+void SetShader(RenderPass& pass, ShaderHandle shader);
+void AttachColor(RenderPass& pass, RenderTexture2D texture2D);
+void AttachColor(RenderPass& pass, RenderTextureArray textureArray);
+void AttachColor(RenderPass& pass, TextureCubemap cubemap);
+void Bind(RenderPass& pass, RenderTexture2D texture2D);
+void Bind(RenderPass& pass, RenderTextureArray textureArray);
+void Bind(RenderPass& pass, TextureCubemap cubemap);
+void DrawToCube(RenderPass& pass, struct RenderCube& cube);
+void DrawToQuad(RenderPass& pass, struct RenderQuad& quad);
+void DrawMesh(RenderPass& pass, RenderMesh& renderMesh);
 
-void RenderSetupParameters(RenderData* renderData, u32 render_width, u32 render_height);
+struct RenderGraph {
+    RenderTexture2D gPosition;
+    RenderTexture2D gAlbedo;
+    RenderTexture2D gNormal;
+    RenderTexture2D gMetallicRoughness;
+    RenderPass gBuffer;
 
-void SetupLightsBuffer(RenderData* renderData, Light* lights, u32 numLights);
-void UpdateLightsBuffer(RenderData* renderData, u32 numLights);
+    RenderTextureArray cascadeShadowDepthMaps;
+    u32 shadowMapResolution = 4096;
+    s32 cascadeCount = 4;
 
-void SetupShadowMapPass(RenderData* renderData, Light* lights, u32 numLights, u32 shadow_width, u32 shadow_height, Camera3D& camera);
-void SetupPointShadowMapPass(RenderData* renderData, Light* lights, u32 numLights, u32 shadow_width, u32 shadow_height);
+#define MaxPointLights 64
+#define MaxShadowCastPointLights 8
 
-void SetupSSAOPass(RenderData* renderData);
+    TextureCubemap pointShadowDepthmaps[MaxShadowCastPointLights];
+    u32 castingPointLightCount;
+    u32 pointShadowResolution = 256;
 
-void SetupEnvironmentCubeMap(RenderData* renderData);
-void StartDepthNormalPass(RenderData* renderData);
-void UseDepthNormalShader(RenderData* renderData, glm::mat4 model, Camera3D& camera);
-void DrawScene(RenderData* renderData);
-void RenderBindPBRTextures(u32 startingTextureSlot, u32 uniformSlot, Shader* shader, RenderMesh* renderMesh, RenderData* renderData);
+    RenderTexture2D ssaoColor;
+    RenderTexture2D ssaoBlur;
+    RenderTexture2D noiseTexture;
+    Framebuffer ssaoTarget;
+    Framebuffer ssaoBlurTarget;
 
-void RenderDepthNormalPass(RenderData* renderData, glm::mat4 model, Camera3D& camera);
-void RenderSSAOPass(RenderData* renderData, Camera3D& camera);
-void RenderShadowMapPass(RenderData* renderData, vec3& lightDirection, glm::mat4& model, Camera3D& camera);
-void RenderOmidirectionalShadowMap(RenderData* renderData, mat4& model, Light* lights, u32 numLights);
+    TextureCubemap environmentCubemap;
 
-void RenderScene(RenderData* renderData, glm::mat4 model, Camera3D& camera, glm::vec3 lightPosition);
-void RenderEnvironmentMap(RenderData* renderData, Camera3D& camera);
-void RenderEnvironmentMap(RenderData* renderData, mat4& view, mat4& projection);
+    u32 screenWidth;
+    u32 screenHeight;
+};
 
-void SetupLightProbe(RenderData* renderData);
-void RenderLightProbe(RenderData* renderData, vec3& lightProbePosition, mat4& model, Light* lights, u32 numOfLights);
+void AddGBufferPass(RenderGraph& r);
+void SetupShadowMapPass(RenderGraph& r);
+void SetupPointShadowMapPass(RenderGraph& r, Light* lights, u32 numLights);
 
-void SetupGBuffers(RenderData* renderData);
-void RenderGBuffer(RenderData* renderData, glm::mat4 model, Camera3D& camera);
-void RenderDeferredScene(RenderData* renderData, glm::mat4 model, Camera3D& camera);
-
-u32 LoadSkyBoxTexture(const char* filePath);
-
-mat4 GetLightSpaceMatrix(Camera3D& camera, vec3& lightDirection, f32 nearPlane, f32 farPlane);
-void CalculateCascadesLightSpaceMatrices(mat4* matrices, f32* shadowCascadeLevels, u32 numberOfCascades, vec3& lightDirection, Camera3D& camera);
-void getFrustumCornersWorldSpace(glm::vec4* frustumCorners, const glm::mat4& proj, const glm::mat4& view);
-
-void RenderBRDFLUT(RenderData* renderData);
-void SetupBRDFLUT(RenderData* renderData, EnvironmentMapPass& pass);
-
-void UploadSceneToGPU(LoadedScene& scene, RenderData* renderData, MemoryArena* arena);
-RenderTexture CreateTexture(TextureHeader assetTexture, u8* textureData);
-
-void RenderCube(RenderData* renderData);
-void RenderQuad(RenderData* renderData);
-void RenderSphere(RenderData* renderData);
 float lerp(float a, float b, float f);

@@ -11,8 +11,8 @@ enum TextureType : u32
 
 enum TextureFormat : u32
 {
-    RGBA8,
-    RGB8,
+    RGBA,
+    RGB,
     BC7,
     BC6
 };

@@ -15,7 +15,7 @@
 #include "stb_image.h"
 
 //void UploadSceneToGPU(LoadedScene& scene, RenderData* renderData, MemoryArena* arena)
-void UploadSceneToGPU(LoadedScene& scene, RenderState* renderState, MemoryArena* arena)
+void UploadSceneToGPU(LoadedScene& scene, RenderState* renderState, RenderDevice* device, MemoryArena* arena)
 {
     std::chrono::microseconds totalMeshUploadTime = std::chrono::microseconds(0);
     std::chrono::microseconds totalTextureUploadTime = std::chrono::microseconds(0);;
@@ -28,7 +28,7 @@ void UploadSceneToGPU(LoadedScene& scene, RenderState* renderState, MemoryArena*
     // NEED TO MAKE SURE THE arena is properly initialized
     renderState->meshes = PushArray(arena, RenderMesh, scene.meshCount);
     renderState->meshCount = scene.meshCount;
-    renderState->textures = PushArray(arena, RenderTexture2D, scene.textureCount);
+    renderState->textures = PushArray(arena, RenderTexture, scene.textureCount);
     renderState->textureCount = scene.textureCount;
     renderState->materials = PushArray(arena, RenderMaterial, scene.textureCount);
     renderState->materialCount = scene.materialCount;
@@ -38,7 +38,7 @@ void UploadSceneToGPU(LoadedScene& scene, RenderState* renderState, MemoryArena*
     {
         TextureHeader textureHeader = scene.textures[textureIdx];
         u8* textureData = scene.textureData + scene.textureOffsets[textureIdx];
-        RenderTexture2D textureHandle = CreateTexture2D("Temp", textureHeader.width, textureHeader.height, textureData, textureHeader.format, true, MipmapScaling::BILINEAR, TextureWrapping::REPEAT);
+        RenderTexture textureHandle = device->CreateTexture("Temp", textureHeader.width, textureHeader.height, textureData, textureHeader.format, true, MipmapScaling::BILINEAR, TextureWrapping::REPEAT);
         renderData->textures[textureIdx] = renderTexture;
 
         textureIdx++;
@@ -125,6 +125,58 @@ const char* getGLErrorString(GLenum errorCode) {
     }
 }
 
+RenderTexture CreateTexture(TextureHeader assetTexture, u8* textureData)
+{
+    GLuint textureID;
+    glGenTextures(1, &textureID);
+    glBindTexture(GL_TEXTURE_2D, textureID);
+    glPixelStorei(GL_UNPACK_ALIGNMENT, 1);
+    switch(assetTexture.format)
+    {
+        case TextureFormat::RGBA8:
+        {
+            glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, assetTexture.width, assetTexture.height, 0, GL_RGBA, GL_UNSIGNED_BYTE, textureData);
+            glTexParameterf(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR_MIPMAP_LINEAR);
+            glTexParameterf(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
+            glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_REPEAT);
+            glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_REPEAT);
+
+            glGenerateMipmap(GL_TEXTURE_2D);
+            break;
+        }
+        case TextureFormat::BC7:
+        {
+            assert(false && "No implementation of Compressed Texture BC7");
+#if 0
+            for (s32 i = 0; i < MAX_MIPMAP; ++i)
+            {
+                ImageData& data = image.imageData[i];
+                glCompressedTexImage2D(GL_TEXTURE_2D, i, GL_COMPRESSED_RGBA_BPTC_UNORM, data.width, data.height, 0, data.bytes, data.data);
+            }
+            glTexParameterf(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR_MIPMAP_LINEAR);
+            glTexParameterf(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
+            glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_REPEAT);
+            glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_REPEAT);
+#endif
+            break;
+        }
+        default:
+        {
+            glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, assetTexture.width, assetTexture.height, 0, GL_RGBA, GL_UNSIGNED_BYTE, textureData);
+            glTexParameterf(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR_MIPMAP_LINEAR);
+            glTexParameterf(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
+            glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_REPEAT);
+            glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_REPEAT);
+
+            glGenerateMipmap(GL_TEXTURE_2D);
+            break;
+        }
+    }
+    glBindTexture(GL_TEXTURE_2D, 0);
+    return RenderTexture{"PlaceHolderTexture", textureID};
+}
+
+
 void CompileShaders(RenderData* renderData) {
     renderData->forwardPass.pbrShader.compile("shaders/Base.vs", "shaders/Base.fs");
     
@@ -172,44 +224,57 @@ void RenderSetupParameters(RenderData* renderData, u32 renderWidth, u32 renderHe
     renderData->renderHeight = renderHeight;
 }
 
-RenderPass CreateRenderPass(u32 width, u32 height, DepthComp depthComp) {
-    RenderPass pass;
-    pass.renderTarget = CreateFramebuffer();
-    pass.renderBuffer = CreateRenderbuffer(pass.renderTarget, width, height, depthComp);
-    return pass;
-}
-
-void SetShader(RenderPass& pass, ShaderHandle shader) {
-    pass.shader = shader;
-}
-
-void AttachColor(RenderPass& pass, RenderTexture2D& texture2D) {
-    FramebufferAttachColor(pass.renderTarget, texture2D);
-}
-
-void AddGBufferPass(RenderGraph& r)
+void SetupGBuffers(RenderData* renderData)
 {
-    r.gPosition = CreateTexture2D("GBuffer Position", r.screenWidth, r.screenHeight, NULL, RTextureFormat::RGBA16F, false, MipmapScaling::NEAREST_NEIGHBOUR, TextureWrapping::WRAP_NONE);
-    r.gNormal = CreateTexture2D("GBuffer Normal", r.screenWidth, r.screenHeight, NULL, RTextureFormat::RGBA16F, false, MipmapScaling::NEAREST_NEIGHBOUR, TextureWrapping::WRAP_NONE);
-    r.gAlbedo = CreateTexture2D("GBuffer albedo", r.screenWidth, r.screenHeight, NULL, RTextureFormat::RGBA8, false, MipmapScaling::NEAREST_NEIGHBOUR, TextureWrapping::WRAP_NONE);
-    r.gMetallicRoughness = CreateTexture2D("GBuffer MR", r.screenWidth, r.screenHeight, NULL, RTextureFormat::RGBA8, false, MipmapScaling::NEAREST_NEIGHBOUR, TextureWrapping::WRAP_NONE);
-    
-    r.gBuffer = CreateRenderPass(r.screenWidth, r.screenHeight, DepthComponent);
-    // SetShader(r.gBuffer, 
-    AttachColor(r.gBuffer, r.gPosition);
-    AttachColor(r.gBuffer, r.gNormal);
-    AttachColor(r.gBuffer, r.gAlbedo);
-    AttachColor(r.gBuffer, r.gMetallicRoughness);
+    DeferredPass& pass = renderData->deferredPass;
+    glGenFramebuffers(1, &pass.gBuffer);
+    glBindFramebuffer(GL_FRAMEBUFFER, pass.gBuffer);
+    frameBuffer.CreateFrameBuffer();
+
+
+    // - position color buffer
+    glGenTextures(1, &pass.gPosition);
+    glBindTexture(GL_TEXTURE_2D, pass.gPosition);
+    glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA16F, renderData->renderWidth, renderData->renderHeight, 0, GL_RGBA, GL_FLOAT, NULL);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
+    glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D, pass.gPosition, 0);
+
+    // - normal color buffer
+    glGenTextures(1, &pass.gNormal);
+    glBindTexture(GL_TEXTURE_2D, pass.gNormal);
+    glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA16F, renderData->renderWidth, renderData->renderHeight, 0, GL_RGBA, GL_FLOAT, NULL);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
+    glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT1, GL_TEXTURE_2D, pass.gNormal, 0);
+
+    // - color buffer
+    glGenTextures(1, &pass.gAlbedo);
+    glBindTexture(GL_TEXTURE_2D, pass.gAlbedo);
+    glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, renderData->renderWidth, renderData->renderHeight, 0, GL_RGBA, GL_UNSIGNED_BYTE, NULL);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
+    glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT2, GL_TEXTURE_2D, pass.gAlbedo, 0);
+
+    glGenTextures(1, &pass.gMetallicRoughness);
+    glBindTexture(GL_TEXTURE_2D, pass.gMetallicRoughness);
+    glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, renderData->renderWidth, renderData->renderHeight, 0, GL_RGBA, GL_UNSIGNED_BYTE, NULL);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
+    glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT3, GL_TEXTURE_2D, pass.gMetallicRoughness, 0);
 
     // - tell OpenGL which color attachments we'll use (of this framebuffer) for rendering 
-    // FramebufferAttachColor(r.gBufferTarget, r.gPosition);
-    // FramebufferAttachColor(r.gBufferTarget, r.gNormal);
-    // FramebufferAttachColor(r.gBufferTarget, r.gAlbedo);
-    // FramebufferAttachColor(r.gBufferTarget, r.gMetallicRoughness);
-    // unsigned int attachments[4] = { GL_COLOR_ATTACHMENT0, GL_COLOR_ATTACHMENT1, GL_COLOR_ATTACHMENT2, GL_COLOR_ATTACHMENT3};
-    // FramebufferDrawAttachments(r.gBufferTarget, attachments, 4);
-    //
-    // FramebufferCreateRenderbuffer(r.gBufferTarget, r.screenWidth, r.screenHeight);
+    unsigned int attachments[4] = { GL_COLOR_ATTACHMENT0, GL_COLOR_ATTACHMENT1, GL_COLOR_ATTACHMENT2, GL_COLOR_ATTACHMENT3};
+    glDrawBuffers(4, attachments);
+
+    glGenRenderbuffers(1, &pass.rboDepth);
+    glBindRenderbuffer(GL_RENDERBUFFER, pass.rboDepth);
+    glRenderbufferStorage(GL_RENDERBUFFER, GL_DEPTH_COMPONENT, renderData->renderWidth, renderData->renderHeight);
+    glFramebufferRenderbuffer(GL_FRAMEBUFFER, GL_DEPTH_ATTACHMENT, GL_RENDERBUFFER, pass.rboDepth);
+    // finally check if framebuffer is complete
+    if (glCheckFramebufferStatus(GL_FRAMEBUFFER) != GL_FRAMEBUFFER_COMPLETE)
+        std::cout << "Framebuffer not complete!" << std::endl;
+    glBindFramebuffer(GL_FRAMEBUFFER, 0);
 }
 
 void RenderBindPBRTextures(u32 startingTextureSlot, u32 uniformSlot, Shader* shader, RenderMesh* renderMesh, RenderData* renderData) {
@@ -352,12 +417,42 @@ void RenderLightProbeDebugSphere(RenderData* renderData, Camera3D& camera) {
     RenderSphere(renderData);
 }
 
-void SetupShadowMapPass(Renderer& r)
+void SetupShadowMapPass(RenderData* renderData, Light* lights, u32 numLights, u32 shadow_width, u32 shadow_height, Camera3D& camera)
 {
-    r.csmTarget = CreateFramebuffer(false, false);
+    ShadowPass& pass = renderData->shadowPass;
 
-    r.cascadeShadowDepthMaps = CreateTexture2DArray(r.cascadesCount, DEPTH32F, r.shadowMapResolution, r.shadowMapResolution, BILINEAR, BORDER_COLOUR);
-    FramebufferAttachDepth(r.csmTarget, r.cascadeShadowDepthMaps);
+    pass.depthMapResolution = 2048;
+
+    glGenFramebuffers(1, &pass.depthMapFBO);
+
+    RenderTextureArray lightDepthMaps = CrateTexture2DArray(int(pass.cascadesCount), DEPTH32F, pass.depthMapResolution, pass.depthMapResolution, BILINEAR, BORDER_COLOUR);
+    glGenTextures(1, &pass.lightDepthmaps);
+    glBindTexture(GL_TEXTURE_2D_ARRAY, pass.lightDepthmaps);
+    glTexImage3D(GL_TEXTURE_2D_ARRAY, 0, GL_DEPTH_COMPONENT32F,
+        pass.depthMapResolution, pass.depthMapResolution, int(pass.cascadesCount), 0, GL_DEPTH_COMPONENT, GL_FLOAT, nullptr);
+    GLenum err = glGetError();
+    if (err != GL_NO_ERROR) {
+        std::cerr << "glTexImage3D failed: " << getGLErrorString(err) << std::endl;
+    }
+    glTexParameteri(GL_TEXTURE_2D_ARRAY, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
+    glTexParameteri(GL_TEXTURE_2D_ARRAY, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
+    glTexParameteri(GL_TEXTURE_2D_ARRAY, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_BORDER);
+    glTexParameteri(GL_TEXTURE_2D_ARRAY, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_BORDER);
+    float borderColor[] = { 1.0f, 1.0f, 1.0f, 1.0f };
+    glTexParameterfv(GL_TEXTURE_2D_ARRAY, GL_TEXTURE_BORDER_COLOR, borderColor);
+
+    glTexParameteri(GL_TEXTURE_2D_ARRAY, GL_TEXTURE_COMPARE_MODE, GL_COMPARE_REF_TO_TEXTURE);
+    glTexParameteri(GL_TEXTURE_2D_ARRAY, GL_TEXTURE_COMPARE_FUNC, GL_LEQUAL);
+
+    glBindFramebuffer(GL_FRAMEBUFFER, pass.depthMapFBO);
+    glFramebufferTexture(GL_FRAMEBUFFER, GL_DEPTH_ATTACHMENT, pass.lightDepthmaps, 0);
+    GLenum fboStatus = glCheckFramebufferStatus(GL_FRAMEBUFFER);
+    if (fboStatus != GL_FRAMEBUFFER_COMPLETE) {
+        std::cerr << "Shadow map FBO incomplete: 0x" << std::hex << fboStatus << std::dec << std::endl;
+    }
+    glDrawBuffer(GL_NONE);
+    glReadBuffer(GL_NONE);
+    glBindFramebuffer(GL_FRAMEBUFFER, 0);
 
     glGenBuffers(1, &pass.lightMatricesUBO);
     glBindBuffer(GL_UNIFORM_BUFFER, pass.lightMatricesUBO);
@@ -366,23 +461,42 @@ void SetupShadowMapPass(Renderer& r)
     glBindBuffer(GL_UNIFORM_BUFFER, 0);
 }
 
-void SetupPointShadowMapPass(Renderer& r, Light* lights, u32 numLights)
+void SetupPointShadowMapPass(RenderData* renderData, Light* lights, u32 numLights, u32 shadow_width, u32 shadow_height)
 {
-    r.pointShadowTarget = CreateFramebuffer(false, false);
+    ShadowPass& pass = renderData->shadowPass;
+    
+    glGenFramebuffers(1, &pass.depthCubemapFBO);
+
     for (u32 i = 0; i < numLights; ++i)
     {
-        if (lights[i].type == LightType::Point)
+        if (pass.pointCount < 4 && lights[i].type == LightType::Point)
         {
             // TODO(HAMAD): have different shadow resolutions for different lights
-            r.pointShadowDepthmaps[i] = CreateTextureCubemap(r.pointShadowResolution, r.pointShadowResolution, RTextureFormat::DEPTH16F, MipmapScaling::NEAREST_NEIGHBOUR, TextureWrapping::CLAMP);
-
-            FramebufferAttachDepth(r.pointShadowTarget, r.pointShadowDepthmaps[i]);
-            FramebufferDrawBuffer(r.pointShadowTarget);
-            FrameBufferNoReadBuffer(r.pointShadowTarget);
-            lights[i].pointShadowMapIndex = r.castingPointLightCount;
-            r.castingPointLightCount += 1;
+            pass.pointShadows[pass.pointCount].pointWidth = shadow_width;
+            pass.pointShadows[pass.pointCount].pointHeight = shadow_height;
+            glGenTextures(1, &pass.pointShadows[pass.pointCount].depthCubemap);
+            glBindTexture(GL_TEXTURE_CUBE_MAP, pass.pointShadows[pass.pointCount].depthCubemap);
+            for (u32 j = 0; j < 6; ++j)
+            {
+                glTexImage2D(GL_TEXTURE_CUBE_MAP_POSITIVE_X + j, 0, GL_DEPTH_COMPONENT,
+                    pass.pointShadows[pass.pointCount].pointWidth, pass.pointShadows[pass.pointCount].pointHeight, 0, GL_DEPTH_COMPONENT, GL_FLOAT, NULL);
+            }
+            glTexParameteri(GL_TEXTURE_CUBE_MAP, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
+            glTexParameteri(GL_TEXTURE_CUBE_MAP, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
+            glTexParameteri(GL_TEXTURE_CUBE_MAP, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
+            glTexParameteri(GL_TEXTURE_CUBE_MAP, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
+            glTexParameteri(GL_TEXTURE_CUBE_MAP, GL_TEXTURE_WRAP_R, GL_CLAMP_TO_EDGE);
+            glBindFramebuffer(GL_FRAMEBUFFER, pass.depthCubemapFBO);
+            glFramebufferTexture(GL_FRAMEBUFFER, GL_DEPTH_ATTACHMENT, pass.pointShadows[pass.pointCount].depthCubemap, 0);
+            glDrawBuffer(GL_NONE);
+            glReadBuffer(GL_NONE);
+            glBindFramebuffer(GL_FRAMEBUFFER, 0);
+            lights[i].pointShadowMapIndex = pass.pointCount;
+            pass.pointCount += 1;
         }
     }
+
+    glBindFramebuffer(GL_FRAMEBUFFER, 0);
 }
 
 void RenderOmidirectionalShadowMap(RenderData* renderData, mat4& model, Light* lights, u32 numLights)
@@ -428,12 +542,11 @@ void RenderOmidirectionalShadowMap(RenderData* renderData, mat4& model, Light* l
     glBindFramebuffer(GL_FRAMEBUFFER, 0);
 }
 
-void SetupLightProbe(RenderDevice& device)
+void SetupLightProbe(RenderData* renderData)
 {
     LightProbePass& pass = renderData->lightProbePass;
     glGenFramebuffers(1, &pass.FBO);
     // glGenRenderbuffers(1, &pass.captureRBO);
-    Framebuffer framebuffer = CreateFramebuffer(true, true);
 
     pass.width = 512;
     pass.height = 512;
@@ -552,22 +665,36 @@ void RenderLightProbe(RenderData* renderData, vec3& lightProbePosition, mat4& mo
     glCullFace(GL_BACK);
 }
 
-void SetupSSAOPass(Renderer& r)
+void SetupSSAOPass(RenderData* renderData)
 {
-    r.ssaoTarget = CreateFramebuffer(true, true);
-    r.ssaoBlurTarget = CreateFramebuffer(true, true);
+    AmbientOcclusionPass& pass = renderData->SSAOPass;
 
+    glGenFramebuffers(1, &pass.ssaoFBO);  glGenFramebuffers(1, &pass.ssaoBlurFBO);
+    glBindFramebuffer(GL_FRAMEBUFFER, pass.ssaoFBO);
     // SSAO color buffer
-    r.ssaoColor = CreateTexture2D("SSAO color", r.screenWidth, r.screenHeight, NULL, RTextureFormat::RGBA8, false, MipmapScaling::NEAREST_NEIGHBOUR, TextureWrapping::CLAMP);
-    FramebufferAttachColor(r.ssaoTarget, r.ssaoColor);
+    glGenTextures(1, &pass.ssaoColorBuffer);
+    glBindTexture(GL_TEXTURE_2D, pass.ssaoColorBuffer);
+    glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, renderData->renderWidth, renderData->renderHeight, 0, GL_RGBA, GL_FLOAT, NULL);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
+    glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D, pass.ssaoColorBuffer, 0);
     GLenum attachmentsSSAO[1] = { GL_COLOR_ATTACHMENT0 };
-    FramebufferDrawAttachments(r.ssaoTarget, attachmentsSSAO, 1);
-
-    r.ssaoBlur = CreateTexture2D("SSAO Blur", r.screenWidth, r.screenHeight, NULL, RTextureFormat::RGBA8, false, MipmapScaling::NEAREST_NEIGHBOUR, TextureWrapping::CLAMP);
-    FramebufferAttachColor(r.ssaoBlurTarget, r.ssaoBlur);
-    GLenum attachmentsSSAO[1] = { GL_COLOR_ATTACHMENT0 };
-    FramebufferDrawAttachments(r.ssaoBlurTarget, attachmentsSSAO, 1);
-
+    glDrawBuffers(1, attachmentsSSAO);
+    if (glCheckFramebufferStatus(GL_FRAMEBUFFER) != GL_FRAMEBUFFER_COMPLETE)
+        std::cout << "SSAO Framebuffer not complete!" << std::endl;
+    // and blur stage
+    glBindFramebuffer(GL_FRAMEBUFFER, pass.ssaoBlurFBO);
+    glGenTextures(1, &pass.ssaoColorBufferBlur);
+    glBindTexture(GL_TEXTURE_2D, pass.ssaoColorBufferBlur);
+    glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, renderData->renderWidth, renderData->renderHeight, 0, GL_RGBA, GL_FLOAT, NULL);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
+    glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D, pass.ssaoColorBufferBlur, 0);
+    if (glCheckFramebufferStatus(GL_FRAMEBUFFER) != GL_FRAMEBUFFER_COMPLETE)
+        std::cout << "SSAO Blur Framebuffer not complete!" << std::endl;
+    glBindFramebuffer(GL_FRAMEBUFFER, 0);
     // generate sample kernel
     // ----------------------
     std::uniform_real_distribution<GLfloat> randomFloats(0.0, 1.0); // generates random floats between 0.0 and 1.0
@@ -594,27 +721,47 @@ void SetupSSAOPass(Renderer& r)
         glm::vec3 noise(randomFloats(generator) * 2.0 - 1.0, randomFloats(generator) * 2.0 - 1.0, 0.0f); // rotate around z-axis (in tangent space)
         ssaoNoise.push_back(noise);
     }
-    r.noiseTexture = CreateTexture2D("SSAO Noise texture", 4, 4, &ssaoNoise[0], RTextureFormat::RGBA32F, false, MipmapScaling::NEAREST_NEIGHBOUR, TextureWrapping::REPEAT);
-    // Note: seems that rgba and rgb must be used for some reason maybe opengl does not like rgb reading shaders was having an issue with that if i remember correctly could be a driver thing
-    // glGenTextures(1, &pass.noiseTexture);
-    // glBindTexture(GL_TEXTURE_2D, pass.noiseTexture);
-    // glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA32F, 4, 4, 0, GL_RGB, GL_FLOAT, &ssaoNoise[0]);
-    // glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
-    // glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
-    // glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_REPEAT);
-    // glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_REPEAT);
+    glGenTextures(1, &pass.noiseTexture);
+    glBindTexture(GL_TEXTURE_2D, pass.noiseTexture);
+    glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA32F, 4, 4, 0, GL_RGB, GL_FLOAT, &ssaoNoise[0]);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_REPEAT);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_REPEAT);
 }
 
-void SetupEnvironmentCubeMap(Renderer& r)
+void SetupEnvironmentCubeMap(RenderData* renderData)
 {
     u32 hdrTexture = LoadSkyBoxTexture("assets/hdr/rogland_overcast_4k.hdr");
 
-    r.environmentMapTarget = CreateFramebuffer(true, true);
-    FramebufferCreateRenderbuffer(r.environmentMapTarget, DepthComp::DepthComponent24, 512, 512);
+    EnvironmentMapPass& pass = renderData->environmentMapPass;
+
+    // glDisable(GL_DEPTH_TEST);
+
+    glGenFramebuffers(1, &pass.captureFBO);
+    glGenRenderbuffers(1, &pass.captureRBO);
 
     SetupBRDFLUT(renderData, pass);
 
-    r.environmentCubemap = CreateTextureCubemap(512, 512, RTextureFormat::RGB16F, MipmapScaling::BILINEAR, TextureWrapping::CLAMP);
+    glBindFramebuffer(GL_FRAMEBUFFER, pass.captureFBO);
+    glBindRenderbuffer(GL_RENDERBUFFER, pass.captureRBO);
+    glRenderbufferStorage(GL_RENDERBUFFER, GL_DEPTH_COMPONENT24, 512, 512);
+    glFramebufferRenderbuffer(GL_FRAMEBUFFER, GL_DEPTH_ATTACHMENT, GL_RENDERBUFFER, pass.captureRBO);
+
+    glGenTextures(1, &pass.envCubemap);
+    glBindTexture(GL_TEXTURE_CUBE_MAP, pass.envCubemap);
+    for (unsigned int i = 0; i < 6; ++i)
+    {
+        // note that we store each face with 16 bit floating point values
+        glTexImage2D(GL_TEXTURE_CUBE_MAP_POSITIVE_X + i, 0, GL_RGB16F,
+            512, 512, 0, GL_RGB, GL_FLOAT, nullptr);
+    }
+    glTexParameteri(GL_TEXTURE_CUBE_MAP, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
+    glTexParameteri(GL_TEXTURE_CUBE_MAP, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
+    glTexParameteri(GL_TEXTURE_CUBE_MAP, GL_TEXTURE_WRAP_R, GL_CLAMP_TO_EDGE);
+    glTexParameteri(GL_TEXTURE_CUBE_MAP, GL_TEXTURE_MIN_FILTER, GL_LINEAR_MIPMAP_LINEAR);
+    glTexParameteri(GL_TEXTURE_CUBE_MAP, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
+    // glGenerateMipmap(GL_TEXTURE_CUBE_MAP);
 
     glm::mat4 captureProjection = glm::perspective(glm::radians(90.0f), 1.0f, 0.1f, 10.0f);
     glm::mat4 captureViews[] =
