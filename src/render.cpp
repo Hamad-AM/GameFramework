@@ -8,6 +8,7 @@
 
 #include "asset_types.h"
 #include "imgui.h"
+#include "input.h"
 #include "memory.h"
 #include "asset_types.h"
 
@@ -15,7 +16,7 @@
 #include "stb_image.h"
 
 //void UploadSceneToGPU(LoadedScene& scene, RenderData* renderData, MemoryArena* arena)
-void UploadSceneToGPU(LoadedScene& scene, RenderState* renderState, MemoryArena* arena)
+void CreateRenderGraph(LoadedScene& scene, RenderGraph& renderGraph, MemoryArena* arena)
 {
     std::chrono::microseconds totalMeshUploadTime = std::chrono::microseconds(0);
     std::chrono::microseconds totalTextureUploadTime = std::chrono::microseconds(0);;
@@ -26,21 +27,21 @@ void UploadSceneToGPU(LoadedScene& scene, RenderState* renderState, MemoryArena*
     auto start = TimeNow();
     
     // NEED TO MAKE SURE THE arena is properly initialized
-    renderState->meshes = PushArray(arena, RenderMesh, scene.meshCount);
-    renderState->meshCount = scene.meshCount;
-    renderState->textures = PushArray(arena, RenderTexture2D, scene.textureCount);
-    renderState->textureCount = scene.textureCount;
-    renderState->materials = PushArray(arena, RenderMaterial, scene.textureCount);
-    renderState->materialCount = scene.materialCount;
+    renderGraph.meshes = PushArray(arena, RenderMesh, scene.meshCount);
+    renderGraph.meshCount = scene.meshCount;
+    renderGraph.textures = PushArray(arena, RenderTexture2D, scene.textureCount);
+    renderGraph.textureCount = scene.textureCount;
+    renderGraph.materials = PushArray(arena, RenderMaterial, scene.textureCount);
+    renderGraph.materialCount = scene.materialCount;
 
     u32 textureIdx = 0;
     while(textureIdx < scene.textureCount)
     {
         TextureHeader textureHeader = scene.textures[textureIdx];
         u8* textureData = scene.textureData + scene.textureOffsets[textureIdx];
-        RenderTexture2D textureHandle = CreateTexture2D("Temp", textureHeader.width, textureHeader.height, textureData, textureHeader.format, true, MipmapScaling::BILINEAR, TextureWrapping::REPEAT);
-        renderData->textures[textureIdx] = renderTexture;
-
+        // TODO: Convert from texture header format to this one
+        RenderTexture2D textureHandle = CreateTexture2D("Temp", textureHeader.width, textureHeader.height, textureData, RTextureFormat::RGBA8, true, MipmapScaling::BILINEAR, TextureWrapping::REPEAT);
+        renderGraph.textures[textureIdx] = textureHandle;
         textureIdx++;
     }
 
@@ -65,7 +66,7 @@ void UploadSceneToGPU(LoadedScene& scene, RenderState* renderState, MemoryArena*
         meshIdx < scene.meshCount;
         ++meshIdx)
     {
-        RenderMesh& renderMesh = renderData->meshes[meshIdx];
+        RenderMesh& renderMesh = renderGraph.meshes[meshIdx];
         MeshHeader& assetMesh = scene.meshes[meshIdx];
         MaterialHeader& material = scene.materials[assetMesh.materialIdx];
 
@@ -74,34 +75,16 @@ void UploadSceneToGPU(LoadedScene& scene, RenderState* renderState, MemoryArena*
         renderMesh.material.normalMapIdx = material.normalIdx;
         renderMesh.material.metallicRoughnessIdx = material.metallicRoughnessIdx;
 
-        renderMesh.numberOfIndices = assetMesh.indexCount;
-        glGenBuffers(1, &renderMesh.VBO);
-        glGenBuffers(1, &renderMesh.EBO);
-        glGenVertexArrays(1, &renderMesh.VAO);
+        renderMesh.vbo = CreateBuffer(BufferType::ARRAY, assetMesh.vertexCount, sizeof(Vertex), (u8*)scene.vertices + assetMesh.vertexOffset, DrawState::STATIC_DRAW);
+        renderMesh.ebo = CreateBuffer(BufferType::INDEX, assetMesh.indexCount, sizeof(u32), (u8*)scene.indices + assetMesh.indexOffset, DrawState::STATIC_DRAW);
 
-        // Bind VAO
-        glBindVertexArray(renderMesh.VAO);
-
-        // Upload vertex data
-        glBindBuffer(GL_ARRAY_BUFFER, renderMesh.VBO);
-        glBufferData(GL_ARRAY_BUFFER, assetMesh.vertexCount * sizeof(Vertex), (u8*)scene.vertices + assetMesh.vertexOffset, GL_STATIC_DRAW);
-
-        // Upload index data
-        glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, renderMesh.EBO);
-        glBufferData(GL_ELEMENT_ARRAY_BUFFER, assetMesh.indexCount * sizeof(u32), (u8*)scene.indices + assetMesh.indexOffset, GL_STATIC_DRAW);
-
-        // Define vertex attribute pointers (assuming layout: position, normal, UV)
-        glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, 11 * sizeof(float), (void*)0);       // Position
-        glEnableVertexAttribArray(0);
-        glVertexAttribPointer(1, 3, GL_FLOAT, GL_FALSE, 11 * sizeof(float), (void*)(3 * sizeof(float)));  // Normal
-        glEnableVertexAttribArray(1);
-        glVertexAttribPointer(2, 2, GL_FLOAT, GL_FALSE, 11 * sizeof(float), (void*)(6 * sizeof(float)));  // UV
-        glEnableVertexAttribArray(2);
-        glVertexAttribPointer(3, 3, GL_FLOAT, GL_FALSE, 11 * sizeof(float), (void*)(8 * sizeof(float)));  // Tangent
-        glEnableVertexAttribArray(3);
-
-        // Unbind VAO
-        glBindVertexArray(0);
+        renderMesh.vao = CreateVertexArray();
+        VertexArrayElement elements[] = {{sizeof(f32), 3}, // Position
+                                         {sizeof(f32), 3}, // Normal
+                                         {sizeof(f32), 2}, // UV
+                                         {sizeof(f32), 3}  // Tangent 
+                                        };
+        SetVertexArrayFormat(renderMesh.vao, renderMesh.ebo.count, elements);
     }
     end = TimeNow();
     duration = Timelapse(end - start);
@@ -144,7 +127,6 @@ void CompileShaders(RenderData* renderData) {
     renderData->environmentMapPass.brdfShader.compile("shaders/BrdfShader.vs", "shaders/BrdfShader.fs");
 
 
-    renderData->deferredPass.gBufferShader.compile("shaders/GBuffer.vs", "shaders/GBuffer.fs");
     renderData->deferredPass.lightingPass.compile("shaders/LightingPass.vs", "shaders/LightingPass.fs");
 
     renderData->lightProbePass.colorShader.compile("shaders/RenderLightProbe.vs", "shaders/RenderLightProbe.fs");
@@ -156,61 +138,123 @@ void CompileShaders(RenderData* renderData) {
 
 void RenderSetupParameters(RenderData* renderData, u32 renderWidth, u32 renderHeight)
 {
-    glEnable(GL_DEPTH_TEST);
-    // glDepthFunc(GL_LESS);
-    glDepthFunc(GL_LEQUAL);
-    //
-    glEnable(GL_BLEND);
-    glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
-    //
-    glEnable(GL_CULL_FACE);
-    glCullFace(GL_BACK);
-
-    glEnable(GL_TEXTURE_CUBE_MAP_SEAMLESS);
-
     renderData->renderWidth = renderWidth;
     renderData->renderHeight = renderHeight;
 }
 
-RenderPass CreateRenderPass(u32 width, u32 height, DepthComp depthComp) {
-    RenderPass pass;
+RenderPassDesc RenderPassDesc::Create(u32 width, u32 height, DepthComp depthComp) {
+    RenderPassDesc pass;
     pass.renderTarget = CreateFramebuffer();
-    pass.renderBuffer = CreateRenderbuffer(pass.renderTarget, width, height, depthComp);
+    pass.renderBuffer = CreateRenderbuffer(width, height, depthComp);
+    pass.depthComp = depthComp;
+    pass.width = width;
+    pass.height = height;
     return pass;
 }
 
-void SetShader(RenderPass& pass, ShaderHandle shader) {
-    pass.shader = shader;
+void RenderPassDesc::SetShader(const char* vs, const char* fs) {
+    this->shader.compile(vs, fs);
 }
 
-void AttachColor(RenderPass& pass, RenderTexture2D& texture2D) {
-    FramebufferAttachColor(pass.renderTarget, texture2D);
+void RenderPassDesc::SetSize(u32 width, u32 height) {
+    renderBuffer = CreateRenderbuffer(width, height, depthComp);
+    this->width = width;
+    this->height = height;
 }
 
-void AddGBufferPass(RenderGraph& r)
+void RenderPassDesc::AttachUniformBuffer(u32 slot, u32 size, DrawState drawState) {
+    this->uniforms[slot].ubo = CreateUniformBuffer(size, drawState);
+    SetUniformSlot(this->uniforms[slot].ubo, slot);
+}
+
+void RenderPassDesc::AttachColor(RenderTexture2D& texture2D) {
+    FramebufferAttachColor(this->renderTarget, texture2D);
+}
+
+void RenderPassDesc::AttachDepth(RenderTexture2D& texture2D) {
+    FramebufferAttachDepth(this->renderTarget, texture2D);
+}
+
+void RenderPassDesc::AttachDepth(RenderTextureArray& textureArray) {
+    FramebufferAttachDepth(this->renderTarget, textureArray);
+}
+
+void RenderPassDesc::ResetAttachments() {
+    ResetColorAttachments();
+    // Remove uniform attachments as well?
+    assert(false && "add features to remove other attachments from framebuffer");
+}
+
+void RenderPassDesc::ResetColorAttachments() {
+    renderTarget.textureAttachmentCount = 0;
+}
+
+RenderPass CreateRenderPass(RenderPassDesc& desc) {
+    if (desc.renderTarget.textureAttachmentCount) {
+        FramebufferDrawAttachments(desc.renderTarget);
+    } else {
+        FramebufferNoDrawBuffer(desc.renderTarget);
+        FramebufferNoReadBuffer(desc.renderTarget);
+    }
+    //TODO: Desc is still being passed through for mainly debugging
+    return RenderPass{desc.renderTarget, desc.shader, desc};
+}
+
+void RenderPass::BindPipeline() {
+    SetRenderPipeline(desc.pipeline);
+}
+
+void RenderGraph::AddGBufferPass()
 {
-    r.gPosition = CreateTexture2D("GBuffer Position", r.screenWidth, r.screenHeight, NULL, RTextureFormat::RGBA16F, false, MipmapScaling::NEAREST_NEIGHBOUR, TextureWrapping::WRAP_NONE);
-    r.gNormal = CreateTexture2D("GBuffer Normal", r.screenWidth, r.screenHeight, NULL, RTextureFormat::RGBA16F, false, MipmapScaling::NEAREST_NEIGHBOUR, TextureWrapping::WRAP_NONE);
-    r.gAlbedo = CreateTexture2D("GBuffer albedo", r.screenWidth, r.screenHeight, NULL, RTextureFormat::RGBA8, false, MipmapScaling::NEAREST_NEIGHBOUR, TextureWrapping::WRAP_NONE);
-    r.gMetallicRoughness = CreateTexture2D("GBuffer MR", r.screenWidth, r.screenHeight, NULL, RTextureFormat::RGBA8, false, MipmapScaling::NEAREST_NEIGHBOUR, TextureWrapping::WRAP_NONE);
+    gPosition = CreateTexture2D("GBuffer Position", screenWidth, screenHeight, NULL, RTextureFormat::RGBA16F, false, MipmapScaling::NEAREST_NEIGHBOUR, TextureWrapping::WRAP_NONE);
+    gNormal = CreateTexture2D("GBuffer Normal", screenWidth, screenHeight, NULL, RTextureFormat::RGBA16F, false, MipmapScaling::NEAREST_NEIGHBOUR, TextureWrapping::WRAP_NONE);
+    gAlbedo = CreateTexture2D("GBuffer albedo", screenWidth, screenHeight, NULL, RTextureFormat::RGBA8, false, MipmapScaling::NEAREST_NEIGHBOUR, TextureWrapping::WRAP_NONE);
+    gMetallicRoughness = CreateTexture2D("GBuffer MR", screenWidth, screenHeight, NULL, RTextureFormat::RGBA8, false, MipmapScaling::NEAREST_NEIGHBOUR, TextureWrapping::WRAP_NONE);
     
-    r.gBuffer = CreateRenderPass(r.screenWidth, r.screenHeight, DepthComponent);
-    // SetShader(r.gBuffer, 
-    AttachColor(r.gBuffer, r.gPosition);
-    AttachColor(r.gBuffer, r.gNormal);
-    AttachColor(r.gBuffer, r.gAlbedo);
-    AttachColor(r.gBuffer, r.gMetallicRoughness);
+    auto desc = RenderPassDesc::Create(screenWidth, screenHeight, DepthComponent);
+    desc.SetShader("shaders/GBuffer.vs", "shaders/GBuffer.fs"); 
+    desc.AttachColor(gPosition);
+    desc.AttachColor(gNormal);
+    desc.AttachColor(gAlbedo);
+    desc.AttachColor(gMetallicRoughness);
 
-    // - tell OpenGL which color attachments we'll use (of this framebuffer) for rendering 
-    // FramebufferAttachColor(r.gBufferTarget, r.gPosition);
-    // FramebufferAttachColor(r.gBufferTarget, r.gNormal);
-    // FramebufferAttachColor(r.gBufferTarget, r.gAlbedo);
-    // FramebufferAttachColor(r.gBufferTarget, r.gMetallicRoughness);
-    // unsigned int attachments[4] = { GL_COLOR_ATTACHMENT0, GL_COLOR_ATTACHMENT1, GL_COLOR_ATTACHMENT2, GL_COLOR_ATTACHMENT3};
-    // FramebufferDrawAttachments(r.gBufferTarget, attachments, 4);
-    //
-    // FramebufferCreateRenderbuffer(r.gBufferTarget, r.screenWidth, r.screenHeight);
+    desc.pipeline.bBackFace = false;
+    desc.pipeline.bDepthTesting = true;
+    desc.pipeline.depthFunction = DepthFunc::LESS_EQUAL;
+    desc.pipeline.bBlending = true;
+    desc.pipeline.blendFunction = BlendFunc::ONE_MINUS;
+
+    gBuffer = CreateRenderPass(desc);
 }
+
+void RenderGraph::AddShadowmapPass() {
+    cascadeShadowDepthMaps = CreateTexture2DArray(
+                                cascadeCount,
+                                RTextureFormat::DEPTH16F,
+                                shadowMapResolution, shadowMapResolution,
+                                MipmapScaling::BILINEAR,
+                                TextureWrapping::BORDER_COLOUR
+                            );
+    RenderPassDesc desc = RenderPassDesc::Create(shadowMapResolution, shadowMapResolution, DepthComp::DepthComponent);
+    desc.AttachDepth(cascadeShadowDepthMaps);
+    desc.AttachUniformBuffer(0, sizeof(glm::mat4x4) * 16, DrawState::STATIC_DRAW);
+    cascadeShadowmapPass = CreateRenderPass(desc);
+}
+
+void RenderGraph::AddPointShadowmapPass(PointLight* lights, u32 lightCount) {
+    RenderPassDesc desc = RenderPassDesc::Create(pointShadowResolution, pointShadowResolution, DepthComp::DepthComponent);
+    for (u32 lightId = 0; lightId < lightCount; ++lightId) {
+        pointShadowDepthmaps[lightId] = CreateTextureCubemap(
+                                            pointShadowResolution,
+                                            pointShadowResolution,
+                                            RTextureFormat::DEPTH16F,
+                                            MipmapScaling::NEAREST_NEIGHBOUR,
+                                            TextureWrapping::CLAMP
+                                        );
+    }
+    pointShadowmapPass = CreateRenderPass(desc);
+}
+
 
 void RenderBindPBRTextures(u32 startingTextureSlot, u32 uniformSlot, Shader* shader, RenderMesh* renderMesh, RenderData* renderData) {
     RenderMaterial material = renderMesh->material;
@@ -225,11 +269,26 @@ void RenderBindPBRTextures(u32 startingTextureSlot, u32 uniformSlot, Shader* sha
     shader->uniform_int("metallicRoughness", uniformSlot+2);
 }
 
-void RenderGBuffer(RenderData* renderData, glm::mat4 model, Camera3D& camera)
+void RenderPass::Execute() {
+    this->BindPipeline();
+    BindFramebuffer(this->framebuffer, desc.width, desc.height);
+}
+
+void RenderGraph::DrawFrame(glm::mat4 model, Camera3D& camera)
 {
-    DeferredPass& pass = renderData->deferredPass;
-    glDisable(GL_CULL_FACE);
-    glViewport(0, 0, renderData->renderWidth, renderData->renderHeight);
+    // glEnable(GL_DEPTH_TEST);
+    // // glDepthFunc(GL_LESS);
+    // glDepthFunc(GL_LEQUAL);
+    // //
+    // glEnable(GL_BLEND);
+    // glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
+    // //
+    // glEnable(GL_CULL_FACE);
+    // glCullFace(GL_BACK);
+    //
+    // glEnable(GL_TEXTURE_CUBE_MAP_SEAMLESS);
+
+    gBuffer.Execute();
     glClearColor(0.0f, 0.0f, 0.0f, 1.0);
     glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
 
@@ -350,39 +409,6 @@ void RenderLightProbeDebugSphere(RenderData* renderData, Camera3D& camera) {
     glBindTexture(GL_TEXTURE_CUBE_MAP, renderData->lightProbePass.irradianceMap);
     renderData->sphereCubemap.uniform_int("cubemap", 0);
     RenderSphere(renderData);
-}
-
-void SetupShadowMapPass(Renderer& r)
-{
-    r.csmTarget = CreateFramebuffer(false, false);
-
-    r.cascadeShadowDepthMaps = CreateTexture2DArray(r.cascadesCount, DEPTH32F, r.shadowMapResolution, r.shadowMapResolution, BILINEAR, BORDER_COLOUR);
-    FramebufferAttachDepth(r.csmTarget, r.cascadeShadowDepthMaps);
-
-    glGenBuffers(1, &pass.lightMatricesUBO);
-    glBindBuffer(GL_UNIFORM_BUFFER, pass.lightMatricesUBO);
-    glBufferData(GL_UNIFORM_BUFFER, sizeof(glm::mat4x4) * 16, nullptr, GL_STATIC_DRAW);
-    glBindBufferBase(GL_UNIFORM_BUFFER, 0, pass.lightMatricesUBO);
-    glBindBuffer(GL_UNIFORM_BUFFER, 0);
-}
-
-void SetupPointShadowMapPass(Renderer& r, Light* lights, u32 numLights)
-{
-    r.pointShadowTarget = CreateFramebuffer(false, false);
-    for (u32 i = 0; i < numLights; ++i)
-    {
-        if (lights[i].type == LightType::Point)
-        {
-            // TODO(HAMAD): have different shadow resolutions for different lights
-            r.pointShadowDepthmaps[i] = CreateTextureCubemap(r.pointShadowResolution, r.pointShadowResolution, RTextureFormat::DEPTH16F, MipmapScaling::NEAREST_NEIGHBOUR, TextureWrapping::CLAMP);
-
-            FramebufferAttachDepth(r.pointShadowTarget, r.pointShadowDepthmaps[i]);
-            FramebufferDrawBuffer(r.pointShadowTarget);
-            FrameBufferNoReadBuffer(r.pointShadowTarget);
-            lights[i].pointShadowMapIndex = r.castingPointLightCount;
-            r.castingPointLightCount += 1;
-        }
-    }
 }
 
 void RenderOmidirectionalShadowMap(RenderData* renderData, mat4& model, Light* lights, u32 numLights)
@@ -552,27 +578,28 @@ void RenderLightProbe(RenderData* renderData, vec3& lightProbePosition, mat4& mo
     glCullFace(GL_BACK);
 }
 
-void SetupSSAOPass(Renderer& r)
+void RenderGraph::AddScreenSpaceAmbientOcclusion()
 {
     r.ssaoTarget = CreateFramebuffer(true, true);
     r.ssaoBlurTarget = CreateFramebuffer(true, true);
+    RenderPassDesc ssaoDesc;
+    RenderPassDesc ssaoBlurDesc;
 
     // SSAO color buffer
-    r.ssaoColor = CreateTexture2D("SSAO color", r.screenWidth, r.screenHeight, NULL, RTextureFormat::RGBA8, false, MipmapScaling::NEAREST_NEIGHBOUR, TextureWrapping::CLAMP);
-    FramebufferAttachColor(r.ssaoTarget, r.ssaoColor);
-    GLenum attachmentsSSAO[1] = { GL_COLOR_ATTACHMENT0 };
-    FramebufferDrawAttachments(r.ssaoTarget, attachmentsSSAO, 1);
+    ssaoColor = CreateTexture2D("SSAO color", screenWidth, screenHeight, NULL, RTextureFormat::RGBA8, false, MipmapScaling::NEAREST_NEIGHBOUR, TextureWrapping::CLAMP);
+    ssaoDesc.AttachColor(ssaoColor);
 
-    r.ssaoBlur = CreateTexture2D("SSAO Blur", r.screenWidth, r.screenHeight, NULL, RTextureFormat::RGBA8, false, MipmapScaling::NEAREST_NEIGHBOUR, TextureWrapping::CLAMP);
-    FramebufferAttachColor(r.ssaoBlurTarget, r.ssaoBlur);
-    GLenum attachmentsSSAO[1] = { GL_COLOR_ATTACHMENT0 };
-    FramebufferDrawAttachments(r.ssaoBlurTarget, attachmentsSSAO, 1);
+    ssaoBlur = CreateTexture2D("SSAO Blur", r.screenWidth, r.screenHeight, NULL, RTextureFormat::RGBA8, false, MipmapScaling::NEAREST_NEIGHBOUR, TextureWrapping::CLAMP);
+    ssaoBlurDesc.AttachColor(ssaoBlur);
 
+    ssaoPass = CreateRenderPass(ssaoDesc);
+    ssaoBlurPass = CreateRenderPass(ssaoBlurDesc);
+
+    // LEARNOPENGL.COM
     // generate sample kernel
     // ----------------------
     std::uniform_real_distribution<GLfloat> randomFloats(0.0, 1.0); // generates random floats between 0.0 and 1.0
     std::default_random_engine generator;
-    std::vector<glm::vec3>& ssaoKernel = pass.ssaoKernel;
     for (unsigned int i = 0; i < 64; ++i)
     {
         glm::vec3 sample(randomFloats(generator) * 2.0 - 1.0, randomFloats(generator) * 2.0 - 1.0, randomFloats(generator));
@@ -583,7 +610,7 @@ void SetupSSAOPass(Renderer& r)
         // scale samples s.t. they're more aligned to center of kernel
         scale = lerp(0.1f, 1.0f, scale * scale);
         sample *= scale;
-        ssaoKernel.push_back(sample);
+        ssaoKernel[i] = sample;
     }
 
     // generate noise texture
@@ -594,27 +621,21 @@ void SetupSSAOPass(Renderer& r)
         glm::vec3 noise(randomFloats(generator) * 2.0 - 1.0, randomFloats(generator) * 2.0 - 1.0, 0.0f); // rotate around z-axis (in tangent space)
         ssaoNoise.push_back(noise);
     }
-    r.noiseTexture = CreateTexture2D("SSAO Noise texture", 4, 4, &ssaoNoise[0], RTextureFormat::RGBA32F, false, MipmapScaling::NEAREST_NEIGHBOUR, TextureWrapping::REPEAT);
-    // Note: seems that rgba and rgb must be used for some reason maybe opengl does not like rgb reading shaders was having an issue with that if i remember correctly could be a driver thing
-    // glGenTextures(1, &pass.noiseTexture);
-    // glBindTexture(GL_TEXTURE_2D, pass.noiseTexture);
-    // glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA32F, 4, 4, 0, GL_RGB, GL_FLOAT, &ssaoNoise[0]);
-    // glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
-    // glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
-    // glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_REPEAT);
-    // glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_REPEAT);
+    noiseTexture = CreateTexture2D("SSAO Noise texture", 4, 4, &ssaoNoise[0], RTextureFormat::RGBA32F, false, MipmapScaling::NEAREST_NEIGHBOUR, TextureWrapping::REPEAT);
 }
 
-void SetupEnvironmentCubeMap(Renderer& r)
+void RenderGraph::InitIBL(const char* file)
 {
-    u32 hdrTexture = LoadSkyBoxTexture("assets/hdr/rogland_overcast_4k.hdr");
+    RenderTexture2D hdrTexture = LoadSkyBoxTexture(file);
 
-    r.environmentMapTarget = CreateFramebuffer(true, true);
-    FramebufferCreateRenderbuffer(r.environmentMapTarget, DepthComp::DepthComponent24, 512, 512);
+    auto skyboxProjectionDesc = RenderPassDesc::Create(512, 512, DepthComp::DepthComponent24);
+    skyboxProjectionDesc.AttachColor(hdrTexture);
 
     SetupBRDFLUT(renderData, pass);
 
-    r.environmentCubemap = CreateTextureCubemap(512, 512, RTextureFormat::RGB16F, MipmapScaling::BILINEAR, TextureWrapping::CLAMP);
+    skyboxCubemap = CreateTextureCubemap(512, 512, RTextureFormat::RGB16F, MipmapScaling::BILINEAR, TextureWrapping::CLAMP);
+
+    auto captureCubemap = CreateRenderPass(skyboxProjectionDesc);
 
     glm::mat4 captureProjection = glm::perspective(glm::radians(90.0f), 1.0f, 0.1f, 10.0f);
     glm::mat4 captureViews[] =
@@ -639,32 +660,21 @@ void SetupEnvironmentCubeMap(Renderer& r)
     for (unsigned int i = 0; i < 6; ++i)
     {
         pass.equirectangularToCubemapShader.uniform_matrix4("view", captureViews[i]);
-        glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0,
-            GL_TEXTURE_CUBE_MAP_POSITIVE_X + i, pass.envCubemap, 0);
         glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
-
+        captureCubemap.desc.AttachColor(skyboxCubemap);
         RenderCube(renderData); // renders a 1x1 cube
     }
+    GenerateMipmap(skyboxCubemap);
 
-    glBindTexture(GL_TEXTURE_CUBE_MAP, pass.envCubemap);
-    glGenerateMipmap(GL_TEXTURE_CUBE_MAP);
+    irradianceMap = CreateTextureCubemap(32, 32, RTextureFormat::RGB16F, MipmapScaling::BILINEAR, TextureWrapping::CLAMP);
 
-    glGenTextures(1, &pass.irradianceMap);
-    glBindTexture(GL_TEXTURE_CUBE_MAP, pass.irradianceMap);
-    for (unsigned int i = 0; i < 6; ++i)
-    {
-        glTexImage2D(GL_TEXTURE_CUBE_MAP_POSITIVE_X + i, 0, GL_RGB16F, 32, 32, 0, GL_RGB, GL_FLOAT, nullptr);
-    }
-    glTexParameteri(GL_TEXTURE_CUBE_MAP, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
-    glTexParameteri(GL_TEXTURE_CUBE_MAP, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
-    glTexParameteri(GL_TEXTURE_CUBE_MAP, GL_TEXTURE_WRAP_R, GL_CLAMP_TO_EDGE);
-    glTexParameteri(GL_TEXTURE_CUBE_MAP, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
-    glTexParameteri(GL_TEXTURE_CUBE_MAP, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
+    // Update framebuffer to render to new image
+    skyboxProjectionDesc.SetSize(32, 32);
+    skyboxProjectionDesc.ResetColorAttachments();    
+    skyboxProjectionDesc.AttachColor(irradianceMap);
 
-    glBindFramebuffer(GL_FRAMEBUFFER, pass.captureFBO);
-    glBindRenderbuffer(GL_RENDERBUFFER, pass.captureRBO);
-    glRenderbufferStorage(GL_RENDERBUFFER, GL_DEPTH_COMPONENT24, 32, 32);
-    
+    skyboxCubemap = CreateRenderPass(skyboxProjectionDesc);
+
     pass.irradianceShader.bind();
     pass.irradianceShader.uniform_int("environmentMap", 0);
     pass.irradianceShader.uniform_matrix4("projection", captureProjection);
@@ -677,26 +687,19 @@ void SetupEnvironmentCubeMap(Renderer& r)
     for (unsigned int i = 0; i < 6; ++i)
     {
         pass.irradianceShader.uniform_matrix4("view", captureViews[i]);
-        glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_CUBE_MAP_POSITIVE_X + i, pass.irradianceMap, 0);
         glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
-
         RenderCube(renderData);
     }
     glBindFramebuffer(GL_FRAMEBUFFER, 0);
 
-    glGenTextures(1, &pass.prefilterMap);
-    glBindTexture(GL_TEXTURE_CUBE_MAP, pass.prefilterMap);
-    for (unsigned int i = 0; i < 6; ++i)
-    {
-        glTexImage2D(GL_TEXTURE_CUBE_MAP_POSITIVE_X + i, 0, GL_RGB16F, 128, 128, 0, GL_RGB, GL_FLOAT, nullptr);
-    }
-    glTexParameteri(GL_TEXTURE_CUBE_MAP, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
-    glTexParameteri(GL_TEXTURE_CUBE_MAP, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
-    glTexParameteri(GL_TEXTURE_CUBE_MAP, GL_TEXTURE_WRAP_R, GL_CLAMP_TO_EDGE);
-    glTexParameteri(GL_TEXTURE_CUBE_MAP, GL_TEXTURE_MIN_FILTER, GL_LINEAR_MIPMAP_LINEAR); // be sure to set minification filter to mip_linear 
-    glTexParameteri(GL_TEXTURE_CUBE_MAP, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
-    // generate mipmaps for the cubemap so OpenGL automatically allocates the required memory.
-    glGenerateMipmap(GL_TEXTURE_CUBE_MAP);
+    prefilterMap = CreateTextureCubemap(128, 128, RTextureFormat::RG16F, MipmapScaling::BILINEAR, TextureWrapping::CLAMP);
+    GenerateMipmap(prefilterMap);
+
+    skyboxProjectionDesc.ResetColorAttachments();
+    skyboxProjectionDesc.AttachColor(prefilterMap);
+    skyboxProjectionDesc.SetSize(128, 128);
+
+    skyboxCubemap = CreateRenderPass(skyboxProjectionDesc);
 
     // pbr: run a quasi monte-carlo simulation on the environment lighting to create a prefilter (cube)map.
     // ----------------------------------------------------------------------------------------------------
@@ -713,8 +716,8 @@ void SetupEnvironmentCubeMap(Renderer& r)
         // reisze framebuffer according to mip-level size.
         unsigned int mipWidth = static_cast<unsigned int>(128 * std::pow(0.5, mip));
         unsigned int mipHeight = static_cast<unsigned int>(128 * std::pow(0.5, mip));
-        glBindRenderbuffer(GL_RENDERBUFFER, pass.captureRBO);
-        glRenderbufferStorage(GL_RENDERBUFFER, GL_DEPTH_COMPONENT24, mipWidth, mipHeight);
+        skyboxProjectionDesc.SetSize(mipWidth, mipHeight);
+        skyboxCubemap = CreateRenderPass(skyboxProjectionDesc);
         glViewport(0, 0, mipWidth, mipHeight);
 
         float roughness = (float)mip / (float)(maxMipLevels - 1);
@@ -727,9 +730,7 @@ void SetupEnvironmentCubeMap(Renderer& r)
             RenderCube(renderData);
         }
     }
-    glBindFramebuffer(GL_FRAMEBUFFER, 0);
     glCullFace(GL_BACK);
-
 }
 
 void SetupLightsBuffer(RenderData* renderData, Light* lights, u32 numLights)
@@ -772,32 +773,15 @@ void UpdateLightsBuffer(RenderData* renderData, u32 numLights)
     glBindBuffer(GL_SHADER_STORAGE_BUFFER, 0);
 }
 
-void SetupBRDFLUT(RenderData* renderData, EnvironmentMapPass& pass)
+void RenderGraph::AddBRDFPass()
 {
-    // pbr: generate a 2D LUT from the BRDF equations used.
-    // ----------------------------------------------------
-    glGenTextures(1, &pass.brdfLUTTexture);
+    brdfLUT = CreateTexture2D("BRDF LUT", 512, 512, nullptr, RTextureFormat::RG16F, false, MipmapScaling::BILINEAR, TextureWrapping::CLAMP);
 
-    // pre-allocate enough memory for the LUT texture.3
-    glBindTexture(GL_TEXTURE_2D, pass.brdfLUTTexture);
-    glTexImage2D(GL_TEXTURE_2D, 0, GL_RG16F, 512, 512, 0, GL_RG, GL_FLOAT, 0);
-    // be sure to set wrapping mode to GL_CLAMP_TO_EDGE
-    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
-    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
-    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
-    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
+    auto desc = RenderPassDesc::Create(512, 512, DepthComp::DepthComponent24);
+    desc.AttachColor(brdfLUT);
+    auto BRDFPass = CreateRenderPass(desc);
 
-    // then re-configure capture framebuffer object and render screen-space quad with BRDF shader.
-    //
-    glBindFramebuffer(GL_FRAMEBUFFER, pass.captureFBO);
-    glBindRenderbuffer(GL_RENDERBUFFER, pass.captureRBO);
-    glRenderbufferStorage(GL_RENDERBUFFER, GL_DEPTH_COMPONENT24, 512, 512);
-    glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D, pass.brdfLUTTexture, 0);
-
-    // glDisable(GL_CULL_FACE);
-    // glDisable(GL_DEPTH_TEST);
-    // glCullFace(GL_BACK);
-    
+    glDisable(GL_CULL_FACE);
     glDisable(GL_BLEND);
 
     glViewport(0, 0, 512, 512);
@@ -827,7 +811,7 @@ void RenderBRDFLUT(RenderData* renderData)
 }
 
 
-u32 LoadSkyBoxTexture(const char* filePath)
+inline RenderTexture2D LoadSkyBoxTexture(const char* filePath)
 {
     stbi_set_flip_vertically_on_load(true);
 
@@ -837,19 +821,10 @@ u32 LoadSkyBoxTexture(const char* filePath)
         std::cerr << "Failed to load HDR image from " << filePath << std::endl;
     }
 
-    GLuint hdrTexture;
-    glGenTextures(1, &hdrTexture);
-    glBindTexture(GL_TEXTURE_2D, hdrTexture);
-    glTexImage2D(GL_TEXTURE_2D, 0, GL_RGB16F, width, height, 0, GL_RGB, GL_FLOAT, data);
-
-    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
-    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
-    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
-    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
-    // glGenerateMipmap(GL_TEXTURE_2D);
+    auto texture = CreateTexture2D("SkyBox", width, height, data, RTextureFormat::RGB16F, false, MipmapScaling::BILINEAR, TextureWrapping::CLAMP);
 
     stbi_image_free(data);
-    return hdrTexture;
+    return texture;
 }
 
 
