@@ -1,0 +1,27 @@
+[submodule "libraries/stb"]
+	path = libraries/stb
+	url = https://github.com/nothings/stb.git
+[submodule "libraries/glfw"]
+	path = libraries/glfw
+	url = https://github.com/glfw/glfw.git
+[submodule "libraries/JoltPhysics"]
+	path = libraries/JoltPhysics
+	url = https://github.com/Hamad-AM/JoltPhysics.git
+[submodule "libraries/GameNetworkingSockets"]
+	path = libraries/GameNetworkingSockets
+	url = https://github.com/Hamad-AM/GameNetworkingSockets.git
+[submodule "libraries/glm"]
+	path = libraries/glm
+	url = https://github.com/Hamad-AM/glm.git
+[submodule "libraries/miniaudio"]
+	path = libraries/miniaudio
+	url = https://github.com/mackron/miniaudio.git
+[submodule "libraries/tinygltf"]
+	path = libraries/tinygltf
+	url = https://github.com/syoyo/tinygltf.git
+[submodule "libraries/assimp"]
+	path = libraries/assimp
+	url = https://github.com/assimp/assimp.git
+[submodule "libraries/imgui"]
+	path = libraries/imgui
+	url = https://github.com/ocornut/imgui.git

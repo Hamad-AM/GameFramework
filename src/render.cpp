@@ -1,0 +1,1374 @@
+#include "render.h"
+
+#include <iostream>
+#include <random>
+#include <stb_image.h>
+
+#include <glad/glad.h>
+
+#include "asset_types.h"
+#include "imgui.h"
+#include "input.h"
+#include "memory.h"
+#include "asset_types.h"
+
+#define STB_IMAGE_IMPLEMENTATION
+#include "stb_image.h"
+
+//void UploadSceneToGPU(LoadedScene& scene, RenderData* renderData, MemoryArena* arena)
+void CreateRenderGraph(LoadedScene& scene, RenderGraph& renderGraph, MemoryArena* arena)
+{
+    std::chrono::microseconds totalMeshUploadTime = std::chrono::microseconds(0);
+    std::chrono::microseconds totalTextureUploadTime = std::chrono::microseconds(0);;
+
+    u32 vertexOffset = 0;
+    u32 lastVertexCount = 0;
+    u32 lastIndexCount = 0;
+    auto start = TimeNow();
+    
+    // NEED TO MAKE SURE THE arena is properly initialized
+    renderGraph.meshes = PushArray(arena, RenderMesh, scene.meshCount);
+    renderGraph.meshCount = scene.meshCount;
+    renderGraph.textures = PushArray(arena, RenderTexture2D, scene.textureCount);
+    renderGraph.textureCount = scene.textureCount;
+    renderGraph.materials = PushArray(arena, RenderMaterial, scene.textureCount);
+    renderGraph.materialCount = scene.materialCount;
+
+    u32 textureIdx = 0;
+    while(textureIdx < scene.textureCount)
+    {
+        TextureHeader textureHeader = scene.textures[textureIdx];
+        u8* textureData = scene.textureData + scene.textureOffsets[textureIdx];
+        // TODO: Convert from texture header format to this one
+        RenderTexture2D textureHandle = CreateTexture2D("Temp", textureHeader.width, textureHeader.height, textureData, RTextureFormat::RGBA8, true, MipmapScaling::BILINEAR, TextureWrapping::REPEAT);
+        renderGraph.textures[textureIdx] = textureHandle;
+        textureIdx++;
+    }
+
+    // TODO: Handle set of Materials for Render currently render mesh stores materials inplace
+    // u32 materialIdx = 0;
+    // u8* materialData = scene.textureData;
+    // while(textureIdx < scene.textureCount)
+    // {
+    //     TextureHeader textureHeader = scene.textures[textureIdx];
+    //     RenderTexture renderTexture = CreateTexture(textureHeader, textureData);
+    //     renderData->textures[textureIdx] = renderTexture;
+    //
+    //     textureData += scene.textureOffsets[textureIdx];
+    //     textureIdx++;
+    // }
+    auto end = TimeNow();
+    auto duration = Timelapse(end - start);
+    totalTextureUploadTime += duration;
+
+    start = TimeNow();
+    for (u32 meshIdx = 0;
+        meshIdx < scene.meshCount;
+        ++meshIdx)
+    {
+        RenderMesh& renderMesh = renderGraph.meshes[meshIdx];
+        MeshHeader& assetMesh = scene.meshes[meshIdx];
+        MaterialHeader& material = scene.materials[assetMesh.materialIdx];
+
+        renderMesh.name = assetMesh.name;
+        renderMesh.material.albedoIdx = material.albedoIdx;
+        renderMesh.material.normalMapIdx = material.normalIdx;
+        renderMesh.material.metallicRoughnessIdx = material.metallicRoughnessIdx;
+
+        renderMesh.vbo = CreateBuffer(BufferType::ARRAY, assetMesh.vertexCount, sizeof(Vertex), (u8*)scene.vertices + assetMesh.vertexOffset, DrawState::STATIC_DRAW);
+        renderMesh.ebo = CreateBuffer(BufferType::INDEX, assetMesh.indexCount, sizeof(u32), (u8*)scene.indices + assetMesh.indexOffset, DrawState::STATIC_DRAW);
+
+        renderMesh.vao = CreateVertexArray();
+        VertexArrayElement elements[] = {{sizeof(f32), 3}, // Position
+                                         {sizeof(f32), 3}, // Normal
+                                         {sizeof(f32), 2}, // UV
+                                         {sizeof(f32), 3}  // Tangent 
+                                        };
+        SetVertexArrayFormat(renderMesh.vao, renderMesh.ebo.count, elements);
+    }
+    end = TimeNow();
+    duration = Timelapse(end - start);
+    totalMeshUploadTime += duration;
+
+    std::cout << "  Time to Upload Mesh Data: " << totalMeshUploadTime.count() / 1000 << std::endl;
+    std::cout << "  Time to Upload Texture Data: " << totalTextureUploadTime.count() / 1000 << std::endl;
+}
+
+const char* getGLErrorString(GLenum errorCode) {
+    switch (errorCode) {
+    case GL_NO_ERROR:              return "GL_NO_ERROR";
+    case GL_INVALID_ENUM:          return "GL_INVALID_ENUM";
+    case GL_INVALID_VALUE:         return "GL_INVALID_VALUE";
+    case GL_INVALID_OPERATION:     return "GL_INVALID_OPERATION";
+    case GL_STACK_OVERFLOW:        return "GL_STACK_OVERFLOW";
+    case GL_STACK_UNDERFLOW:       return "GL_STACK_UNDERFLOW";
+    case GL_OUT_OF_MEMORY:         return "GL_OUT_OF_MEMORY";
+    case GL_INVALID_FRAMEBUFFER_OPERATION: return "GL_INVALID_FRAMEBUFFER_OPERATION";
+    default:                       return "Unknown error";
+    }
+}
+
+void CompileShaders(RenderData* renderData) {
+    renderData->forwardPass.pbrShader.compile("shaders/Base.vs", "shaders/Base.fs");
+    
+    renderData->textureToScreen.compile("shaders/textureToScreen.vs", "shaders/textureToScreen.fs");
+
+    renderData->shadowPass.pointDepthShader.compile("shaders/PointDepthShader.vs", "shaders/PointDepthShader.fs", "shaders/PointDepthShader.gs");
+    renderData->depthNormalShader.compile("shaders/DepthNormalPass.vs", "shaders/DepthNormalPass.fs");
+
+    renderData->SSAOPass.SSAOShader.compile("shaders/SSAOPass.vs", "shaders/SSAOPass.fs");
+    renderData->SSAOPass.SSAOBlurShader.compile("shaders/SSAOPass.vs", "shaders/SSAOBlurPass.fs");
+
+    renderData->environmentMapPass.equirectangularToCubemapShader.compile("shaders/Image2CubeMap.vs", "shaders/Image2CubeMap.fs");
+    renderData->environmentMapPass.backgroundShader.compile("shaders/SkyBox.vs", "shaders/SkyBox.fs");
+    renderData->environmentMapPass.irradianceShader.compile("shaders/IrradianceConvolution.vs", "shaders/IrradianceConvolution.fs");
+    renderData->environmentMapPass.prefilterShader.compile("shaders/IrradianceConvolution.vs", "shaders/Prefilter.fs");
+    renderData->environmentMapPass.brdfShader.compile("shaders/BrdfShader.vs", "shaders/BrdfShader.fs");
+
+
+    renderData->deferredPass.lightingPass.compile("shaders/LightingPass.vs", "shaders/LightingPass.fs");
+
+    renderData->lightProbePass.colorShader.compile("shaders/RenderLightProbe.vs", "shaders/RenderLightProbe.fs");
+
+    renderData->UnlitShader.compile("shaders/UnlitShader.vs", "shaders/UnlitShader.fs");
+
+    renderData->sphereCubemap.compile("shaders/SphereCubemap.vs", "shaders/SphereCubemap.fs");
+}
+
+void RenderSetupParameters(RenderData* renderData, u32 renderWidth, u32 renderHeight)
+{
+    renderData->renderWidth = renderWidth;
+    renderData->renderHeight = renderHeight;
+}
+
+void RenderPassDesc::SetShader(const char* vs, const char* fs) {
+    this->shader.compile(vs, fs);
+}
+
+void RenderPassDesc::SetSize(u32 width, u32 height) {
+    renderBuffer = CreateRenderbuffer(width, height, depthComp);
+    this->width = width;
+    this->height = height;
+    e
+}
+
+void RenderPassDesc::AttachUniformBuffer(u32 slot, u32 size, DrawState drawState) {
+    this->uniforms[slot].ubo = CreateUniformBuffer(size, drawState);
+    SetUniformSlot(this->uniforms[slot].ubo, slot);
+}
+
+void FramebufferAttachColor(RenderTexture2D& texture2D) {
+    FramebufferAttachColor(this->renderTarget, texture2D);
+}
+
+void AttachDepth(RenderTexture2D& texture2D) {
+    FramebufferAttachDepth(this->renderTarget, texture2D);
+}
+
+void AttachDepth(RenderTextureArray& textureArray) {
+    FramebufferAttachDepth(this->renderTarget, textureArray);
+}
+
+void RenderPassDesc::ResetAttachments() {
+    ResetColorAttachments();
+    // Remove uniform attachments as well?
+    assert(false && "add features to remove other attachments from framebuffer");
+}
+
+void RenderPassDesc::ResetColorAttachments() {
+    renderTarget.textureAttachmentCount = 0;
+}
+
+void ApplyRenderState(Renderer& renderer, const RenderState& newState) {
+    RenderState& old = renderer.currentState;
+
+    if (old.depthTesting != newState.depthTesting ||
+       old.depthFunction != newState.depthFunction ||
+       old.depthWriting != newState.depthWriting) {
+        SetDepthState(newState);
+    }
+
+    if (old.blending != newState.blending ||
+       old.srcBlend != newState.srcBlend ||
+       old.dstBlend != newState.dstBlend) {
+        SetBlendState(newState);
+    }
+
+    if (old.cullFace != newState.cullFace ||
+       old.cullFaceMode != newState.cullFaceMode ||
+       old.frontFace != newState.frontFace) {
+        SetCullState(newState);
+   }
+
+    if (old.polygonMode != newState.polygonMode) {
+        SetPolygonState(newState);
+    }
+
+    if (old.textureCubeMapSeamless != newState.textureCubeMapSeamless) {
+        SetTextureCubeMapSeamlessState(newState);
+    }
+
+    renderer.currentState = newState;
+}
+
+RenderPass CreateRenderPass(RenderPassDesc& desc) {
+    RenderPass pass = {
+        .desc = desc
+    };
+    pass.renderTarget = CreateFramebuffer();
+
+    for (u32 i = 0; i < desc.outputCount; ++i) {
+        FramebufferAttachColor(pass.renderTarget, desc.outputs[i]);
+    }
+
+    if (desc.outputCount) {
+        FramebufferDrawAttachments(pass.renderTarget);
+    } else {
+        FramebufferNoDrawBuffer(pass.renderTarget);
+        FramebufferNoReadBuffer(pass.renderTarget);
+    }
+
+    switch (desc.depthOutput.type) {
+        case RESOURCE_NONE:
+            CreateRenderbuffer(pass.renderTarget, desc.width, desc.height, DepthComp::DepthCompnent);
+            break;
+        default:
+            FramebufferAttachDepth(pass.renderTarget, desc.depthOutput);
+            break;
+    }
+    return pass;
+}
+
+void Renderer::InitRenderer() {
+    SetRenderClearColor(0.75, 0.1, 0.4, 1.0);
+
+    gPosition = CreateTexture2D("GBuffer Position", screenWidth, screenHeight, NULL, RTextureFormat::RGBA16F, false, MipmapScaling::NEAREST_NEIGHBOUR, TextureWrapping::WRAP_NONE);
+    gNormal = CreateTexture2D("GBuffer Normal", screenWidth, screenHeight, NULL, RTextureFormat::RGBA16F, false, MipmapScaling::NEAREST_NEIGHBOUR, TextureWrapping::WRAP_NONE);
+    gAlbedo = CreateTexture2D("GBuffer albedo", screenWidth, screenHeight, NULL, RTextureFormat::RGBA8, false, MipmapScaling::NEAREST_NEIGHBOUR, TextureWrapping::WRAP_NONE);
+    gMetallicRoughness = CreateTexture2D("GBuffer MR", screenWidth, screenHeight, NULL, RTextureFormat::RGBA8, false, MipmapScaling::NEAREST_NEIGHBOUR, TextureWrapping::WRAP_NONE);
+
+    ShaderHandle gBufferShader = ShaderCompile("shaders/GBuffer.vs", "shaders/GBuffer.fs");
+    
+    RenderPassDesc gBufferPass = {
+        .name = "GBuffer Pass",
+        .input = {
+            // Camera
+            // MeshArray
+        },
+        .outputs = {
+            { .type = RESOURCE_TEXTURE2D, .texture2D = gPosition },
+            { .type = RESOURCE_TEXTURE2D, .texture2D = gNormal },
+            { .type = RESOURCE_TEXTURE2D, .texture2D = gAlbedo },
+            { .type = RESOURCE_TEXTURE2D, .texture2D = gMetallicRoughness }
+        },
+        .outputCount = 4,
+        .shader = gBufferShader,
+        .width = screenWidth,
+        .height = screenHeight,
+        
+        .state = {
+            .depthTesting  = false,
+            .blending      = true,
+            .srcBlend      = BLEND_SRC_ALPHA,
+            .dstBlend      = BLEND_ONE_MINUS_SRC_ALPHA,
+            .blendEquation = BLEND_SUBTRACT,
+            .cullFace      = false,
+        }
+    };
+
+    RenderTextureArray shadowDepthmap = CreateTexture2DArray(
+                                cascadeCount,
+                                RTextureFormat::DEPTH16F,
+                                shadowMapResolution, shadowMapResolution,
+                                MipmapScaling::BILINEAR,
+                                TextureWrapping::BORDER_COLOUR
+                            );
+    
+    ShaderHandle shadowPassShader = ShaderCompile("shaders/CSMShader.vs", "shaders/CSMShader.fs", "shaders/CSMShader.gs");
+
+    RenderPassDesc csmDesc = {
+        .name = "Cascade Shadow Map Pass",
+        .inputs {
+            // Attach 16 mat4s uniform
+            // desc.AttachUniformBuffer(0, sizeof(glm::mat4x4) * 16, DrawState::STATIC_DRAW);
+        },
+        .depthOutput = { .type = RESOURCE_TEXTURE2D_ARRAY, .textureArray = shadowDepthmap },
+        .shader = shadowPassShader,
+        .width = shadowMapResolution,
+        .height = shadowMapResolution,
+        .state {
+            .depthTesting = DEPTH_LESS_EQUAL
+        }
+    };
+
+    renderPassCount = 0;
+    AddRenderPass(renderGraph, renderPassCount, gBufferPass);
+}
+
+void AddRenderPass(RenderPass* renderGraph, u32& renderPassCount, RenderPassDesc desc) {
+    renderGraph[renderPassCount++] = CreateRenderPass(desc);
+}
+
+// void RenderGraph::AddPointShadowmapPass(PointLight* lights, u32 lightCount) {
+//     RenderPassDesc desc = RenderPassDesc::Create(pointShadowResolution, pointShadowResolution, DepthComp::DepthComponent);
+//     for (u32 lightId = 0; lightId < lightCount; ++lightId) {
+//         pointShadowDepthmaps[lightId] = CreateTextureCubemap(
+//                                             pointShadowResolution,
+//                                             pointShadowResolution,
+//                                             RTextureFormat::DEPTH16F,
+//                                             MipmapScaling::NEAREST_NEIGHBOUR,
+//                                             TextureWrapping::CLAMP
+//                                         );
+//     }
+//     pointShadowmapPass = CreateRenderPass(desc);
+// }
+
+void RenderBindPBRTextures(u32 startingTextureSlot, u32 uniformSlot, Shader* shader, RenderMesh* renderMesh, RenderData* renderData) {
+    RenderMaterial material = renderMesh->material;
+    glActiveTexture(startingTextureSlot);
+    glBindTexture(GL_TEXTURE_2D, renderData->textures[material.albedoIdx].textureID);
+    shader->uniform_int("albedo", uniformSlot);
+    glActiveTexture(startingTextureSlot+1);
+    glBindTexture(GL_TEXTURE_2D, renderData->textures[material.normalMapIdx].textureID);
+    shader->uniform_int("normalMap", uniformSlot+1);
+    glActiveTexture(startingTextureSlot+2);
+    glBindTexture(GL_TEXTURE_2D, renderData->textures[material.metallicRoughnessIdx].textureID);
+    shader->uniform_int("metallicRoughness", uniformSlot+2);
+}
+
+void RenderPass::Execute() {
+    this->BindPipeline();
+    BindFramebuffer(this->framebuffer, desc.width, desc.height);
+}
+
+void RenderGraph::DrawFrame(glm::mat4 model, Camera3D& camera)
+{
+    // glEnable(GL_DEPTH_TEST);
+    // // glDepthFunc(GL_LESS);
+    // glDepthFunc(GL_LEQUAL);
+    // //
+    // glEnable(GL_BLEND);
+    // glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
+    // //
+    // glEnable(GL_CULL_FACE);
+    // glCullFace(GL_BACK);
+    //
+    // glEnable(GL_TEXTURE_CUBE_MAP_SEAMLESS);
+
+    gBuffer.Execute();
+    glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
+
+    glBindFramebuffer(GL_FRAMEBUFFER, pass.gBuffer);
+    glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
+
+    pass.gBufferShader.bind();
+    pass.gBufferShader.uniform_matrix4("projection", camera.projection);
+    pass.gBufferShader.uniform_matrix4("view", camera.view);
+    pass.gBufferShader.uniform_matrix4("model", model);
+    //pass.gBufferShader.uniform_vector3f("cameraPosition", camera.position);
+    for (u32 i = 0; i < renderData->meshCount; ++i)
+    {
+        RenderMesh* renderMesh = &renderData->meshes[i];
+        RenderBindPBRTextures(GL_TEXTURE0, 0, &pass.gBufferShader, renderMesh, renderData);
+        glBindVertexArray(renderMesh->VAO);
+        glDrawElements(GL_TRIANGLES, renderMesh->numberOfIndices, GL_UNSIGNED_INT, (void*)(0 * sizeof(u32)));
+    }
+    glBindFramebuffer(GL_FRAMEBUFFER, 0);
+    glEnable(GL_CULL_FACE);
+}
+
+void ExecuteRenderPass(Renderer& renderer, RenderPass& pass) {
+    ApplyRenderState(renderer, pass.desc.state);
+    BindFramebuffer(pass.renderTarget, pass.desc.width, pass.desc.height);
+    BindShader(pass.shader);
+    DrawScene();
+}
+
+void RenderDeferredScene(RenderData* renderData, glm::mat4 model, Camera3D& camera)
+{
+    DeferredPass& pass = renderData->deferredPass;
+    glViewport(0, 0, renderData->renderWidth, renderData->renderHeight);
+    glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
+    
+    glBindBufferBase(GL_SHADER_STORAGE_BUFFER, 0, renderData->lightShaderStorageObject);
+    glBindBufferBase(GL_UNIFORM_BUFFER, 1, renderData->shadowPass.lightMatricesUBO);
+
+    pass.lightingPass.bind();
+    pass.lightingPass.uniform_matrix4("view", camera.view);
+    glActiveTexture(GL_TEXTURE0);
+    glBindTexture(GL_TEXTURE_2D, pass.gPosition);
+    pass.lightingPass.uniform_int("gPosition", 0);
+    glActiveTexture(GL_TEXTURE1);
+    glBindTexture(GL_TEXTURE_2D, pass.gNormal);
+    pass.lightingPass.uniform_int("gNormal", 1);
+    glActiveTexture(GL_TEXTURE2);
+    glBindTexture(GL_TEXTURE_2D, pass.gAlbedo);
+    pass.lightingPass.uniform_int("gAlbedo", 2);
+    glActiveTexture(GL_TEXTURE3);
+    glBindTexture(GL_TEXTURE_2D, pass.gMetallicRoughness);
+    pass.lightingPass.uniform_int("gMetallicRoughness", 3);
+
+    glActiveTexture(GL_TEXTURE4);
+    glBindTexture(GL_TEXTURE_2D_ARRAY, renderData->shadowPass.lightDepthmaps);
+    assert(glGetError() == GL_NO_ERROR);
+    pass.lightingPass.uniform_int("shadowMap", 4);
+    assert(glGetError() == GL_NO_ERROR);
+
+    glActiveTexture(GL_TEXTURE5);
+    glBindTexture(GL_TEXTURE_2D, renderData->SSAOPass.ssaoColorBufferBlur);
+    pass.lightingPass.uniform_int("ssao", 5);
+    glActiveTexture(GL_TEXTURE6);
+    glBindTexture(GL_TEXTURE_CUBE_MAP, renderData->environmentMapPass.irradianceMap);
+    pass.lightingPass.uniform_int("irradianceMap", 6);
+    glActiveTexture(GL_TEXTURE7);
+    glBindTexture(GL_TEXTURE_CUBE_MAP, renderData->environmentMapPass.prefilterMap);
+    pass.lightingPass.uniform_int("prefilterMap", 7);
+    glActiveTexture(GL_TEXTURE8);
+    glBindTexture(GL_TEXTURE_2D, renderData->environmentMapPass.brdfLUTTexture);
+    pass.lightingPass.uniform_int("brdfLUT", 8);
+    // for (int i = 0; i < renderData->shadowPass.pointCount; ++i)
+    // {
+    //     glActiveTexture(GL_TEXTURE9+i);
+    //     glBindTexture(GL_TEXTURE_CUBE_MAP, renderData->shadowPass.pointShadows[i].depthCubemap);
+    //     std::string name = "depthCubemaps[" + std::to_string(i) + "]";
+    //     pass.lightingPass.uniform_int(name.c_str(), 9+i);
+    // }
+    // pass.lightingPass.uniform_float("pointShadowFarPlane", renderData->shadowPass.farPlane);
+    pass.lightingPass.uniform_vector3f("viewPos", camera.position);
+    pass.lightingPass.uniform_int("cascadeCount", renderData->shadowPass.cascadesCount);
+    for (s32 i = 0; i < renderData->shadowPass.cascadesCount-1; ++i)
+    {
+        std::string uniformName = "cascadePlaneDistances[" + std::to_string(i) + "]";
+        pass.lightingPass.uniform_float(uniformName.c_str(), renderData->shadowPass.shadowCascadeLevels[i]);
+    }
+
+    RenderQuad(renderData);
+
+    glBindFramebuffer(GL_READ_FRAMEBUFFER, pass.gBuffer);
+    glBindFramebuffer(GL_DRAW_FRAMEBUFFER, 0); // write to default framebuffer
+    // blit to default framebuffer. Note that this may or may not work as the internal formats of both the FBO and default framebuffer have to match.
+    // the internal formats are implementation defined. This works on all of my systems, but if it doesn't on yours you'll likely have to write to the 		
+    // depth buffer in another shader stage (or somehow see to match the default framebuffer's internal format with the FBO's internal format).
+    glBlitFramebuffer(0, 0, renderData->renderWidth, renderData->renderHeight, 0, 0, renderData->renderWidth, renderData->renderHeight, GL_DEPTH_BUFFER_BIT, GL_NEAREST);
+    glBindFramebuffer(GL_FRAMEBUFFER, 0);
+
+    renderData->UnlitShader.bind();
+    renderData->UnlitShader.uniform_matrix4("projection", camera.projection);
+    renderData->UnlitShader.uniform_matrix4("view", camera.view);
+    for (s32 i = 0; i < renderData->numLights; ++i)
+    {
+        glm::mat4 lightModel(1.0f);
+        SSOLight& light = renderData->lights[i];
+        lightModel = glm::translate(lightModel, glm::vec3(light.positionX, light.positionY, light.positionZ));
+        lightModel = glm::scale(lightModel, glm::vec3(0.1f));
+        renderData->UnlitShader.uniform_matrix4("model", lightModel);
+        renderData->UnlitShader.uniform_vector3f("lightColor", glm::vec3(light.colorX, light.colorY, light.colorZ));
+        RenderCube(renderData);
+    }
+
+    RenderEnvironmentMap(renderData, camera);
+    glBindBuffer(GL_SHADER_STORAGE_BUFFER, 0);
+}
+
+void RenderLightProbeDebugSphere(RenderData* renderData, Camera3D& camera) {
+    renderData->sphereCubemap.bind();
+    renderData->sphereCubemap.uniform_matrix4("projection", camera.projection);
+    renderData->sphereCubemap.uniform_matrix4("view", camera.view);
+    glm::mat4 lightModel(1.0f);
+    lightModel = glm::translate(lightModel, renderData->lightProbePass.position);
+    lightModel = glm::scale(lightModel, glm::vec3(0.1f));
+    renderData->sphereCubemap.uniform_matrix4("model", lightModel);
+    glActiveTexture(GL_TEXTURE0);
+    glBindTexture(GL_TEXTURE_CUBE_MAP, renderData->lightProbePass.irradianceMap);
+    renderData->sphereCubemap.uniform_int("cubemap", 0);
+    RenderSphere(renderData);
+}
+
+void RenderOmidirectionalShadowMap(RenderData* renderData, mat4& model, Light* lights, u32 numLights)
+{
+    ShadowPass& pass = renderData->shadowPass;
+    f32 nearPlane = 1.0f;
+    f32 farPlane = 15.0f;
+    pass.farPlane = farPlane;
+    std::vector<glm::mat4> shadowTransforms;
+    vec3 lightPos;
+    for (u32 i = 0; i < numLights; ++i)
+    {
+        if (lights[i].type == LightType::Point)
+        {
+            Light* light = &lights[i];
+            PointLightShadow& point = pass.pointShadows[light->pointShadowMapIndex];
+            mat4 shadowProjection = glm::perspective(glm::radians(90.0f), (f32)point.pointWidth/(f32)point.pointHeight, nearPlane, farPlane);
+            point.farPlane = farPlane;
+            //shadowProjection[1][1] *= -1;
+            lightPos = light->position;
+            shadowTransforms.push_back(shadowProjection * glm::lookAt(lightPos, lightPos + glm::vec3(1.0f, 0.0f, 0.0f), glm::vec3(0.0f, -1.0f, 0.0f)));
+            shadowTransforms.push_back(shadowProjection * glm::lookAt(lightPos, lightPos + glm::vec3(-1.0f, 0.0f, 0.0f), glm::vec3(0.0f, -1.0f, 0.0f)));
+            shadowTransforms.push_back(shadowProjection * glm::lookAt(lightPos, lightPos + glm::vec3(0.0f, 1.0f, 0.0f), glm::vec3(0.0f, 0.0f, 1.0f)));
+            shadowTransforms.push_back(shadowProjection * glm::lookAt(lightPos, lightPos + glm::vec3(0.0f, -1.0f, 0.0f), glm::vec3(0.0f, 0.0f, -1.0f)));
+            shadowTransforms.push_back(shadowProjection * glm::lookAt(lightPos, lightPos + glm::vec3(0.0f, 0.0f, 1.0f), glm::vec3(0.0f, -1.0f, 0.0f)));
+            shadowTransforms.push_back(shadowProjection * glm::lookAt(lightPos, lightPos + glm::vec3(0.0f, 0.0f, -1.0f), glm::vec3(0.0f, -1.0f, 0.0f)));
+
+            glViewport(0, 0,point.pointWidth,point.pointHeight);
+            glBindFramebuffer(GL_FRAMEBUFFER, pass.depthCubemapFBO);
+            glClear(GL_DEPTH_BUFFER_BIT);
+            pass.pointDepthShader.bind();
+            pass.pointDepthShader.uniform_float("far_plane", point.farPlane);
+            pass.pointDepthShader.uniform_vector3f("lightPos", lightPos);
+            for (unsigned int j = 0; j < 6; ++j)
+            {
+                std::string uniform = "shadowMatrices[" + std::to_string(j) + "]";
+                pass.pointDepthShader.uniform_matrix4(uniform.c_str(), shadowTransforms[j]);
+            }
+            pass.pointDepthShader.uniform_matrix4("model", model);
+            DrawScene(renderData);
+        }
+    }
+    glBindFramebuffer(GL_FRAMEBUFFER, 0);
+}
+
+void SetupLightProbe(RenderDevice& device)
+{
+    LightProbePass& pass = renderData->lightProbePass;
+    glGenFramebuffers(1, &pass.FBO);
+    // glGenRenderbuffers(1, &pass.captureRBO);
+    Framebuffer framebuffer = CreateFramebuffer(true, true);
+
+    pass.width = 512;
+    pass.height = 512;
+    glBindFramebuffer(GL_FRAMEBUFFER, pass.FBO);
+    glGenTextures(1, &pass.cubemap);
+    glBindTexture(GL_TEXTURE_CUBE_MAP, pass.cubemap);
+    for (u32 j = 0; j < 6; ++j)
+    {
+        glTexImage2D(GL_TEXTURE_CUBE_MAP_POSITIVE_X + j, 0, GL_RGB16F,
+            pass.width, pass.height, 0, GL_RGB, GL_FLOAT, NULL);
+    }
+    glTexParameteri(GL_TEXTURE_CUBE_MAP, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
+    glTexParameteri(GL_TEXTURE_CUBE_MAP, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
+    glTexParameteri(GL_TEXTURE_CUBE_MAP, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
+    glTexParameteri(GL_TEXTURE_CUBE_MAP, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
+    glTexParameteri(GL_TEXTURE_CUBE_MAP, GL_TEXTURE_WRAP_R, GL_CLAMP_TO_EDGE);
+    // glBindFramebuffer(GL_FRAMEBUFFER, pass.FBO);
+    // glFramebufferTexture(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, pass.cubemap, 0);
+    // glDrawBuffer(GL_NONE);
+    // glReadBuffer(GL_NONE);
+    glBindFramebuffer(GL_FRAMEBUFFER, 0);
+}
+
+void RenderLightProbe(RenderData* renderData, vec3& lightProbePosition, mat4& model, Light* lights, u32 numOfLights)
+{
+    LightProbePass& pass = renderData->lightProbePass;
+    pass.position = lightProbePosition;
+    f32 nearPlane = 1.0f;
+    f32 farPlane = 15.0f;
+    mat4 proj = glm::perspective(glm::radians(90.0f), (f32)pass.width/(f32)pass.height, nearPlane, farPlane);
+    mat4 probeTransforms[] = {
+        proj * glm::lookAt(lightProbePosition, lightProbePosition + glm::vec3(1.0f, 0.0f, 0.0f), glm::vec3(0.0f, -1.0f, 0.0f)),
+        proj * glm::lookAt(lightProbePosition, lightProbePosition + glm::vec3(-1.0f, 0.0f, 0.0f), glm::vec3(0.0f, -1.0f, 0.0f)),
+        proj * glm::lookAt(lightProbePosition, lightProbePosition + glm::vec3(0.0f, 1.0f, 0.0f), glm::vec3(0.0f, 0.0f, 1.0f)),
+        proj * glm::lookAt(lightProbePosition, lightProbePosition + glm::vec3(0.0f, -1.0f, 0.0f), glm::vec3(0.0f, 0.0f, -1.0f)),
+        proj * glm::lookAt(lightProbePosition, lightProbePosition + glm::vec3(0.0f, 0.0f, 1.0f), glm::vec3(0.0f, -1.0f, 0.0f)),
+        proj * glm::lookAt(lightProbePosition, lightProbePosition + glm::vec3(0.0f, 0.0f, -1.0f), glm::vec3(0.0f, -1.0f, 0.0f))
+    };
+    // TODO: Fix this alternative
+    glm::mat4 inv = glm::inverse(proj);
+
+    glViewport(0, 0, pass.width, pass.height);
+    glBindFramebuffer(GL_FRAMEBUFFER, pass.FBO);
+    glBindBufferBase(GL_SHADER_STORAGE_BUFFER, 0, renderData->lightShaderStorageObject);
+    for (u32 i = 0; i < 6; ++i)
+    {
+        glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0,
+            GL_TEXTURE_CUBE_MAP_POSITIVE_X + i, pass.cubemap, 0);
+        glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
+        
+        // TODO: FIx this hack
+        mat4 view = inv * probeTransforms[i];
+        RenderEnvironmentMap(renderData, view, proj);
+
+        pass.colorShader.bind();
+        pass.colorShader.uniform_matrix4("model", model);
+        pass.colorShader.uniform_matrix4("viewProj", probeTransforms[i]);
+        for (u32 j = 0; j < renderData->meshCount; ++j)
+        {
+            RenderMesh* renderMesh = &renderData->meshes[j];
+            glActiveTexture(GL_TEXTURE0);
+            glBindTexture(GL_TEXTURE_2D, renderData->textures[renderMesh->material.albedoIdx].textureID);
+            pass.colorShader.uniform_int("albedo", 0);
+
+            glBindVertexArray(renderMesh->VAO);
+            glDrawElements(GL_TRIANGLES, renderMesh->numberOfIndices, GL_UNSIGNED_INT, (void*)(0 * sizeof(u32)));
+        }
+    }
+
+
+    
+    glBindTexture(GL_TEXTURE_CUBE_MAP, pass.cubemap);
+    glGenerateMipmap(GL_TEXTURE_CUBE_MAP);
+
+    glm::mat4 captureProjection = glm::perspective(glm::radians(90.0f), 1.0f, 0.1f, 10.0f);
+    glm::mat4 captureViews[] =
+    {
+       glm::lookAt(glm::vec3(0.0f, 0.0f, 0.0f), glm::vec3(1.0f,  0.0f,  0.0f), glm::vec3(0.0f, -1.0f,  0.0f)),
+       glm::lookAt(glm::vec3(0.0f, 0.0f, 0.0f), glm::vec3(-1.0f,  0.0f,  0.0f), glm::vec3(0.0f, -1.0f,  0.0f)),
+       glm::lookAt(glm::vec3(0.0f, 0.0f, 0.0f), glm::vec3(0.0f,  1.0f,  0.0f), glm::vec3(0.0f,  0.0f,  1.0f)),
+       glm::lookAt(glm::vec3(0.0f, 0.0f, 0.0f), glm::vec3(0.0f, -1.0f,  0.0f), glm::vec3(0.0f,  0.0f, -1.0f)),
+       glm::lookAt(glm::vec3(0.0f, 0.0f, 0.0f), glm::vec3(0.0f,  0.0f,  1.0f), glm::vec3(0.0f, -1.0f,  0.0f)),
+       glm::lookAt(glm::vec3(0.0f, 0.0f, 0.0f), glm::vec3(0.0f,  0.0f, -1.0f), glm::vec3(0.0f, -1.0f,  0.0f))
+    };
+
+
+    glGenTextures(1, &pass.irradianceMap);
+    glBindTexture(GL_TEXTURE_CUBE_MAP, pass.irradianceMap);
+    for (unsigned int i = 0; i < 6; ++i)
+    {
+        glTexImage2D(GL_TEXTURE_CUBE_MAP_POSITIVE_X + i, 0, GL_RGB16F, 32, 32, 0, GL_RGB, GL_FLOAT, nullptr);
+    }
+    glTexParameteri(GL_TEXTURE_CUBE_MAP, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
+    glTexParameteri(GL_TEXTURE_CUBE_MAP, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
+    glTexParameteri(GL_TEXTURE_CUBE_MAP, GL_TEXTURE_WRAP_R, GL_CLAMP_TO_EDGE);
+    glTexParameteri(GL_TEXTURE_CUBE_MAP, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
+    glTexParameteri(GL_TEXTURE_CUBE_MAP, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
+
+    renderData->environmentMapPass.irradianceShader.bind();
+    glActiveTexture(GL_TEXTURE0);
+    glBindTexture(GL_TEXTURE_CUBE_MAP, pass.cubemap);
+    renderData->environmentMapPass.irradianceShader.uniform_int("environmentMap", 0);
+
+    glCullFace(GL_FRONT);
+    glViewport(0, 0, 32, 32); // don't forget to configure the viewport to the capture dimensions.
+    glBindFramebuffer(GL_FRAMEBUFFER, pass.FBO);
+    for (unsigned int i = 0; i < 6; ++i)
+    {
+        renderData->environmentMapPass.irradianceShader.uniform_matrix4("view", captureViews[i]);
+        glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_CUBE_MAP_POSITIVE_X + i, pass.irradianceMap, 0);
+        glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
+
+        RenderCube(renderData);
+    }
+    glBindFramebuffer(GL_FRAMEBUFFER, 0);
+    glCullFace(GL_BACK);
+}
+
+void RenderGraph::AddScreenSpaceAmbientOcclusion()
+{
+    r.ssaoTarget = CreateFramebuffer(true, true);
+    r.ssaoBlurTarget = CreateFramebuffer(true, true);
+    RenderPassDesc ssaoDesc;
+    RenderPassDesc ssaoBlurDesc;
+
+    // SSAO color buffer
+    ssaoColor = CreateTexture2D("SSAO color", screenWidth, screenHeight, NULL, RTextureFormat::RGBA8, false, MipmapScaling::NEAREST_NEIGHBOUR, TextureWrapping::CLAMP);
+    ssaoDesc.AttachColor(ssaoColor);
+
+    ssaoBlur = CreateTexture2D("SSAO Blur", r.screenWidth, r.screenHeight, NULL, RTextureFormat::RGBA8, false, MipmapScaling::NEAREST_NEIGHBOUR, TextureWrapping::CLAMP);
+    ssaoBlurDesc.AttachColor(ssaoBlur);
+
+    ssaoPass = CreateRenderPass(ssaoDesc);
+    ssaoBlurPass = CreateRenderPass(ssaoBlurDesc);
+
+    // LEARNOPENGL.COM
+    // generate sample kernel
+    // ----------------------
+    std::uniform_real_distribution<GLfloat> randomFloats(0.0, 1.0); // generates random floats between 0.0 and 1.0
+    std::default_random_engine generator;
+    for (unsigned int i = 0; i < 64; ++i)
+    {
+        glm::vec3 sample(randomFloats(generator) * 2.0 - 1.0, randomFloats(generator) * 2.0 - 1.0, randomFloats(generator));
+        sample = glm::normalize(sample);
+        sample *= randomFloats(generator);
+        float scale = float(i) / 64.0f;
+
+        // scale samples s.t. they're more aligned to center of kernel
+        scale = lerp(0.1f, 1.0f, scale * scale);
+        sample *= scale;
+        ssaoKernel[i] = sample;
+    }
+
+    // generate noise texture
+    // ----------------------
+    std::vector<glm::vec3> ssaoNoise;
+    for (unsigned int i = 0; i < 16; i++)
+    {
+        glm::vec3 noise(randomFloats(generator) * 2.0 - 1.0, randomFloats(generator) * 2.0 - 1.0, 0.0f); // rotate around z-axis (in tangent space)
+        ssaoNoise.push_back(noise);
+    }
+    noiseTexture = CreateTexture2D("SSAO Noise texture", 4, 4, &ssaoNoise[0], RTextureFormat::RGBA32F, false, MipmapScaling::NEAREST_NEIGHBOUR, TextureWrapping::REPEAT);
+}
+
+void RenderGraph::InitIBL(const char* file)
+{
+    RenderTexture2D hdrTexture = LoadSkyBoxTexture(file);
+
+    auto skyboxProjectionDesc = RenderPassDesc::Create(512, 512, DepthComp::DepthComponent24);
+    skyboxProjectionDesc.AttachColor(hdrTexture);
+
+    SetupBRDFLUT(renderData, pass);
+
+    skyboxCubemap = CreateTextureCubemap(512, 512, RTextureFormat::RGB16F, MipmapScaling::BILINEAR, TextureWrapping::CLAMP);
+
+    auto captureCubemap = CreateRenderPass(skyboxProjectionDesc);
+
+    glm::mat4 captureProjection = glm::perspective(glm::radians(90.0f), 1.0f, 0.1f, 10.0f);
+    glm::mat4 captureViews[] =
+    {
+       glm::lookAt(glm::vec3(0.0f, 0.0f, 0.0f), glm::vec3(1.0f,  0.0f,  0.0f), glm::vec3(0.0f, -1.0f,  0.0f)),
+       glm::lookAt(glm::vec3(0.0f, 0.0f, 0.0f), glm::vec3(-1.0f,  0.0f,  0.0f), glm::vec3(0.0f, -1.0f,  0.0f)),
+       glm::lookAt(glm::vec3(0.0f, 0.0f, 0.0f), glm::vec3(0.0f,  1.0f,  0.0f), glm::vec3(0.0f,  0.0f,  1.0f)),
+       glm::lookAt(glm::vec3(0.0f, 0.0f, 0.0f), glm::vec3(0.0f, -1.0f,  0.0f), glm::vec3(0.0f,  0.0f, -1.0f)),
+       glm::lookAt(glm::vec3(0.0f, 0.0f, 0.0f), glm::vec3(0.0f,  0.0f,  1.0f), glm::vec3(0.0f, -1.0f,  0.0f)),
+       glm::lookAt(glm::vec3(0.0f, 0.0f, 0.0f), glm::vec3(0.0f,  0.0f, -1.0f), glm::vec3(0.0f, -1.0f,  0.0f))
+    };
+
+    pass.equirectangularToCubemapShader.bind();
+    pass.equirectangularToCubemapShader.uniform_int("equirectangularMap", 0);
+    pass.equirectangularToCubemapShader.uniform_matrix4("projection", captureProjection);
+    glActiveTexture(GL_TEXTURE0);
+    glBindTexture(GL_TEXTURE_2D, hdrTexture);
+
+    glCullFace(GL_FRONT);
+    glViewport(0, 0, 512, 512); // don't forget to configure the viewport to the capture dimensions.
+    glBindFramebuffer(GL_FRAMEBUFFER, pass.captureFBO);
+    for (unsigned int i = 0; i < 6; ++i)
+    {
+        pass.equirectangularToCubemapShader.uniform_matrix4("view", captureViews[i]);
+        glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
+        captureCubemap.desc.AttachColor(skyboxCubemap);
+        RenderCube(renderData); // renders a 1x1 cube
+    }
+    GenerateMipmap(skyboxCubemap);
+
+    irradianceMap = CreateTextureCubemap(32, 32, RTextureFormat::RGB16F, MipmapScaling::BILINEAR, TextureWrapping::CLAMP);
+
+    // Update framebuffer to render to new image
+    skyboxProjectionDesc.SetSize(32, 32);
+    skyboxProjectionDesc.ResetColorAttachments();    
+    skyboxProjectionDesc.AttachColor(irradianceMap);
+
+    skyboxCubemap = CreateRenderPass(skyboxProjectionDesc);
+
+    pass.irradianceShader.bind();
+    pass.irradianceShader.uniform_int("environmentMap", 0);
+    pass.irradianceShader.uniform_matrix4("projection", captureProjection);
+    glActiveTexture(GL_TEXTURE0);
+    glBindTexture(GL_TEXTURE_CUBE_MAP, pass.envCubemap);
+
+    glCullFace(GL_FRONT);
+    glViewport(0, 0, 32, 32); // don't forget to configure the viewport to the capture dimensions.
+    glBindFramebuffer(GL_FRAMEBUFFER, pass.captureFBO);
+    for (unsigned int i = 0; i < 6; ++i)
+    {
+        pass.irradianceShader.uniform_matrix4("view", captureViews[i]);
+        glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
+        RenderCube(renderData);
+    }
+    glBindFramebuffer(GL_FRAMEBUFFER, 0);
+
+    prefilterMap = CreateTextureCubemap(128, 128, RTextureFormat::RG16F, MipmapScaling::BILINEAR, TextureWrapping::CLAMP);
+    GenerateMipmap(prefilterMap);
+
+    skyboxProjectionDesc.ResetColorAttachments();
+    skyboxProjectionDesc.AttachColor(prefilterMap);
+    skyboxProjectionDesc.SetSize(128, 128);
+
+    skyboxCubemap = CreateRenderPass(skyboxProjectionDesc);
+
+    // pbr: run a quasi monte-carlo simulation on the environment lighting to create a prefilter (cube)map.
+    // ----------------------------------------------------------------------------------------------------
+    pass.prefilterShader.bind();
+    pass.prefilterShader.uniform_int("environmentMap", 0);
+    pass.prefilterShader.uniform_matrix4("projection", captureProjection);
+    glActiveTexture(GL_TEXTURE0);
+    glBindTexture(GL_TEXTURE_CUBE_MAP, pass.envCubemap);
+
+    glBindFramebuffer(GL_FRAMEBUFFER, pass.captureFBO);
+    unsigned int maxMipLevels = 5;
+    for (unsigned int mip = 0; mip < maxMipLevels; ++mip)
+    {
+        // reisze framebuffer according to mip-level size.
+        unsigned int mipWidth = static_cast<unsigned int>(128 * std::pow(0.5, mip));
+        unsigned int mipHeight = static_cast<unsigned int>(128 * std::pow(0.5, mip));
+        skyboxProjectionDesc.SetSize(mipWidth, mipHeight);
+        skyboxCubemap = CreateRenderPass(skyboxProjectionDesc);
+        glViewport(0, 0, mipWidth, mipHeight);
+
+        float roughness = (float)mip / (float)(maxMipLevels - 1);
+        pass.prefilterShader.uniform_float("roughness", roughness);
+        for (unsigned int i = 0; i < 6; ++i)
+        {
+            pass.prefilterShader.uniform_matrix4("view", captureViews[i]);
+            glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_CUBE_MAP_POSITIVE_X + i, pass.prefilterMap, mip);
+            glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
+            RenderCube(renderData);
+        }
+    }
+    glCullFace(GL_BACK);
+}
+
+void SetupLightsBuffer(RenderData* renderData, Light* lights, u32 numLights)
+{
+    SSOLight* ssoLights = new SSOLight[numLights];
+    for (int i = 0; i < numLights; i++) {
+        ssoLights[i].type = lights[i].type;
+        ssoLights[i].positionX = lights[i].position.x;
+        ssoLights[i].positionY = lights[i].position.y;
+        ssoLights[i].positionZ = lights[i].position.z;
+        ssoLights[i].directionX = lights[i].direction.x;
+        ssoLights[i].directionY = lights[i].direction.y;
+        ssoLights[i].directionZ = lights[i].direction.z;
+        ssoLights[i].colorX = lights[i].color.r;
+        ssoLights[i].colorY = lights[i].color.g;
+        ssoLights[i].colorZ = lights[i].color.b;
+        ssoLights[i].luminance = lights[i].luminance;
+        ssoLights[i].constant = lights[i].constant;
+        ssoLights[i].linear = lights[i].linear;
+        ssoLights[i].quadratic = lights[i].quadratic;
+        ssoLights[i].cutOff = lights[i].cutOff;
+        ssoLights[i].isShadowCasting = lights[i].isShadowCasting;
+        ssoLights[i].shadowIndex = lights[i].pointShadowMapIndex;
+    }
+    renderData->lights = ssoLights;
+    glGenBuffers(1, &renderData->lightShaderStorageObject);
+    glBindBuffer(GL_SHADER_STORAGE_BUFFER, renderData->lightShaderStorageObject);
+    glBufferData(GL_SHADER_STORAGE_BUFFER, numLights * sizeof(SSOLight), ssoLights, GL_DYNAMIC_DRAW);
+    glBindBufferBase(GL_SHADER_STORAGE_BUFFER, 0, renderData->lightShaderStorageObject); // Bind to binding point 0
+    glBindBuffer(GL_SHADER_STORAGE_BUFFER, 0); // Unbind
+    renderData->numLights = numLights;
+}
+
+//TODO: just use renderdatas lights stuff do not get it from outside have on bottleneck where 
+// data is glued / synced
+void UpdateLightsBuffer(RenderData* renderData, u32 numLights)
+{
+    glBindBuffer(GL_SHADER_STORAGE_BUFFER, renderData->lightShaderStorageObject);
+    glBufferSubData(GL_SHADER_STORAGE_BUFFER, 0, sizeof(SSOLight) * numLights, renderData->lights);
+    glBindBuffer(GL_SHADER_STORAGE_BUFFER, 0);
+}
+
+void RenderGraph::AddBRDFPass()
+{
+    brdfLUT = CreateTexture2D("BRDF LUT", 512, 512, nullptr, RTextureFormat::RG16F, false, MipmapScaling::BILINEAR, TextureWrapping::CLAMP);
+
+    auto desc = RenderPassDesc::Create(512, 512, DepthComp::DepthComponent24);
+    desc.AttachColor(brdfLUT);
+    auto BRDFPass = CreateRenderPass(desc);
+
+    glDisable(GL_CULL_FACE);
+    glDisable(GL_BLEND);
+
+    glViewport(0, 0, 512, 512);
+    pass.brdfShader.bind();
+    glClearColor(0.0, 0.0, 0.0, 1.0);
+    glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
+    RenderQuad(renderData);
+
+    glEnable(GL_BLEND);
+    glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
+}
+
+void RenderBRDFLUT(RenderData* renderData)
+{
+    EnvironmentMapPass& pass = renderData->environmentMapPass;
+
+    glViewport(0, 0, 512, 512);
+    glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
+    renderData->textureToScreen.bind();    
+    glActiveTexture(GL_TEXTURE0);
+    glBindTexture(GL_TEXTURE_2D, pass.brdfLUTTexture);
+    renderData->textureToScreen.uniform_int("uTexture", 0);
+    RenderQuad(renderData);
+    // glEnable(GL_DEPTH_TEST);
+    // glEnable(GL_CULL_FACE);
+    // glCullFace(GL_BACK);
+}
+
+
+inline RenderTexture2D LoadSkyBoxTexture(const char* filePath)
+{
+    stbi_set_flip_vertically_on_load(true);
+
+    s32 width, height, channels;
+    f32* data = stbi_loadf(filePath, &width, &height, &channels, 0);
+    if (!data) {
+        std::cerr << "Failed to load HDR image from " << filePath << std::endl;
+    }
+
+    auto texture = CreateTexture2D("SkyBox", width, height, data, RTextureFormat::RGB16F, false, MipmapScaling::BILINEAR, TextureWrapping::CLAMP);
+
+    stbi_image_free(data);
+    return texture;
+}
+
+
+void StartDepthNormalPass(RenderData* renderData)
+{
+    glViewport(0, 0, renderData->renderWidth, renderData->renderHeight);
+    glBindFramebuffer(GL_FRAMEBUFFER, renderData->SSAOPass.depthNormalPassBO);
+    glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
+}
+
+void UseDepthNormalShader(RenderData* renderData, glm::mat4 model, Camera3D& camera)
+{
+    renderData->depthNormalShader.bind();
+    renderData->depthNormalShader.uniform_matrix4("model", model);
+    renderData->depthNormalShader.uniform_matrix4("view", camera.view);
+    renderData->depthNormalShader.uniform_matrix4("projection", camera.projection);
+}
+
+void DrawScene(RenderData* renderData)
+{
+    for (u32 i = 0; i < renderData->meshCount; ++i)
+    {
+        RenderMesh* renderMesh = &renderData->meshes[i];
+        glBindVertexArray(renderMesh->VAO);
+        glDrawElements(GL_TRIANGLES, renderMesh->numberOfIndices, GL_UNSIGNED_INT, (void*)(0 * sizeof(u32)));
+    }
+}
+
+
+void RenderSSAOPass(RenderData* renderData, Camera3D& camera)
+{
+    AmbientOcclusionPass& pass = renderData->SSAOPass;
+    glViewport(0, 0, renderData->renderWidth, renderData->renderHeight);
+    pass.SSAOShader.bind();
+    glBindFramebuffer(GL_FRAMEBUFFER, pass.ssaoFBO);
+    glClearColor(0.0, 0.0, 0.0, 1.0);
+    glClear(GL_COLOR_BUFFER_BIT);
+    // Send kernel + rotation 
+    for (unsigned int i = 0; i < 64; ++i)
+    {
+        std::string kernelSample = "samples[" + std::to_string(i) + "]";
+        pass.SSAOShader.uniform_vector3f(kernelSample.c_str(), pass.ssaoKernel[i]);
+    }
+    pass.SSAOShader.uniform_matrix4("projection", camera.projection);
+    pass.SSAOShader.uniform_matrix4("view", camera.view);
+    glActiveTexture(GL_TEXTURE1);
+    glBindTexture(GL_TEXTURE_2D, renderData->deferredPass.gNormal);
+    pass.SSAOShader.uniform_int("normalBuffer", 1);
+    glActiveTexture(GL_TEXTURE2);
+    glBindTexture(GL_TEXTURE_2D, renderData->deferredPass.gPosition);
+    pass.SSAOShader.uniform_int("positionBuffer", 2);
+    glActiveTexture(GL_TEXTURE3);
+    glBindTexture(GL_TEXTURE_2D, pass.noiseTexture);
+    pass.SSAOShader.uniform_int("texNoise", 3);
+    GLuint program = pass.SSAOShader.program();
+    // glDisable(GL_DEPTH_TEST);//remove this
+    RenderQuad(renderData);
+    // glEnable(GL_DEPTH_TEST);//remove this
+//
+    glBindFramebuffer(GL_FRAMEBUFFER, 0);
+
+    glBindFramebuffer(GL_FRAMEBUFFER, pass.ssaoBlurFBO);
+    glClearColor(0.0, 0.0, 0.0, 1.0);
+    glClear(GL_COLOR_BUFFER_BIT);
+    pass.SSAOBlurShader.bind();
+    glActiveTexture(GL_TEXTURE0);
+    glBindTexture(GL_TEXTURE_2D, pass.ssaoColorBuffer);
+    pass.SSAOBlurShader.uniform_int("ssaoInput", 0);
+    RenderQuad(renderData);
+    glBindFramebuffer(GL_FRAMEBUFFER, 0);
+}
+
+
+void RenderShadowMapPass(RenderData* renderData, vec3& lightDirection, glm::mat4& model, Camera3D& camera)
+{
+    ShadowPass& pass = renderData->shadowPass;
+
+    const u32 numberOfCascades = 4;
+    pass.shadowCascadeLevels[0] = camera.farPlane / 20.0f;
+    pass.shadowCascadeLevels[1] = (camera.farPlane * 3) / 20.0f;
+    pass.shadowCascadeLevels[2] = (camera.farPlane * 2) / 5.0f;
+    // float lambda = 0.8f;
+    // for (int i = 0; i < numberOfCascades - 1; ++i)
+    // {
+    //     float linearSplit = camera.nearPlane + (camera.farPlane - camera.nearPlane) * (i + 1) / numberOfCascades;
+    //     float logSplit = camera.nearPlane * pow((camera.farPlane / camera.nearPlane), (float)(i + 1) / numberOfCascades);
+    //     pass.shadowCascadeLevels[i] = lambda * logSplit + (1.0f - lambda) * linearSplit;
+    // }
+    mat4 lightSpaceMatrices[numberOfCascades];
+    CalculateCascadesLightSpaceMatrices(lightSpaceMatrices, pass.shadowCascadeLevels, numberOfCascades, lightDirection, camera);
+    glBindBuffer(GL_UNIFORM_BUFFER, pass.lightMatricesUBO);
+    for (size_t i = 0; i < numberOfCascades; ++i)
+    {
+        glBufferSubData(GL_UNIFORM_BUFFER, i * sizeof(glm::mat4x4), sizeof(glm::mat4x4), &lightSpaceMatrices[i]);
+    }
+    glBindBuffer(GL_UNIFORM_BUFFER, 0);
+
+    glEnable(GL_DEPTH_TEST);
+    
+    //glCullFace(GL_FRONT);
+    glDisable(GL_CULL_FACE);
+    
+    glViewport(0, 0, pass.depthMapResolution, pass.depthMapResolution);
+    // glCullFace(GL_FRONT);
+    glBindFramebuffer(GL_FRAMEBUFFER, pass.depthMapFBO);
+    glClear(GL_DEPTH_BUFFER_BIT);
+    glBindBuffer(GL_UNIFORM_BUFFER, pass.lightMatricesUBO);
+    pass.depthShader.bind();
+    pass.depthShader.uniform_matrix4("model", model);
+    DrawScene(renderData);
+    glBindFramebuffer(GL_FRAMEBUFFER, 0);
+    glEnable(GL_CULL_FACE);
+    glCullFace(GL_BACK);
+}
+
+void RenderScene(RenderData* renderData, glm::mat4 model, Camera3D& camera, glm::vec3 lightPosition)
+{
+    glm::vec3 lightDirection = lightPosition - glm::vec3(0.0f);
+
+    // SetupEnvironmentCubeMap(renderData);
+
+    glViewport(0, 0, renderData->renderWidth, renderData->renderHeight);
+
+    glClearColor(0.0f, 0.0f, 0.0f, 1.0f);
+    glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
+
+    RenderEnvironmentMap(renderData, camera);
+
+    renderData->forwardPass.pbrShader.bind();
+    glActiveTexture(GL_TEXTURE0);
+    glBindTexture(GL_TEXTURE_2D, renderData->shadowPass.lightDepthmaps);
+    renderData->forwardPass.pbrShader.uniform_int("shadowMap", 0);
+    glActiveTexture(GL_TEXTURE1);
+    glBindTexture(GL_TEXTURE_2D, renderData->SSAOPass.ssaoColorBufferBlur);
+    renderData->forwardPass.pbrShader.uniform_int("ssao", 1);
+    glActiveTexture(GL_TEXTURE2);
+    glBindTexture(GL_TEXTURE_CUBE_MAP, renderData->environmentMapPass.irradianceMap);
+    renderData->forwardPass.pbrShader.uniform_int("irradianceMap", 2);
+    glActiveTexture(GL_TEXTURE3);
+    glBindTexture(GL_TEXTURE_CUBE_MAP, renderData->environmentMapPass.prefilterMap);
+    renderData->forwardPass.pbrShader.uniform_int("prefilterMap", 3);
+    glActiveTexture(GL_TEXTURE4);
+    glBindTexture(GL_TEXTURE_2D, renderData->environmentMapPass.brdfLUTTexture);
+    renderData->forwardPass.pbrShader.uniform_int("brdfLUT", 4);
+    renderData->forwardPass.pbrShader.uniform_matrix4("lightSpaceMatrix", renderData->shadowPass.lightSpaceMatrix);
+    renderData->forwardPass.pbrShader.uniform_vector3f("lightPosition", lightPosition);
+    renderData->forwardPass.pbrShader.uniform_vector3f("cameraPosition", camera.position);
+
+    renderData->forwardPass.pbrShader.uniform_matrix4("model", model);
+    renderData->forwardPass.pbrShader.uniform_matrix4("view", camera.view);
+    renderData->forwardPass.pbrShader.uniform_matrix4("projection", camera.projection);
+
+    for (u32 i = 0; i < renderData->meshCount; ++i)
+    {
+        RenderMesh* renderMesh = &renderData->meshes[i];
+        RenderBindPBRTextures(GL_TEXTURE5, 5, &renderData->forwardPass.pbrShader, renderMesh, renderData);
+
+        glBindVertexArray(renderMesh->VAO);
+        glDrawElements(GL_TRIANGLES, renderMesh->numberOfIndices, GL_UNSIGNED_INT, (void*)(0 * sizeof(u32)));
+    }
+}
+
+void RenderEnvironmentMap(RenderData* renderData, Camera3D& camera)
+{
+    RenderEnvironmentMap(renderData, camera.view, camera.projection);
+}
+
+void RenderEnvironmentMap(RenderData* renderData, mat4& view, mat4& projection)
+{
+    // glDisable(GL_DEPTH_TEST);
+    glCullFace(GL_FRONT);
+    //glDepthFunc(GL_LEQUAL);
+    EnvironmentMapPass& pass = renderData->environmentMapPass;
+    pass.backgroundShader.bind();
+    mat4 viewProj = projection * mat4(glm::mat3(view));
+    pass.backgroundShader.uniform_matrix4("viewProj", viewProj);
+    glActiveTexture(GL_TEXTURE0);
+    glBindTexture(GL_TEXTURE_CUBE_MAP, pass.irradianceMap);
+    pass.backgroundShader.uniform_int("environmentMap", 0);
+    RenderCube(renderData);
+    // glEnable(GL_DEPTH_TEST);
+    glCullFace(GL_BACK);
+}
+
+void getFrustumCornersWorldSpace(glm::vec4* frustumCorners, const glm::mat4& proj, const glm::mat4& view)
+{
+    const auto inv = glm::inverse(proj * view);
+
+    u32 index = 0;
+    for (unsigned int x = 0; x < 2; ++x)
+    {
+        for (unsigned int y = 0; y < 2; ++y)
+        {
+            for (unsigned int z = 0; z < 2; ++z)
+            {
+                const glm::vec4 pt =
+                    inv * glm::vec4(
+                        2.0f * x - 1.0f,
+                        2.0f * y - 1.0f,
+                        2.0f * z - 1.0f,
+                        1.0f);
+                frustumCorners[index++] = (pt / pt.w);
+            }
+        }
+    }
+}
+
+mat4 GetLightSpaceMatrix(Camera3D& camera, vec3& lightDirection, f32 nearPlane, f32 farPlane)
+{
+    glm::vec4 corners[8] = {};
+    mat4 projection = glm::perspective(glm::radians(camera.fov), camera.ratio, nearPlane, farPlane);
+    getFrustumCornersWorldSpace(corners, projection, camera.view);
+    vec3 center = vec3(0, 0, 0);
+    for (vec3 corner : corners)
+    {
+        center += vec3(corner);
+    }
+    center /= 8;
+
+    const mat4 lightView = glm::lookAt(center + lightDirection, center, vec3(0.0, 1.0, 0.0));
+
+    float minX = std::numeric_limits<float>::max();
+    float maxX = std::numeric_limits<float>::lowest();
+    float minY = std::numeric_limits<float>::max();
+    float maxY = std::numeric_limits<float>::lowest();
+    float minZ = std::numeric_limits<float>::max();
+    float maxZ = std::numeric_limits<float>::lowest();
+    for (const auto& v : corners)
+    {
+        const auto trf = lightView * v;
+        minX = std::min(minX, trf.x);
+        maxX = std::max(maxX, trf.x);
+        minY = std::min(minY, trf.y);
+        maxY = std::max(maxY, trf.y);
+        minZ = std::min(minZ, trf.z);
+        maxZ = std::max(maxZ, trf.z);
+    }
+
+    // Tune this parameter according to the scene
+    constexpr float zMult = 10.0f;
+    if (minZ < 0)
+    {
+        minZ *= zMult;
+    }
+    else
+    {
+        minZ /= zMult;
+    }
+    if (maxZ < 0)
+    {
+        maxZ /= zMult;
+    }
+    else
+    {
+        maxZ *= zMult;
+    }
+    const glm::mat4 lightProjection = glm::ortho(minX, maxX, minY, maxY, minZ, maxZ);
+    return lightProjection * lightView;
+}
+
+void CalculateCascadesLightSpaceMatrices(mat4* matrices, f32* shadowCascadeLevels, u32 numberOfCascades, vec3& lightDirection, Camera3D& camera)
+{
+    for (u32 i = 0; i < numberOfCascades; ++i)
+    {
+        if (i == 0)
+        {
+            matrices[i] = GetLightSpaceMatrix(camera, lightDirection, camera.nearPlane, shadowCascadeLevels[i]);
+        }
+        else if (i < numberOfCascades-1)
+        {
+            matrices[i] = GetLightSpaceMatrix(camera, lightDirection, shadowCascadeLevels[i - 1], shadowCascadeLevels[i]);
+        }
+        else
+        {
+            matrices[i] = GetLightSpaceMatrix(camera, lightDirection, shadowCascadeLevels[i - 1], camera.farPlane);
+        }
+    }
+}
+
+float lerp(float a, float b, float f)
+{
+    return a + f * (b - a);
+}
+
+void RenderCube(RenderData* renderData)
+{
+    // initialize (if necessary)
+    if (renderData->cubeVAO == 0)
+    {
+        float vertices[] = {
+            // back face
+            -1.0f, -1.0f, -1.0f,  0.0f,  0.0f, -1.0f, 0.0f, 0.0f, // bottom-left
+             1.0f,  1.0f, -1.0f,  0.0f,  0.0f, -1.0f, 1.0f, 1.0f, // top-right
+             1.0f, -1.0f, -1.0f,  0.0f,  0.0f, -1.0f, 1.0f, 0.0f, // bottom-right         
+             1.0f,  1.0f, -1.0f,  0.0f,  0.0f, -1.0f, 1.0f, 1.0f, // top-right
+            -1.0f, -1.0f, -1.0f,  0.0f,  0.0f, -1.0f, 0.0f, 0.0f, // bottom-left
+            -1.0f,  1.0f, -1.0f,  0.0f,  0.0f, -1.0f, 0.0f, 1.0f, // top-left
+            // front face
+            -1.0f, -1.0f,  1.0f,  0.0f,  0.0f,  1.0f, 0.0f, 0.0f, // bottom-left
+             1.0f, -1.0f,  1.0f,  0.0f,  0.0f,  1.0f, 1.0f, 0.0f, // bottom-right
+             1.0f,  1.0f,  1.0f,  0.0f,  0.0f,  1.0f, 1.0f, 1.0f, // top-right
+             1.0f,  1.0f,  1.0f,  0.0f,  0.0f,  1.0f, 1.0f, 1.0f, // top-right
+            -1.0f,  1.0f,  1.0f,  0.0f,  0.0f,  1.0f, 0.0f, 1.0f, // top-left
+            -1.0f, -1.0f,  1.0f,  0.0f,  0.0f,  1.0f, 0.0f, 0.0f, // bottom-left
+            // left face
+            -1.0f,  1.0f,  1.0f, -1.0f,  0.0f,  0.0f, 1.0f, 0.0f, // top-right
+            -1.0f,  1.0f, -1.0f, -1.0f,  0.0f,  0.0f, 1.0f, 1.0f, // top-left
+            -1.0f, -1.0f, -1.0f, -1.0f,  0.0f,  0.0f, 0.0f, 1.0f, // bottom-left
+            -1.0f, -1.0f, -1.0f, -1.0f,  0.0f,  0.0f, 0.0f, 1.0f, // bottom-left
+            -1.0f, -1.0f,  1.0f, -1.0f,  0.0f,  0.0f, 0.0f, 0.0f, // bottom-right
+            -1.0f,  1.0f,  1.0f, -1.0f,  0.0f,  0.0f, 1.0f, 0.0f, // top-right
+            // right face
+             1.0f,  1.0f,  1.0f,  1.0f,  0.0f,  0.0f, 1.0f, 0.0f, // top-left
+             1.0f, -1.0f, -1.0f,  1.0f,  0.0f,  0.0f, 0.0f, 1.0f, // bottom-right
+             1.0f,  1.0f, -1.0f,  1.0f,  0.0f,  0.0f, 1.0f, 1.0f, // top-right         
+             1.0f, -1.0f, -1.0f,  1.0f,  0.0f,  0.0f, 0.0f, 1.0f, // bottom-right
+             1.0f,  1.0f,  1.0f,  1.0f,  0.0f,  0.0f, 1.0f, 0.0f, // top-left
+             1.0f, -1.0f,  1.0f,  1.0f,  0.0f,  0.0f, 0.0f, 0.0f, // bottom-left     
+             // bottom face
+             -1.0f, -1.0f, -1.0f,  0.0f, -1.0f,  0.0f, 0.0f, 1.0f, // top-right
+              1.0f, -1.0f, -1.0f,  0.0f, -1.0f,  0.0f, 1.0f, 1.0f, // top-left
+              1.0f, -1.0f,  1.0f,  0.0f, -1.0f,  0.0f, 1.0f, 0.0f, // bottom-left
+              1.0f, -1.0f,  1.0f,  0.0f, -1.0f,  0.0f, 1.0f, 0.0f, // bottom-left
+             -1.0f, -1.0f,  1.0f,  0.0f, -1.0f,  0.0f, 0.0f, 0.0f, // bottom-right
+             -1.0f, -1.0f, -1.0f,  0.0f, -1.0f,  0.0f, 0.0f, 1.0f, // top-right
+             // top face
+             -1.0f,  1.0f, -1.0f,  0.0f,  1.0f,  0.0f, 0.0f, 1.0f, // top-left
+              1.0f,  1.0f , 1.0f,  0.0f,  1.0f,  0.0f, 1.0f, 0.0f, // bottom-right
+              1.0f,  1.0f, -1.0f,  0.0f,  1.0f,  0.0f, 1.0f, 1.0f, // top-right     
+              1.0f,  1.0f,  1.0f,  0.0f,  1.0f,  0.0f, 1.0f, 0.0f, // bottom-right
+             -1.0f,  1.0f, -1.0f,  0.0f,  1.0f,  0.0f, 0.0f, 1.0f, // top-left
+             -1.0f,  1.0f,  1.0f,  0.0f,  1.0f,  0.0f, 0.0f, 0.0f  // bottom-left        
+        };
+        GLuint cubeVBO;
+        glGenVertexArrays(1, &renderData->cubeVAO);
+        glGenBuffers(1, &cubeVBO);
+        // fill buffer
+        glBindBuffer(GL_ARRAY_BUFFER, cubeVBO);
+        glBufferData(GL_ARRAY_BUFFER, sizeof(vertices), vertices, GL_STATIC_DRAW);
+        // link vertex attributes
+        glBindVertexArray(renderData->cubeVAO);
+        glEnableVertexAttribArray(0);
+        glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, 8 * sizeof(float), (void*)0);
+        glEnableVertexAttribArray(1);
+        glVertexAttribPointer(1, 3, GL_FLOAT, GL_FALSE, 8 * sizeof(float), (void*)(3 * sizeof(float)));
+        glEnableVertexAttribArray(2);
+        glVertexAttribPointer(2, 2, GL_FLOAT, GL_FALSE, 8 * sizeof(float), (void*)(6 * sizeof(float)));
+        glBindBuffer(GL_ARRAY_BUFFER, 0);
+        glBindVertexArray(0);
+    }
+    // render Cube
+    glBindVertexArray(renderData->cubeVAO);
+    glDrawArrays(GL_TRIANGLES, 0, 36);
+    glBindVertexArray(0);
+}
+void RenderQuad(RenderData* renderData)
+{
+    if (renderData->quadVAO == 0)
+    {
+        GLuint quadVBO;
+        float quadVertices[] = {
+            // positions        // texture Coords
+            -1.0f,  1.0f, 0.0f, 0.0f, 1.0f,
+            -1.0f, -1.0f, 0.0f, 0.0f, 0.0f,
+             1.0f,  1.0f, 0.0f, 1.0f, 1.0f,
+             1.0f, -1.0f, 0.0f, 1.0f, 0.0f,
+        };
+        // setup plane VAO
+        glGenVertexArrays(1, &renderData->quadVAO);
+        glGenBuffers(1, &quadVBO);
+        glBindVertexArray(renderData->quadVAO);
+        glBindBuffer(GL_ARRAY_BUFFER, quadVBO);
+        glBufferData(GL_ARRAY_BUFFER, sizeof(quadVertices), &quadVertices, GL_STATIC_DRAW);
+        glEnableVertexAttribArray(0);
+        glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, 5 * sizeof(float), (void*)0);
+        glEnableVertexAttribArray(1);
+        glVertexAttribPointer(1, 2, GL_FLOAT, GL_FALSE, 5 * sizeof(float), (void*)(3 * sizeof(float)));
+    }
+    glBindVertexArray(renderData->quadVAO);
+    glDrawArrays(GL_TRIANGLE_STRIP, 0, 4);
+    glBindVertexArray(0);
+}
+
+void RenderSphere(RenderData* renderData)
+{
+    if (renderData->sphereVAO == 0)
+    {
+        glGenVertexArrays(1, &renderData->sphereVAO);
+
+        unsigned int vbo, ebo;
+        glGenBuffers(1, &vbo);
+        glGenBuffers(1, &ebo);
+
+        std::vector<glm::vec3> positions;
+        std::vector<glm::vec2> uv;
+        std::vector<glm::vec3> normals;
+        std::vector<unsigned int> indices;
+
+        const unsigned int X_SEGMENTS = 64;
+        const unsigned int Y_SEGMENTS = 64;
+        for (unsigned int x = 0; x <= X_SEGMENTS; ++x)
+        {
+            for (unsigned int y = 0; y <= Y_SEGMENTS; ++y)
+            {
+                float xSegment = (float)x / (float)X_SEGMENTS;
+                float ySegment = (float)y / (float)Y_SEGMENTS;
+                float xPos = std::cos(xSegment * 2.0f * PI) * std::sin(ySegment * PI);
+                float yPos = std::cos(ySegment * PI);
+                float zPos = std::sin(xSegment * 2.0f * PI) * std::sin(ySegment * PI);
+
+                positions.push_back(glm::vec3(xPos, yPos, zPos));
+                uv.push_back(glm::vec2(xSegment, ySegment));
+                normals.push_back(glm::vec3(xPos, yPos, zPos));
+            }
+        }
+
+        bool oddRow = false;
+        for (unsigned int y = 0; y < Y_SEGMENTS; ++y)
+        {
+            if (!oddRow) // even rows: y == 0, y == 2; and so on
+            {
+                for (unsigned int x = 0; x <= X_SEGMENTS; ++x)
+                {
+                    indices.push_back(y * (X_SEGMENTS + 1) + x);
+                    indices.push_back((y + 1) * (X_SEGMENTS + 1) + x);
+                }
+            }
+            else
+            {
+                for (int x = X_SEGMENTS; x >= 0; --x)
+                {
+                    indices.push_back((y + 1) * (X_SEGMENTS + 1) + x);
+                    indices.push_back(y * (X_SEGMENTS + 1) + x);
+                }
+            }
+            oddRow = !oddRow;
+        }
+        renderData->sphereIndexCount = static_cast<unsigned int>(indices.size());
+
+        std::vector<float> data;
+        for (unsigned int i = 0; i < positions.size(); ++i)
+        {
+            data.push_back(positions[i].x);
+            data.push_back(positions[i].y);
+            data.push_back(positions[i].z);
+            if (normals.size() > 0)
+            {
+                data.push_back(normals[i].x);
+                data.push_back(normals[i].y);
+                data.push_back(normals[i].z);
+            }
+            if (uv.size() > 0)
+            {
+                data.push_back(uv[i].x);
+                data.push_back(uv[i].y);
+            }
+        }
+        glBindVertexArray(renderData->sphereVAO);
+        glBindBuffer(GL_ARRAY_BUFFER, vbo);
+        glBufferData(GL_ARRAY_BUFFER, data.size() * sizeof(float), &data[0], GL_STATIC_DRAW);
+        glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, ebo);
+        glBufferData(GL_ELEMENT_ARRAY_BUFFER, indices.size() * sizeof(unsigned int), &indices[0], GL_STATIC_DRAW);
+        unsigned int stride = (3 + 2 + 3) * sizeof(float);
+        glEnableVertexAttribArray(0);
+        glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, stride, (void*)0);
+        glEnableVertexAttribArray(1);
+        glVertexAttribPointer(1, 3, GL_FLOAT, GL_FALSE, stride, (void*)(3 * sizeof(float)));
+        glEnableVertexAttribArray(2);
+        glVertexAttribPointer(2, 2, GL_FLOAT, GL_FALSE, stride, (void*)(6 * sizeof(float)));
+    }
+
+    glBindVertexArray(renderData->sphereVAO);
+    glDrawElements(GL_TRIANGLE_STRIP, renderData->sphereIndexCount, GL_UNSIGNED_INT, 0);
+}
