@@ -1,5 +1,3 @@
-#include "render.h"
-
 #include <iostream>
 #include <random>
 #include <stb_image.h>
@@ -15,125 +13,412 @@
 #define STB_IMAGE_IMPLEMENTATION
 #include "stb_image.h"
 
-//void UploadSceneToGPU(LoadedScene& scene, RenderData* renderData, MemoryArena* arena)
-void CreateRenderGraph(LoadedScene& scene, RenderGraph& renderGraph, MemoryArena* arena)
+#include "graphics/shader.h"
+
+#include <glad/glad.h>
+#include <glm/glm.hpp>
+#include <glm/gtc/matrix_transform.hpp>
+#include <glm/gtc/matrix_inverse.hpp>
+#include <glm/gtc/quaternion.hpp>
+
+#include "memory.h"
+
+#include <vector>
+#include "asset_types.h"
+
+#include "gl_types_render.h"
+
+struct LoadedScene;
+struct TextureHeader;
+
+struct Camera3D
 {
-    std::chrono::microseconds totalMeshUploadTime = std::chrono::microseconds(0);
-    std::chrono::microseconds totalTextureUploadTime = std::chrono::microseconds(0);;
+    glm::mat4 projection;
+    glm::quat orientation;
+    f32 ratio;
+    f32 nearPlane;
+    f32 farPlane;
+    f32 fov;
+    glm::vec3 position;
+    glm::vec3 front;
+    glm::vec3 up;
+    glm::vec3 right;
+    glm::mat4 view;
+    glm::vec3 target;
+    f32 speed;
+};
 
-    u32 vertexOffset = 0;
-    u32 lastVertexCount = 0;
-    u32 lastIndexCount = 0;
-    auto start = TimeNow();
+enum LightType : s32
+{
+    None,
+    Directional,
+    Point,
+    Spotlight,
+    Area
+};
+
+struct Light
+{
+    LightType type{ LightType::None };
+    const char* name;
+
+    vec3 position{ 0 };
+    vec3 direction{ 0 };
+
+    vec3 color{ 0 };
+    f32 luminance{ 0 };
+
+    f32 constant{ 0 };
+    f32 linear{ 0 };
+    f32 quadratic{ 0 };
+
+    float cutOff{ 0 };
+    s32 isShadowCasting{ 0 };
+    s32 pointShadowMapIndex;
+};
+
+struct SSOLight {
+    int type;
+    float positionX, positionY, positionZ;
+    float directionX, directionY, directionZ;
+    float colorX, colorY, colorZ;
+    float luminance;
+    float constant;
+    float linear;
+    float quadratic;
+    float cutOff;
+    int isShadowCasting;
+    int shadowIndex;
+};
+
+
+enum RTextureFormat {
+    RGB8,
+    RGBA8,
+    RGB16F,
+    RGB32F,
+    RGBA16F,
+    RGBA32F,
+    R8,
+    RG16F,
+    DEPTH16,
+    DEPTH24,
+    DEPTH16F,
+    DEPTH32F,
+    COMPRESSED
+};
+
+enum DepthFunc
+{
+    DEPTH_LESS,
+    DEPTH_LESS_EQUAL,
+    DEPTH_GREATER,
+    DEPTH_ALWAYS,
+    DEPTH_NONE,
+};
+
+enum BlendFactor
+{
+    BLEND_ZERO,
+    BLEND_ONE,
+    BLEND_SRC_ALPHA,
+    BLEND_ONE_MINUS_SRC_ALPHA,
+};
+
+enum BlendEquation
+{
+    BLEND_ADD,
+    BLEND_SUBTRACT,
+};
+
+enum CullFace
+{
+    CULL_FRONT,
+    CULL_BACK,
+};
+
+enum FrontFace
+{
+    FRONT_CCW,
+    FRONT_CW,
+};
+
+enum PolygonMode
+{
+    POLYGON_FILL,
+    POLYGON_LINE,
+};
+
+enum RTextureType {
+    TEXTURE_2D,
+    TEXTURE_2D_ARRAY,
+    TEXTURE_NONE
+};
+enum MipmapScaling {
+    BILINEAR,
+    NEAREST_NEIGHBOUR,
+    MIPMAP_NONE,
+};
+
+enum TextureWrapping {
+    BORDER_COLOUR,
+    REPEAT,
+    CLAMP,
+    WRAP_NONE
+};
+
+enum DepthComp {
+    DepthComponent,
+    DepthComponent24
+};
+
+struct RenderTexture2D {
+    const char* name;
+    u32 width;
+    u32 height;
+    u8* data;
+    RTextureFormat format;
+    b32 generateMipMaps;
+    MipmapScaling scaling;
+    TextureWrapping wrap;
+
+    Texture2DHandle handle;
+};
+
+struct RenderTextureArray {
+    const char* name;
+    s32 count;
+    RTextureFormat format;
+    u32 width;
+    u32 height;
+    b32 generateMipMaps;
+    MipmapScaling scaling;
+    TextureWrapping wrap;
+
+    TextureArray2DHandle handle;
+};
+
+struct VertexArrayElement {
+    // RenderDataType type;
+    s32 size;
+    s32 numberOfElements;
+};
+
+struct VertexArray {
+    s32 numberOfElements = 0;
+    u32 stride; 
+    VertexArrayElement* elements = nullptr;
+    VertexArrayHandle handle;
+};
+
+struct Framebuffer {
+    FramebufferHandle handle;
+};
+
+struct TextureCubemap {
+    static const u32 FACES = 6;
+    u32 width;
+    u32 height;
+    RTextureFormat format;
+    MipmapScaling scaling;
+    TextureWrapping wrap;
+
+    TextureCubemapHandle handle;
+};
+
+enum DrawState {
+    STATIC_DRAW,
+    DYNAMIC_DRAW
+};
+
+enum BufferType {
+    ARRAY,
+    INDEX,
+};
+
+struct RenderBuffer {
+    s32 count;
+    s32 sizeElement;
+    u8* data;
+    DrawState state;
+    BufferType type;
+    BufferHandle handle;
+};
+
+struct UniformBuffer {
+    u32 handle;
+};
+
+struct ShaderStorageObject {
+    u32 handle;
+};
+
+enum ResourceType {
+    RESOURCE_TEXTURE2D,
+    RESOURCE_TEXTURE2D_ARRAY,
+    RESOURCE_CUBEMAP,
+    RESOURCE_BUFFER,
+    RESOURCE_NONE
+};
+
+struct RenderResource {
+    ResourceType type;
+    union {
+        RenderTexture2D texture2D;
+        TextureCubemap cubemap;
+        RenderTextureArray textureArray;
+    };
+};
+
+struct RenderState {
+    b32 depthTesting = false;
+    DepthFunc depthFunction = DEPTH_NONE;
+    b32 depthWriting = true;
+
+    b32 blending = false;
+    BlendFactor srcBlend = BLEND_ONE;
+    BlendFactor dstBlend = BLEND_ZERO;
+    BlendEquation blendEquation = BLEND_ADD;
+
+    b32 cullFace = false;
+    CullFace cullFaceMode = CULL_BACK;
+    FrontFace frontFace = FRONT_CCW;
+
+    PolygonMode polygonMode = POLYGON_FILL;
+
+    b32 stencilTesting = false;
+
+    b32 scissorTesting = false;
+
+    b32 multisampling = false;
+
+    b32 textureCubeMapSeamless = false;
+};
+
+struct ShaderHandle {
+    u32 handle;
+};
+
+union Uniform {
+    UniformBuffer ubo;
+    ShaderStorageObject sso;
+};
+
+struct PointLight {
+    glm::vec3 position;
+    f32 attentuation;
+    u32 index;
+};
+
+struct RenderMaterial {
+    u32 albedoIdx;
+    u32 metallicRoughnessIdx;
+    u32 normalMapIdx;
+};
+
+struct RenderMesh {
+    const char* name;
+    VertexArray vao;
+    RenderBuffer vbo;
+    RenderBuffer ebo;
+    RenderMaterial material;
+};
+
+enum RenderPassType {
+    RenderScene,
+    RenderTexturedScene,
+};
+
+struct RenderPassDesc {
+
+    const char* name;
+
+    RenderResource inputs[32];
+    u32 inputCount = 0;
+
+    RenderResource outputs[8];
+    u32 outputCount = 0;
+    RenderResource depthOutput = { .type = RESOURCE_NONE };
+
+    ShaderHandle shader;
+
+    u32 width;
+    u32 height;
+
+    RenderState state;
+};
+
+struct RenderPass {
+    RenderPassDesc desc;
+
+    Framebuffer renderTarget;
+    RenderBufferHandle renderBuffer;
+
+    Uniform uniforms[8];
+};
+
+RenderPass CreateRenderPass(RenderPassDesc& desc);
+
+struct Renderer {
+    RenderPass renderGraph[32];
+    u32 renderPassCount = 0;
+
+    RenderTexture2D gPosition;
+    RenderTexture2D gAlbedo;
+    RenderTexture2D gNormal;
+    RenderTexture2D gMetallicRoughness;
+    RenderPass gBuffer;
+    void AddGBufferPass();
+
+    RenderTextureArray cascadeShadowDepthMaps;
+    u32 shadowMapResolution = 4096;
+    s32 cascadeCount = 4;
+    RenderPass cascadeShadowmapPass;
+    void AddShadowmapPass();
+
+#define MaxPointLights 64
+#define MaxShadowCastPointLights 8
+
+    TextureCubemap pointShadowDepthmaps[MaxShadowCastPointLights];
+    u32 castingPointLightCount;
+    u32 pointShadowResolution = 256;
+    RenderPass pointShadowmapPass;
+    void AddPointShadowmapPass(PointLight* lights, u32 lightCount);
+
+    RenderTexture2D ssaoColor;
+    RenderTexture2D ssaoBlur;
+    RenderTexture2D noiseTexture;
+    glm::vec3 ssaoKernel[64];
+    RenderPass ssaoPass;
+    RenderPass ssaoBlurPass;
+    void AddScreenSpaceAmbientOcclusion();
+
+
+    TextureCubemap skyboxCubemap;
+    TextureCubemap irradianceMap;
+    TextureCubemap prefilterMap;
+    void InitIBL(const char* file);
+
+    RenderTexture2D brdfLUT;  
+
+    u32 screenWidth;
+    u32 screenHeight;
+
+    RenderTexture2D* textures;
+    u32 textureCount;
+    RenderMesh* meshes;
+    u32 meshCount;
+    RenderMaterial* materials;
+    u32 materialCount;
     
-    // NEED TO MAKE SURE THE arena is properly initialized
-    renderGraph.meshes = PushArray(arena, RenderMesh, scene.meshCount);
-    renderGraph.meshCount = scene.meshCount;
-    renderGraph.textures = PushArray(arena, RenderTexture2D, scene.textureCount);
-    renderGraph.textureCount = scene.textureCount;
-    renderGraph.materials = PushArray(arena, RenderMaterial, scene.textureCount);
-    renderGraph.materialCount = scene.materialCount;
+    RenderState currentState;
 
-    u32 textureIdx = 0;
-    while(textureIdx < scene.textureCount)
-    {
-        TextureHeader textureHeader = scene.textures[textureIdx];
-        u8* textureData = scene.textureData + scene.textureOffsets[textureIdx];
-        // TODO: Convert from texture header format to this one
-        RenderTexture2D textureHandle = CreateTexture2D("Temp", textureHeader.width, textureHeader.height, textureData, RTextureFormat::RGBA8, true, MipmapScaling::BILINEAR, TextureWrapping::REPEAT);
-        renderGraph.textures[textureIdx] = textureHandle;
-        textureIdx++;
-    }
+    void DrawMesh(RenderMesh& renderMesh);
 
-    // TODO: Handle set of Materials for Render currently render mesh stores materials inplace
-    // u32 materialIdx = 0;
-    // u8* materialData = scene.textureData;
-    // while(textureIdx < scene.textureCount)
-    // {
-    //     TextureHeader textureHeader = scene.textures[textureIdx];
-    //     RenderTexture renderTexture = CreateTexture(textureHeader, textureData);
-    //     renderData->textures[textureIdx] = renderTexture;
-    //
-    //     textureData += scene.textureOffsets[textureIdx];
-    //     textureIdx++;
-    // }
-    auto end = TimeNow();
-    auto duration = Timelapse(end - start);
-    totalTextureUploadTime += duration;
+    void DrawFrame(glm::mat4 model, Camera3D& camer);
 
-    start = TimeNow();
-    for (u32 meshIdx = 0;
-        meshIdx < scene.meshCount;
-        ++meshIdx)
-    {
-        RenderMesh& renderMesh = renderGraph.meshes[meshIdx];
-        MeshHeader& assetMesh = scene.meshes[meshIdx];
-        MaterialHeader& material = scene.materials[assetMesh.materialIdx];
-
-        renderMesh.name = assetMesh.name;
-        renderMesh.material.albedoIdx = material.albedoIdx;
-        renderMesh.material.normalMapIdx = material.normalIdx;
-        renderMesh.material.metallicRoughnessIdx = material.metallicRoughnessIdx;
-
-        renderMesh.vbo = CreateBuffer(BufferType::ARRAY, assetMesh.vertexCount, sizeof(Vertex), (u8*)scene.vertices + assetMesh.vertexOffset, DrawState::STATIC_DRAW);
-        renderMesh.ebo = CreateBuffer(BufferType::INDEX, assetMesh.indexCount, sizeof(u32), (u8*)scene.indices + assetMesh.indexOffset, DrawState::STATIC_DRAW);
-
-        renderMesh.vao = CreateVertexArray();
-        VertexArrayElement elements[] = {{sizeof(f32), 3}, // Position
-                                         {sizeof(f32), 3}, // Normal
-                                         {sizeof(f32), 2}, // UV
-                                         {sizeof(f32), 3}  // Tangent 
-                                        };
-        SetVertexArrayFormat(renderMesh.vao, renderMesh.ebo.count, elements);
-    }
-    end = TimeNow();
-    duration = Timelapse(end - start);
-    totalMeshUploadTime += duration;
-
-    std::cout << "  Time to Upload Mesh Data: " << totalMeshUploadTime.count() / 1000 << std::endl;
-    std::cout << "  Time to Upload Texture Data: " << totalTextureUploadTime.count() / 1000 << std::endl;
-}
-
-const char* getGLErrorString(GLenum errorCode) {
-    switch (errorCode) {
-    case GL_NO_ERROR:              return "GL_NO_ERROR";
-    case GL_INVALID_ENUM:          return "GL_INVALID_ENUM";
-    case GL_INVALID_VALUE:         return "GL_INVALID_VALUE";
-    case GL_INVALID_OPERATION:     return "GL_INVALID_OPERATION";
-    case GL_STACK_OVERFLOW:        return "GL_STACK_OVERFLOW";
-    case GL_STACK_UNDERFLOW:       return "GL_STACK_UNDERFLOW";
-    case GL_OUT_OF_MEMORY:         return "GL_OUT_OF_MEMORY";
-    case GL_INVALID_FRAMEBUFFER_OPERATION: return "GL_INVALID_FRAMEBUFFER_OPERATION";
-    default:                       return "Unknown error";
-    }
-}
-
-void CompileShaders(RenderData* renderData) {
-    renderData->forwardPass.pbrShader.compile("shaders/Base.vs", "shaders/Base.fs");
-    
-    renderData->textureToScreen.compile("shaders/textureToScreen.vs", "shaders/textureToScreen.fs");
-
-    renderData->shadowPass.pointDepthShader.compile("shaders/PointDepthShader.vs", "shaders/PointDepthShader.fs", "shaders/PointDepthShader.gs");
-    renderData->depthNormalShader.compile("shaders/DepthNormalPass.vs", "shaders/DepthNormalPass.fs");
-
-    renderData->SSAOPass.SSAOShader.compile("shaders/SSAOPass.vs", "shaders/SSAOPass.fs");
-    renderData->SSAOPass.SSAOBlurShader.compile("shaders/SSAOPass.vs", "shaders/SSAOBlurPass.fs");
-
-    renderData->environmentMapPass.equirectangularToCubemapShader.compile("shaders/Image2CubeMap.vs", "shaders/Image2CubeMap.fs");
-    renderData->environmentMapPass.backgroundShader.compile("shaders/SkyBox.vs", "shaders/SkyBox.fs");
-    renderData->environmentMapPass.irradianceShader.compile("shaders/IrradianceConvolution.vs", "shaders/IrradianceConvolution.fs");
-    renderData->environmentMapPass.prefilterShader.compile("shaders/IrradianceConvolution.vs", "shaders/Prefilter.fs");
-    renderData->environmentMapPass.brdfShader.compile("shaders/BrdfShader.vs", "shaders/BrdfShader.fs");
-
-
-    renderData->deferredPass.lightingPass.compile("shaders/LightingPass.vs", "shaders/LightingPass.fs");
-
-    renderData->lightProbePass.colorShader.compile("shaders/RenderLightProbe.vs", "shaders/RenderLightProbe.fs");
-
-    renderData->UnlitShader.compile("shaders/UnlitShader.vs", "shaders/UnlitShader.fs");
-
-    renderData->sphereCubemap.compile("shaders/SphereCubemap.vs", "shaders/SphereCubemap.fs");
-}
+    void InitRenderer();
+};
 
 void RenderSetupParameters(RenderData* renderData, u32 renderWidth, u32 renderHeight)
 {
@@ -218,11 +503,11 @@ RenderPass CreateRenderPass(RenderPassDesc& desc) {
     pass.renderTarget = CreateFramebuffer();
 
     for (u32 i = 0; i < desc.outputCount; ++i) {
-        FramebufferAttachColor(pass.renderTarget, desc.outputs[i]);
+        FramebufferAttachColor(pass.renderTarget, desc.outputs[i], i);
     }
 
     if (desc.outputCount) {
-        FramebufferDrawAttachments(pass.renderTarget);
+        FramebufferDrawAttachments(pass.renderTarget, desc.outputCount);
     } else {
         FramebufferNoDrawBuffer(pass.renderTarget);
         FramebufferNoReadBuffer(pass.renderTarget);
@@ -230,13 +515,17 @@ RenderPass CreateRenderPass(RenderPassDesc& desc) {
 
     switch (desc.depthOutput.type) {
         case RESOURCE_NONE:
-            CreateRenderbuffer(pass.renderTarget, desc.width, desc.height, DepthComp::DepthCompnent);
+            pass.renderBuffer = CreateRenderbuffer(pass.renderTarget, desc.width, desc.height, DepthComp::DepthCompnent);
             break;
         default:
             FramebufferAttachDepth(pass.renderTarget, desc.depthOutput);
             break;
     }
     return pass;
+}
+
+void AddRenderPass(RenderPass* renderGraph, u32 renderPassCount, RenderPassDesc& desc) {
+    renderGraph[renderPassCount++] = CreateRenderPass(desc);
 }
 
 void Renderer::InitRenderer() {
@@ -251,7 +540,7 @@ void Renderer::InitRenderer() {
     
     RenderPassDesc gBufferPass = {
         .name = "GBuffer Pass",
-        .input = {
+        .inputs = {
             // Camera
             // MeshArray
         },
@@ -286,42 +575,25 @@ void Renderer::InitRenderer() {
     
     ShaderHandle shadowPassShader = ShaderCompile("shaders/CSMShader.vs", "shaders/CSMShader.fs", "shaders/CSMShader.gs");
 
-    RenderPassDesc csmDesc = {
-        .name = "Cascade Shadow Map Pass",
-        .inputs {
-            // Attach 16 mat4s uniform
-            // desc.AttachUniformBuffer(0, sizeof(glm::mat4x4) * 16, DrawState::STATIC_DRAW);
-        },
-        .depthOutput = { .type = RESOURCE_TEXTURE2D_ARRAY, .textureArray = shadowDepthmap },
-        .shader = shadowPassShader,
-        .width = shadowMapResolution,
-        .height = shadowMapResolution,
-        .state {
-            .depthTesting = DEPTH_LESS_EQUAL
-        }
-    };
+    // RenderPassDesc csmDesc = {
+    //     .name = "Cascade Shadow Map Pass",
+    //     .inputs {
+    //         // Attach 16 mat4s uniform
+    //         // desc.AttachUniformBuffer(0, sizeof(glm::mat4x4) * 16, DrawState::STATIC_DRAW);
+    //     },
+    //     .depthOutput = { .type = RESOURCE_TEXTURE2D_ARRAY, .textureArray = shadowDepthmap },
+    //     .shader = shadowPassShader,
+    //     .width = shadowMapResolution,
+    //     .height = shadowMapResolution,
+    //     .state {
+    //         .depthTesting = DEPTH_LESS_EQUAL
+    //     }
+    // };
 
     renderPassCount = 0;
     AddRenderPass(renderGraph, renderPassCount, gBufferPass);
 }
 
-void AddRenderPass(RenderPass* renderGraph, u32& renderPassCount, RenderPassDesc desc) {
-    renderGraph[renderPassCount++] = CreateRenderPass(desc);
-}
-
-// void RenderGraph::AddPointShadowmapPass(PointLight* lights, u32 lightCount) {
-//     RenderPassDesc desc = RenderPassDesc::Create(pointShadowResolution, pointShadowResolution, DepthComp::DepthComponent);
-//     for (u32 lightId = 0; lightId < lightCount; ++lightId) {
-//         pointShadowDepthmaps[lightId] = CreateTextureCubemap(
-//                                             pointShadowResolution,
-//                                             pointShadowResolution,
-//                                             RTextureFormat::DEPTH16F,
-//                                             MipmapScaling::NEAREST_NEIGHBOUR,
-//                                             TextureWrapping::CLAMP
-//                                         );
-//     }
-//     pointShadowmapPass = CreateRenderPass(desc);
-// }
 
 void RenderBindPBRTextures(u32 startingTextureSlot, u32 uniformSlot, Shader* shader, RenderMesh* renderMesh, RenderData* renderData) {
     RenderMaterial material = renderMesh->material;
@@ -377,7 +649,7 @@ void RenderGraph::DrawFrame(glm::mat4 model, Camera3D& camera)
     glEnable(GL_CULL_FACE);
 }
 
-void ExecuteRenderPass(Renderer& renderer, RenderPass& pass) {
+void BeginPass(Renderer& renderer, RenderPass& pass) {
     ApplyRenderState(renderer, pass.desc.state);
     BindFramebuffer(pass.renderTarget, pass.desc.width, pass.desc.height);
     BindShader(pass.shader);
@@ -1372,3 +1644,89 @@ void RenderSphere(RenderData* renderData)
     glBindVertexArray(renderData->sphereVAO);
     glDrawElements(GL_TRIANGLE_STRIP, renderData->sphereIndexCount, GL_UNSIGNED_INT, 0);
 }
+
+//void UploadSceneToGPU(LoadedScene& scene, RenderData* renderData, MemoryArena* arena)
+void CreateRenderGraph(LoadedScene& scene, Renderer& renderGraph, MemoryArena* arena)
+{
+    std::chrono::microseconds totalMeshUploadTime = std::chrono::microseconds(0);
+    std::chrono::microseconds totalTextureUploadTime = std::chrono::microseconds(0);;
+
+    u32 vertexOffset = 0;
+    u32 lastVertexCount = 0;
+    u32 lastIndexCount = 0;
+    auto start = TimeNow();
+    
+    // NEED TO MAKE SURE THE arena is properly initialized
+    renderGraph.meshes = PushArray(arena, RenderMesh, scene.meshCount);
+    renderGraph.meshCount = scene.meshCount;
+    renderGraph.textures = PushArray(arena, RenderTexture2D, scene.textureCount);
+    renderGraph.textureCount = scene.textureCount;
+    renderGraph.materials = PushArray(arena, RenderMaterial, scene.materialCount);
+    renderGraph.materialCount = scene.materialCount;
+
+    u32 textureIdx = 0;
+    while(textureIdx < scene.textureCount)
+    {
+        TextureHeader textureHeader = scene.textures[textureIdx];
+        u8* textureData = scene.textureData + scene.textureOffsets[textureIdx];
+        // TODO: Convert from texture header format to this one
+        RenderTexture2D textureHandle = CreateTexture2D("Temp", textureHeader.width, textureHeader.height, textureData, RTextureFormat::RGBA8, true, MipmapScaling::BILINEAR, TextureWrapping::REPEAT);
+        renderGraph.textures[textureIdx] = textureHandle;
+        textureIdx++;
+    }
+
+    // TODO: Handle set of Materials for Render currently render mesh stores materials inplace
+    // u32 materialIdx = 0;
+    // u8* materialData = scene.textureData;
+    // while(textureIdx < scene.textureCount)
+    // {
+    //     TextureHeader textureHeader = scene.textures[textureIdx];
+    //     RenderTexture renderTexture = CreateTexture(textureHeader, textureData);
+    //     renderData->textures[textureIdx] = renderTexture;
+    //
+    //     textureData += scene.textureOffsets[textureIdx];
+    //     textureIdx++;
+    // }
+    auto end = TimeNow();
+    auto duration = Timelapse(end - start);
+    totalTextureUploadTime += duration;
+
+    start = TimeNow();
+    for (u32 meshIdx = 0;
+        meshIdx < scene.meshCount;
+        ++meshIdx)
+    {
+        RenderMesh& renderMesh = renderGraph.meshes[meshIdx];
+        MeshHeader& assetMesh = scene.meshes[meshIdx];
+        MaterialHeader& material = scene.materials[assetMesh.materialIdx];
+
+        renderMesh.name = assetMesh.name;
+        renderMesh.material.albedoIdx = material.albedoIdx;
+        renderMesh.material.normalMapIdx = material.normalIdx;
+        renderMesh.material.metallicRoughnessIdx = material.metallicRoughnessIdx;
+
+        renderMesh.vbo = CreateBuffer(BufferType::ARRAY, assetMesh.vertexCount, sizeof(Vertex), (u8*)scene.vertices + assetMesh.vertexOffset, DrawState::STATIC_DRAW);
+        renderMesh.ebo = CreateBuffer(BufferType::INDEX, assetMesh.indexCount, sizeof(u32), (u8*)scene.indices + assetMesh.indexOffset, DrawState::STATIC_DRAW);
+
+        renderMesh.vao = CreateVertexArray();
+        VertexArrayElement elements[] = {{sizeof(f32), 3}, // Position
+                                         {sizeof(f32), 3}, // Normal
+                                         {sizeof(f32), 2}, // UV
+                                         {sizeof(f32), 3}  // Tangent 
+                                        };
+        static_assert(sizeof(Vertex) == 11 * sizeof(f32));
+
+        // Apparently should pass just 4 idk why?
+        SetVertexArrayFormat(renderMesh.vao, 4, elements);
+
+        SetVertexArrayVertexBuffer(renderMesh.vao, renderMesh.vbo);
+        SetVertexArrayIndexBuffer(renderMesh.vao, renderMesh.ebo);
+    }
+    end = TimeNow();
+    duration = Timelapse(end - start);
+    totalMeshUploadTime += duration;
+
+    std::cout << "  Time to Upload Mesh Data: " << totalMeshUploadTime.count() / 1000 << std::endl;
+    std::cout << "  Time to Upload Texture Data: " << totalTextureUploadTime.count() / 1000 << std::endl;
+}
+

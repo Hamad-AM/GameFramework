@@ -10,6 +10,9 @@ GLenum glDrawState(DrawState state) {
         case STATIC_DRAW:
             result = GL_STATIC_DRAW;
             break;
+        case DYNAMIC_DRAW:
+            result = GL_STATIC_DRAW;
+            break;
         default:
             assert(false && "not implemented other states for drawing yet");
             break;
@@ -20,7 +23,7 @@ GLenum glDrawState(DrawState state) {
 void TextureFormat2GL(RTextureFormat format, GLenum* formatType, GLenum* internalFormat, GLenum* type) {
     switch (format) {
         case RTextureFormat::R8:
-            *formatType = GL_R8;
+            *formatType = GL_RED;
             *internalFormat = GL_R8;
             *type = GL_UNSIGNED_BYTE;
             break;
@@ -31,7 +34,7 @@ void TextureFormat2GL(RTextureFormat format, GLenum* formatType, GLenum* interna
             break;
         case RTextureFormat::RGB8:
             *formatType = GL_RGB;
-            *internalFormat = GL_RGB;
+            *internalFormat = GL_RGB8;
             *type = GL_UNSIGNED_BYTE;
             break;
         case RTextureFormat::RGB16F:
@@ -46,7 +49,7 @@ void TextureFormat2GL(RTextureFormat format, GLenum* formatType, GLenum* interna
             break;
         case RTextureFormat::RGBA8:
             *formatType = GL_RGBA;
-            *internalFormat = GL_RGBA;
+            *internalFormat = GL_RGBA8;
             *type = GL_UNSIGNED_BYTE;
             break;
         case RTextureFormat::RGBA16F:
@@ -61,7 +64,7 @@ void TextureFormat2GL(RTextureFormat format, GLenum* formatType, GLenum* interna
             break;
         case RTextureFormat::DEPTH16F:
             *formatType = GL_DEPTH_COMPONENT;
-            *internalFormat = GL_DEPTH_COMPONENT;
+            *internalFormat = GL_DEPTH_COMPONENT16;
             *type = GL_FLOAT;
             break;
         case RTextureFormat::DEPTH32F:
@@ -74,7 +77,7 @@ void TextureFormat2GL(RTextureFormat format, GLenum* formatType, GLenum* interna
     }
 }
 
-inline RenderTexture2D CreateTexture2D(const char* name, u32 width, u32 height, u8* data, RTextureFormat format, b32 generateMipMaps, MipmapScaling scaling, TextureWrapping wrap) {
+RenderTexture2D CreateTexture2D(const char* name, u32 width, u32 height, u8* data, RTextureFormat format, b32 generateMipMaps, MipmapScaling scaling, TextureWrapping wrap) {
     u32 textureID;
     RenderTexture2D texture{
         name,
@@ -130,14 +133,15 @@ inline RenderTexture2D CreateTexture2D(const char* name, u32 width, u32 height, 
     }
 
     if (texture.generateMipMaps) {
-            glGenerateTextureMipmap(texture.handle.value);
+        //TODO: Generate the right number of mip map levels what does this mean?
+        glGenerateTextureMipmap(texture.handle.value);
     }
 
     // glBindTexture(GL_TEXTURE_2D, 0);
     return texture;
 }
 
-inline RenderTextureArray CreateTexture2DArray(s32 count, RTextureFormat format, u32 width, u32 height, MipmapScaling scaling, TextureWrapping wrap) {
+RenderTextureArray CreateTexture2DArray(s32 count, RTextureFormat format, u32 width, u32 height, MipmapScaling scaling, TextureWrapping wrap) {
     RenderTextureArray texture{"TextureArray", count, format, width, height, false, scaling, wrap};
     // glGenTextures(1, &texture.handle.value);
     // glBindTexture(GL_TEXTURE_2D_ARRAY, texture.handle.value);
@@ -209,7 +213,8 @@ RenderBuffer CreateBuffer(BufferType type, s32 vertexCount, s32 sizeElement, u8*
             break;
     }
     glCreateBuffers(1, &buffer.handle.value);
-    glBufferData(bufferType, vertexCount * sizeElement, data, glDrawType);
+    //TODO Delete this if it runs
+    // glBufferData(bufferType, vertexCount * sizeElement, data, glDrawType);
     glNamedBufferStorage(buffer.handle.value, vertexCount * sizeElement, data, glDrawState(state));
 
     return buffer;
@@ -231,10 +236,6 @@ void DeleteFramebuffer(Framebuffer& framebuffer) {
     glDeleteFramebuffers(1, &framebuffer.handle.value);
 };
 
-void BindFramebuffer(Framebuffer& framebuffer) {
-
-}
-
 void SetRenderState(RenderState& pipeline) {
 }
 
@@ -247,7 +248,7 @@ VertexArray CreateVertexArray() {
 void SetVertexArrayFormat(VertexArray& array, s32 numberOfElements, VertexArrayElement* elements) {
     u32 stride = 0;
     for (s32 i = 0; i < numberOfElements; i++) {
-        stride += elements[i].numberOfElements;
+        stride += elements[i].numberOfElements * sizeof(f32);
     }
     u32 offset  = 0;
     for (s32 i = 0; i < numberOfElements; i++) {
@@ -315,7 +316,7 @@ void FramebufferAttachDepth(Framebuffer& framebuffer, RenderResource& depthAttac
         break;
     }
 
-    glNamedFramebufferTexture(framebuffer.handle.value, GL_DEPTH_COMPONENT, handle, 0);
+    glNamedFramebufferTexture(framebuffer.handle.value, GL_DEPTH_ATTACHMENT, handle, 0);
 }
 
 
@@ -355,7 +356,7 @@ void FramebufferNoDrawBuffer(Framebuffer& framebuffer) {
     glNamedFramebufferDrawBuffer(framebuffer.handle.value, GL_NONE);
 }
 
-void FrameBufferNoReadBuffer(Framebuffer& framebuffer) {
+void FramebufferNoReadBuffer(Framebuffer& framebuffer) {
     glNamedFramebufferReadBuffer(framebuffer.handle.value, GL_NONE);
 }
 
@@ -406,6 +407,7 @@ UniformBuffer CreateUniformBuffer(u32 size, DrawState state) {
     UniformBuffer result;
     glCreateBuffers(1, &result.handle);
     glNamedBufferData(result.handle, size, nullptr, glDrawState(state));
+    return result;
 }
 
 void SetUniformSlot(UniformBuffer& uniform, u32 slot) {
